@@ -8,6 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		442FCCED2813167A00C4993D /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCCEC2813167A00C4993D /* main.cpp */; };
+		442FCCF5281319FF00C4993D /* libmpi.40.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 442FCCF4281319FF00C4993D /* libmpi.40.dylib */; };
+		442FCCFE28132BEF00C4993D /* pugixml.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCCFD28132BEF00C4993D /* pugixml.cpp */; };
+		442FCD0128132C7000C4993D /* bare_hamiltonian.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCCFF28132C7000C4993D /* bare_hamiltonian.cpp */; };
+		442FCD0A28132DE700C4993D /* self_consistency.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCD0828132DE700C4993D /* self_consistency.cpp */; };
+		442FCD0D28132E1400C4993D /* ct_aux_imp_solver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCD0B28132E1400C4993D /* ct_aux_imp_solver.cpp */; };
+		442FCD1028132E3400C4993D /* green_function.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCD0E28132E3400C4993D /* green_function.cpp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -25,6 +31,25 @@
 /* Begin PBXFileReference section */
 		442FCCE92813167A00C4993D /* dmft-renew */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "dmft-renew"; sourceTree = BUILT_PRODUCTS_DIR; };
 		442FCCEC2813167A00C4993D /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
+		442FCCF4281319FF00C4993D /* libmpi.40.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libmpi.40.dylib; path = "../../../../opt/homebrew/Cellar/open-mpi/4.1.2/lib/libmpi.40.dylib"; sourceTree = "<group>"; };
+		442FCCFB28132BEF00C4993D /* pugiconfig.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = pugiconfig.hpp; sourceTree = "<group>"; };
+		442FCCFC28132BEF00C4993D /* pugixml.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = pugixml.hpp; sourceTree = "<group>"; };
+		442FCCFD28132BEF00C4993D /* pugixml.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = pugixml.cpp; sourceTree = "<group>"; };
+		442FCCFF28132C7000C4993D /* bare_hamiltonian.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = bare_hamiltonian.cpp; sourceTree = "<group>"; };
+		442FCD0028132C7000C4993D /* bare_hamiltonian.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = bare_hamiltonian.hpp; sourceTree = "<group>"; };
+		442FCD0328132D0800C4993D /* gf_data_wrapper.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = gf_data_wrapper.hpp; sourceTree = "<group>"; };
+		442FCD0628132D3200C4993D /* cubic_spline.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = cubic_spline.hpp; sourceTree = "<group>"; };
+		442FCD0828132DE700C4993D /* self_consistency.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = self_consistency.cpp; sourceTree = "<group>"; };
+		442FCD0928132DE700C4993D /* self_consistency.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = self_consistency.hpp; sourceTree = "<group>"; };
+		442FCD0B28132E1400C4993D /* ct_aux_imp_solver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ct_aux_imp_solver.cpp; sourceTree = "<group>"; };
+		442FCD0C28132E1400C4993D /* ct_aux_imp_solver.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = ct_aux_imp_solver.hpp; sourceTree = "<group>"; };
+		442FCD0E28132E3400C4993D /* green_function.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = green_function.cpp; sourceTree = "<group>"; };
+		442FCD0F28132E3400C4993D /* green_function.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = green_function.hpp; sourceTree = "<group>"; };
+		442FCD1228132E4B00C4993D /* input.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = input.hpp; sourceTree = "<group>"; };
+		442FCD1528132EA500C4993D /* anal_continuation.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = anal_continuation.hpp; sourceTree = "<group>"; };
+		442FCD172813349F00C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
+		442FCD18281337F200C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
+		442FCD19281340B300C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -32,6 +57,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				442FCCF5281319FF00C4993D /* libmpi.40.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -43,6 +69,7 @@
 			children = (
 				442FCCEB2813167A00C4993D /* dmft-renew */,
 				442FCCEA2813167A00C4993D /* Products */,
+				442FCCF3281319FF00C4993D /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -57,9 +84,59 @@
 		442FCCEB2813167A00C4993D /* dmft-renew */ = {
 			isa = PBXGroup;
 			children = (
+				442FCCF928132BB100C4993D /* dependencies */,
+				442FCCF628132B4500C4993D /* src */,
 				442FCCEC2813167A00C4993D /* main.cpp */,
+				442FCD19281340B300C4993D /* CMakeLists.txt */,
 			);
 			path = "dmft-renew";
+			sourceTree = "<group>";
+		};
+		442FCCF3281319FF00C4993D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				442FCCF4281319FF00C4993D /* libmpi.40.dylib */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		442FCCF628132B4500C4993D /* src */ = {
+			isa = PBXGroup;
+			children = (
+				442FCCFF28132C7000C4993D /* bare_hamiltonian.cpp */,
+				442FCD0028132C7000C4993D /* bare_hamiltonian.hpp */,
+				442FCD0328132D0800C4993D /* gf_data_wrapper.hpp */,
+				442FCD0628132D3200C4993D /* cubic_spline.hpp */,
+				442FCD0828132DE700C4993D /* self_consistency.cpp */,
+				442FCD0928132DE700C4993D /* self_consistency.hpp */,
+				442FCD0B28132E1400C4993D /* ct_aux_imp_solver.cpp */,
+				442FCD0C28132E1400C4993D /* ct_aux_imp_solver.hpp */,
+				442FCD0E28132E3400C4993D /* green_function.cpp */,
+				442FCD0F28132E3400C4993D /* green_function.hpp */,
+				442FCD1228132E4B00C4993D /* input.hpp */,
+				442FCD1528132EA500C4993D /* anal_continuation.hpp */,
+				442FCD18281337F200C4993D /* CMakeLists.txt */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		442FCCF928132BB100C4993D /* dependencies */ = {
+			isa = PBXGroup;
+			children = (
+				442FCCFA28132BEF00C4993D /* pugixml */,
+			);
+			path = dependencies;
+			sourceTree = "<group>";
+		};
+		442FCCFA28132BEF00C4993D /* pugixml */ = {
+			isa = PBXGroup;
+			children = (
+				442FCCFB28132BEF00C4993D /* pugiconfig.hpp */,
+				442FCCFC28132BEF00C4993D /* pugixml.hpp */,
+				442FCCFD28132BEF00C4993D /* pugixml.cpp */,
+				442FCD172813349F00C4993D /* CMakeLists.txt */,
+			);
+			path = pugixml;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -119,7 +196,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				442FCD0A28132DE700C4993D /* self_consistency.cpp in Sources */,
+				442FCD0D28132E1400C4993D /* ct_aux_imp_solver.cpp in Sources */,
+				442FCD0128132C7000C4993D /* bare_hamiltonian.cpp in Sources */,
+				442FCCFE28132BEF00C4993D /* pugixml.cpp in Sources */,
 				442FCCED2813167A00C4993D /* main.cpp in Sources */,
+				442FCD1028132E3400C4993D /* green_function.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -239,6 +321,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/include,
+					"/opt/homebrew/Cellar/open-mpi/4.1.2/include",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/opt/homebrew/Cellar/open-mpi/4.1.2/lib",
+				);
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -247,6 +338,15 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
+				HEADER_SEARCH_PATHS = (
+					/usr/local/include,
+					"/opt/homebrew/Cellar/open-mpi/4.1.2/include",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"/opt/homebrew/Cellar/open-mpi/4.1.2/lib",
+				);
+				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
