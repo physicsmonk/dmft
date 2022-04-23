@@ -35,13 +35,13 @@ void DMFTIterator::updateBathGF() {
     
     if (iter == 1) stepsize = 1.0;
     
-    std::complex<double> iwu(_H0->chemPot(), 0.0);
     auto Gbathmastpart = _Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = Glat.mastFlatPart();
     
     if (_H0->type() == "bethe") {
         if (_Gimp->nSites() != 1) throw std::range_error("Number of sites must be 1 for Bethe lattice (with semicircular DOS)!");
         const std::complex<double> t = _H0->hopMatElem(0);
+        std::complex<double> iwu(_H0->chemPot(), 0.0);
         std::array<std::size_t, 2> so;
         
         for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
@@ -59,23 +59,22 @@ void DMFTIterator::updateBathGF() {
         
         Eigen::Matrix2cd zeta;
         
-        zeta(0, 1) = tz;
-        zeta(1, 0) = tz;
+        zeta << _H0->chemPot(), tz,
+                tz,             _H0->chemPot();
         
         for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-            iwu.imag(_Gimp->matsubFreqs()(so[1]));
-            zeta(0, 0) = iwu;
-            zeta(1, 1) = iwu;
+            zeta(0, 0).imag(_Gimp->matsubFreqs()(so[1]));
+            zeta(1, 1).imag(_Gimp->matsubFreqs()(so[1]));
             Gbathmastpart[i] *= 1.0 - stepsize;
-            Gbathmastpart[i] += stepsize * (-zeta - (t * t) * Glatmastpart[i]).inverse();
+            Gbathmastpart[i].noalias() += stepsize * (-zeta - (t * t) * Glatmastpart[i]).inverse();
         }
     }
     else {
         auto selfemastpart = selfenergy.mastFlatPart();
         for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
             Gbathmastpart[i] *= 1.0 - stepsize;
-            Gbathmastpart[i] += stepsize * (Glatmastpart[i].inverse() - selfemastpart[i]).inverse();
+            Gbathmastpart[i].noalias() += stepsize * (Glatmastpart[i].inverse() - selfemastpart[i]).inverse();
         }
     }
     
@@ -92,7 +91,7 @@ void DMFTIterator::approxSelfEnergy() {
     auto selfenmastpart = selfenergy.mastFlatPart();
     const auto Gimpmastpart = _Gimp->fourierCoeffs().mastFlatPart();
     auto Gbathmastpart = _Gbath->fourierCoeffs().mastFlatPart();
-    for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i] = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
+    for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
 }
 
 // Update the lattice Green's function using the current self-energy

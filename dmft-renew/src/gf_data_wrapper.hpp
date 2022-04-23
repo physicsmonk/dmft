@@ -220,15 +220,15 @@ public:
     typename SqMatArrType::ConstColsBlockXpr operator()() const {
         return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_flat * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_flat * m_sqmatarr.dimm());
     }
-    typename SqMatArrType::ColsBlockXpr operator[](const std::size_t i) {
+    typename SqMatArrType::NColsBlockXpr operator[](const std::size_t i) {
         assert(i < m_sqmatarr.m_mastsize_flat);
         //std::cout << "non-const" << std::endl;
-        return m_sqmatarr.m_data.middleCols((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::UnitSizeAtCompileTime>((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
-    typename SqMatArrType::ConstColsBlockXpr operator[](const std::size_t i) const {
+    typename SqMatArrType::ConstNColsBlockXpr operator[](const std::size_t i) const {
         assert(i < m_sqmatarr.m_mastsize_flat);
         //std::cout << "const" << std::endl;
-        return m_sqmatarr.m_data.middleCols((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::UnitSizeAtCompileTime>((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::Scalar& operator()(const std::size_t i, const std::size_t im0, const std::size_t im1) {
         assert(i < m_sqmatarr.m_mastsize_flat && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
@@ -313,13 +313,13 @@ public:
     typename SqMatArrType::ConstColsBlockXpr operator()() const {
         return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
-    typename SqMatArrType::ColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) {
+    typename SqMatArrType::NColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) {
         assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1());
-        return m_sqmatarr.m_data.middleCols(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::UnitSizeAtCompileTime>(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
-    typename SqMatArrType::ConstColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) const {
+    typename SqMatArrType::ConstNColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) const {
         assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1());
-        return m_sqmatarr.m_data.middleCols(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::UnitSizeAtCompileTime>(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::Scalar& operator()(const std::size_t i0, const std::size_t i1, const std::size_t im0, const std::size_t im1) {
         assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1() && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
@@ -408,8 +408,12 @@ class SqMatArray : public SqMatArrayStorage<_Scalar, _n0, _n1, _nm> {
     
 public:
     typedef _Scalar Scalar;
+    static constexpr int UnitSizeAtCompileTime = _nm;
     typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::ColsBlockXpr ColsBlockXpr;
     typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::ConstColsBlockXpr ConstColsBlockXpr;
+    // Below templates accept _nm being fixed size or dynamic, and in the former case the runtime size must equal _nm
+    typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::template NColsBlockXpr<_nm>::Type NColsBlockXpr;
+    typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::template ConstNColsBlockXpr<_nm>::Type ConstNColsBlockXpr;
     
     explicit SqMatArray(const MPI_Comm& comm = MPI_COMM_SELF) : m_comm(comm) {
         MPI_Comm_size(comm, &m_psize); MPI_Comm_rank(comm, &m_prank); MPI_Comm_test_inter(comm, &m_is_inter);
@@ -439,23 +443,23 @@ public:
     const typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType& operator()() const {return this->m_data;}
     
     // Just sequentially access each unit matrix, which becomes intuitive when _n0 = 1 or _n1 = 1.
-    ColsBlockXpr operator[](const std::size_t i) {
+    NColsBlockXpr operator[](const std::size_t i) {
         assert(i < this->size());
-        return this->m_data.middleCols(i * this->dimm(), this->dimm());
+        return this->m_data.template middleCols<_nm>(i * this->dimm(), this->dimm());
     }
-    ConstColsBlockXpr operator[](const std::size_t i) const {
+    ConstNColsBlockXpr operator[](const std::size_t i) const {
         assert(i < this->size());
-        return this->m_data.middleCols(i * this->dimm(), this->dimm());
+        return this->m_data.template middleCols<_nm>(i * this->dimm(), this->dimm());
     }
     
     // Overload operator () to intuitively access each unit matrix
-    ColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) {  // Non-const version
+    NColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) {  // Non-const version
         assert(i0 < this->dim0() && i1 < this->dim1());
-        return this->m_data.middleCols((i0 * this->dim1() + i1) * this->dimm(), this->dimm());
+        return this->m_data.template middleCols<_nm>((i0 * this->dim1() + i1) * this->dimm(), this->dimm());
     }
-    ConstColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) const {   // Const version
+    ConstNColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) const {   // Const version
         assert(i0 < this->dim0() && i1 < this->dim1());
-        return this->m_data.middleCols((i0 * this->dim1() + i1) * this->dimm(), this->dimm());
+        return this->m_data.template middleCols<_nm>((i0 * this->dim1() + i1) * this->dimm(), this->dimm());
     }
     
     // Directly access element

@@ -75,7 +75,7 @@ double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<dou
             for (iw = 0; iw < selfen.dim1(); ++iw) {
                 for (ik = 0; ik < H0.fermiVdimerMag2d().dim1(); ++ik) {  // dim1() is local size of the number of k-points
                     for (m0 = 0; m0 < nb_2; ++m0) {
-                        a = ((ws(iw) + 1i * del + H0.chemPot()) * Eigen::Matrix2cd::Identity() - Hmastpart(ik, m0) - selfen(s, iw)).inverse();
+                        a.noalias() = ((ws(iw) + 1i * del + H0.chemPot()) * Eigen::Matrix2cd::Identity() - Hmastpart(ik, m0) - selfen(s, iw)).inverse();
                         A[m0] = (a - a.adjoint()) / (2i * M_PI);
                         integrand(iw) -= A[m0].cwiseAbs2().sum() * std::norm(H0.fermiVdimerMag2d()(0, ik, m0, m0));
                     }
@@ -116,7 +116,7 @@ double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<doubl
             for (ik = 0; ik < H0.fermiVdimerMag2d().dim1(); ++ik) {  // dim1() is local size of the number of k-points
                 for (iw0 = 0; iw0 < selfen.dim1(); ++iw0) {
                     for (m0 = 0; m0 < nb_2; ++m0) {
-                        a = ((ws(iw0) + 1i * del + H0.chemPot()) * Eigen::Matrix2cd::Identity() - Hmastpart(ik, m0) - selfen(s, iw0)).inverse();
+                        a.noalias() = ((ws(iw0) + 1i * del + H0.chemPot()) * Eigen::Matrix2cd::Identity() - Hmastpart(ik, m0) - selfen(s, iw0)).inverse();
                         A(iw0, m0) = (a - a.adjoint()) / (2i * M_PI);
                     }
                 }
