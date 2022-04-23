@@ -1,7 +1,7 @@
 find_package(MPI REQUIRED)
 
-# Add dependent library
-add_subdirectory(../dependencies/pugixml)
+# Add dependent library, this will build pugixml under build/ subdirectory in the project's build tree
+add_subdirectory(../dependencies/pugixml dependencies/pugixml)
 
 add_library(dmft
     bare_hamiltonian.cpp
