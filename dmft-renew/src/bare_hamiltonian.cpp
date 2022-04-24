@@ -25,20 +25,20 @@ void BareHamiltonian::kVecAtIndex(std::size_t ik, Eigen::VectorXd& k) const {
 //        const std::size_t iz = (ik % nk12) % _nk(2);
 //        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1) + static_cast<double>(iz) / _nk(2) * _K.col(2);
 //    }
-    Eigen::VectorXd kfrac(_K.cols());
-    std::size_t nkv = _nk.prod();
-    for (std::size_t n = 0; n < _K.cols(); ++n) {
-        nkv /= _nk(n);
-        kfrac(n) = static_cast<double>(ik / nkv) / _nk(n);
+    Eigen::VectorXd kfrac(m_K.cols());
+    std::size_t nkv = m_nk.prod();
+    for (std::size_t n = 0; n < m_K.cols(); ++n) {
+        nkv /= m_nk(n);
+        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n);
         ik %= nkv;
     }
-    k = (_K * kfrac.asDiagonal()).rowwise().sum();
+    k = (m_K * kfrac.asDiagonal()).rowwise().sum();
 }
 
 void BareHamiltonian::setMPIcomm(const MPI_Comm& comm) {
-    _comm = comm;
-    MPI_Comm_size(comm, &_psize);
-    MPI_Comm_rank(comm, &_prank);
+    m_comm = comm;
+    MPI_Comm_size(comm, &m_psize);
+    MPI_Comm_rank(comm, &m_prank);
 }
 
 void BareHamiltonian::constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const {
@@ -51,23 +51,23 @@ void BareHamiltonian::constructFermiVelocities(const int coord, const Eigen::Vec
 
 void BareHamiltonian::computeDOS(const std::size_t nbins) {
     int is_inter;
-    MPI_Comm_test_inter(_comm, &is_inter);
+    MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
     if (_bands.size() == 0) throw std::range_error("Cannot compute DOS because bands have not been computed!");
     
     std::size_t ie, ib, ik;
-    const double binsize = (_erange[1] - _erange[0]) / nbins;
+    const double binsize = (m_erange[1] - m_erange[0]) / nbins;
     
-    _dos.resize(nbins);
-    _dos.setZero();
+    m_dos.resize(nbins);
+    m_dos.setZero();
     
-    for (ik = 0; ik < _klocalsize; ++ik) {
+    for (ik = 0; ik < m_klocalsize; ++ik) {
         for (ib = 0; ib < _bands.rows(); ++ib) {
-            ie = std::min(static_cast<std::size_t>((_bands(ib, ik) - _erange[0]) / binsize), nbins - 1);
-            _dos[ie] += 1.0;
+            ie = std::min(static_cast<std::size_t>((_bands(ib, ik) - m_erange[0]) / binsize), nbins - 1);
+            m_dos[ie] += 1.0;
         }
     }
     
-    MPI_Allreduce(MPI_IN_PLACE, _dos.data(), static_cast<int>(nbins), MPI_DOUBLE, MPI_SUM, _comm);  // Complete DOS is needed by every process
-    _dos /= _nk.prod() * binsize;   // DOS is per unit cell per energy, for its use in k-space Fourier inversion of the lattice Green's function
+    MPI_Allreduce(MPI_IN_PLACE, m_dos.data(), static_cast<int>(nbins), MPI_DOUBLE, MPI_SUM, m_comm);  // Complete DOS is needed by every process
+    m_dos /= m_nk.prod() * binsize;   // DOS is per unit cell per energy, for its use in k-space Fourier inversion of the lattice Green's function
 }

@@ -18,23 +18,23 @@
 class DMFTIterator {
 private:
     // Pointers to external bare Hamiltonian and Green's functions. Note these Green's functions differ from the canonical definition by a minus sign
-    std::shared_ptr<const BareHamiltonian> _H0;
-    std::shared_ptr<BareGreenFunction> _Gbath;
-    std::shared_ptr<const GreenFunction> _Gimp;
+    std::shared_ptr<const BareHamiltonian> m_ptr2H0;
+    std::shared_ptr<BareGreenFunction> m_ptr2Gbath;
+    std::shared_ptr<const GreenFunction> m_ptr2Gimp;
     
 protected:
-    SqMatArray2XXcd Glat;  // This is the lattice Green's function (differing from the canonical definition by a minus sign)
-    SqMatArray2XXcd selfenergy;
-    std::size_t iter;  // The number of iterations
+    SqMatArray2XXcd m_Glat;  // This is the lattice Green's function (differing from the canonical definition by a minus sign)
+    SqMatArray2XXcd m_selfen;
+    std::size_t m_iter;  // The number of iterations
     
 public:
     std::map<std::string, std::any> parameters;
     
     DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp);
     
-    std::size_t numIterations() const {return iter;}
+    std::size_t numIterations() const {return m_iter;}
     
-    void resetIterator() {iter = 0;}
+    void resetIterator() {m_iter = 0;}
     
     void updateBathGF();
     
@@ -44,9 +44,9 @@ public:
     
     std::pair<bool, double> checkConvergence() const;
     
-    SqMatArray2XXcd& selfEnergy() {return selfenergy;}
+    SqMatArray2XXcd& selfEnergy() {return m_selfen;}
     
-    const SqMatArray2XXcd& selfEnergy() const {return selfenergy;}
+    const SqMatArray2XXcd& selfEnergy() const {return m_selfen;}
 };
 
 

@@ -14,25 +14,25 @@
 
 
 
-GenericGreenFunction::GenericGreenFunction(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const MPI_Comm& comm_) :
-beta(beta_),
-matsfs(Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta_, (2 * nfcut + 1) * M_PI / beta_)),
-imagts(Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta_)),
-Gw(2, nfcut + 1, nc, comm_), G(2, ntau, nc, comm_), G1(2, 1, nc), G2(2, 1, nc),
-Gspl(imagts, G) {
+GenericGreenFunction::GenericGreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const MPI_Comm& comm) :
+m_beta(beta),
+m_matsfs(Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta)),
+m_imagts(Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta)),
+m_Gw(2, nfcut + 1, nc, comm), m_G(2, ntau, nc, comm), m_G1(2, 1, nc), m_G2(2, 1, nc),
+m_Gspl(m_imagts, m_G) {
     if (ntau < 2) throw std::invalid_argument( "Tau grid size of GenericGreenFunction cannot be less than 2!" );
 }
 
 // Gw will not be all-gathered
 void GenericGreenFunction::fourierTransform() {
-    auto Gwmastpart = Gw.mastFlatPart();
+    auto Gwmastpart = m_Gw.mastFlatPart();
     std::array<std::size_t, 2> so;
     
-    Gspl.build(G1, G2);  // x and y data are already linked to it
+    m_Gspl.build(m_G1, m_G2);  // x and y data are already linked to it
     
     for (std::size_t i = 0; i < Gwmastpart.size(); ++i) {
         so = Gwmastpart.global2dIndex(i);
-        Gspl.fourierTransform(so[0], matsfs(so[1]), Gwmastpart[i]);
+        m_Gspl.fourierTransform(so[0], m_matsfs(so[1]), Gwmastpart[i]);
     }
 }
 
@@ -40,27 +40,27 @@ void GenericGreenFunction::invFourierTrans() {
 // Fourier coefficients Gw are imaginarily partitioned into all processes
     if (!isDiscretized()) throw std::domain_error("Cannot inverse Fourier transform GenericGreenFunction because tau is not discretized (tau grid size > 1)!");
     
-    auto Gwmastpart = Gw.mastFlatPart();
+    auto Gwmastpart = m_Gw.mastFlatPart();
     std::array<std::size_t, 2> so;
     std::size_t i, t;
     int s;
     std::complex<double> ff;
     Eigen::MatrixXcd gw_no_high_freq(nSites(), nSites());
     
-    G().setZero();
+    m_G().setZero();
     for (i = 0; i < Gwmastpart.size(); ++i) {
         so = Gwmastpart.global2dIndex(i);  // Get index in (spin, omega) space w.r.t. the full-sized data
-        gw_no_high_freq = Gwmastpart[i] - getFCoeffHighFreq(static_cast<int>(so[0]), matsfs(so[1]));
+        gw_no_high_freq = Gwmastpart[i] - getFCoeffHighFreq(static_cast<int>(so[0]), m_matsfs(so[1]));
         for (t = 0; t < tauGridSize() - 1; ++t) {
-            ff = std::exp(1i * std::fmod(matsfs(so[1]) * imagts(t), 2 * M_PI));
+            ff = std::exp(1i * std::fmod(m_matsfs(so[1]) * m_imagts(t), 2 * M_PI));
             // G(tau) on each process accumulates the part of the Fourier coefficients mastered by that process
-            G(so[0], t) += (gw_no_high_freq / ff + gw_no_high_freq.adjoint() * ff) / beta;
+            m_G(so[0], t) += (gw_no_high_freq / ff + gw_no_high_freq.adjoint() * ff) / m_beta;
         }
     }
     // Now sum the partially summed results on every process, to obtain the complete Fourier inversion
-    G.allSum();
+    m_G.allSum();
     // Add the high frequency expansion part
-    for (s = 0; s < 2; ++s) {for (t = 0; t < tauGridSize() - 1; ++t) G(s, t) += getValAtTauHighFreq(s, imagts(t));}
+    for (s = 0; s < 2; ++s) {for (t = 0; t < tauGridSize() - 1; ++t) m_G(s, t) += getValAtTauHighFreq(s, m_imagts(t));}
     
     for (int s = 0; s < 2; ++s) {
 //        // Special treatment for tau = 0, accounting for discontinuity of Green's function at tau = 0: Gij(0+) - Gij(0-) = delta_ij.
@@ -69,7 +69,7 @@ void GenericGreenFunction::invFourierTrans() {
 //        G(s, 0) += Eigen::MatrixXcd::Identity(nSites(), nSites()) / 2.0;
         
         // Fill Gij(beta-) using relation Gij(0+) + Gij(beta-) = delta_ij
-        G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - G(s, 0);
+        m_G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_G(s, 0);
     }
     //}
 }
@@ -78,37 +78,37 @@ void GenericGreenFunction::invFourierTrans() {
 // tau = beta in program means tau = beta- in physics, etc.
 // Note that we only stored G(tau) for 0 < tau < beta, so other values are retrieved by Green's function's symmetries.
 // Optional "approach = 1" defines the direction for tau to approach zero, and is only used when tau = 0.
-std::complex<double> GenericGreenFunction::getValAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const int approach) const {
+std::complex<double> GenericGreenFunction::getValAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
     
     double sgn = 1.0;
     
-    if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach < 0)) {  // Case of tau < 0: using antiperiodicity of Green's functions
+    if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach == LeftLimit)) {  // Case of tau < 0: using antiperiodicity of Green's functions
         sgn = -1.0;
         ext_tau_ind += tauGridSize() - 1;
     }
     
-    return sgn * G(spin, ext_tau_ind, x1, x2);
+    return sgn * m_G(spin, ext_tau_ind, x1, x2);
 }
 
 // Overloaded version for getting Green's function matrix in site space
-const auto GenericGreenFunction::getValAtExtendedTau(const int spin, int ext_tau_ind, const int approach) const {
+const auto GenericGreenFunction::getValAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
     
     double sgn = 1.0;
     
-    if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach < 0)) {  // Case of tau < 0: using antiperiodicity of Green's functions
+    if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach == LeftLimit)) {  // Case of tau < 0: using antiperiodicity of Green's functions
         sgn = -1.0;
         ext_tau_ind += tauGridSize() - 1;
     }
     
-    return sgn * G(spin, ext_tau_ind);
+    return sgn * m_G(spin, ext_tau_ind);
 }
 
 std::complex<double> GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, const std::size_t x1, const std::size_t x2, double tau) const {
-    assert(tau >= -beta && tau <= beta);
+    assert(tau >= -m_beta && tau <= m_beta);
     
     // Green's function has a period of 2 * beta; now -beta <= rtau <= beta
     // const double rtau = tau - round(tau / (2 * beta)) * 2 * beta;
@@ -121,15 +121,15 @@ std::complex<double> GenericGreenFunction::interpValAtExtendedTau(const std::siz
     
     if (tau < 0) {
         sgn = -1.0;
-        tau += beta;
+        tau += m_beta;
     }
     
-    return sgn * Gspl.equidistAt(spin, tau, x1, x2);
+    return sgn * m_Gspl.equidistAt(spin, tau, x1, x2);
 }
 
 // Eigen::Ref<Eigen::MatrixXcd> also references fixed size matrix
 void GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, double tau, Eigen::Ref<Eigen::MatrixXcd> result) const {
-    assert(tau >= -beta && tau <= beta);
+    assert(tau >= -m_beta && tau <= m_beta);
     
     // Green's function has a period of 2 * beta; now -beta <= rtau <= beta
     // const double rtau = tau - round(tau / (2 * beta)) * 2 * beta;
@@ -137,26 +137,26 @@ void GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, double
     
     if (tau < 0) {
         sgn = -1.0;
-        tau += beta;
+        tau += m_beta;
     }
     
     std::size_t x0, x1;
     result.resize(nSites(), nSites());
-    for (x1 = 0; x1 < nSites(); ++x1) {for (x0 = x1; x0 < nSites(); ++x0) result(x0, x1) = sgn * Gspl.equidistAt(spin, tau, x0, x1);}
+    for (x1 = 0; x1 < nSites(); ++x1) {for (x0 = x1; x0 < nSites(); ++x0) result(x0, x1) = sgn * m_Gspl.equidistAt(spin, tau, x0, x1);}
     //result = result.template selfadjointView<Eigen::Lower>();
     result.triangularView<Eigen::Upper>() = result.adjoint();  // No aliasing issue
 }
 
-void GenericGreenFunction::setParams(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau) {
+void GenericGreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau) {
     if (ntau < 2) throw std::invalid_argument( "Tau grid size of GenericGreenFunction cannot be less than 2!" );
     
-    beta = beta_;
-    matsfs = Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta_, (2 * nfcut + 1) * M_PI / beta_);
-    imagts = Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta_);
-    Gw.resize(2, nfcut + 1, nc);  // No-op if sizes match; adapts to both MPI and non-MPI versions
-    G.resize(2, ntau, nc);
-    G1.resize(2, 1, nc);
-    G2.resize(2, 1, nc);   // Gspl is already linked to the data
+    m_beta = beta;
+    m_matsfs = Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta);
+    m_imagts = Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta);
+    m_Gw.resize(2, nfcut + 1, nc);  // No-op if sizes match; adapts to both MPI and non-MPI versions
+    m_G.resize(2, ntau, nc);
+    m_G1.resize(2, 1, nc);
+    m_G2.resize(2, 1, nc);   // Gspl is already linked to the data
 }
 
 
@@ -167,17 +167,17 @@ void GenericGreenFunction::setParams(const double beta_, const std::size_t nc, c
 
 // First index counts tau (from 0 to beta) and second index counts omega
 void BareGreenFunction::constructExpiwt() {
-    if (eiwt.rows() < 2) throw std::invalid_argument("To construct expiwt array, tau grid size cannot be less than 2!");
+    if (m_eiwt.rows() < 2) throw std::invalid_argument("To construct expiwt array, tau grid size cannot be less than 2!");
     
     std::size_t t, o;
-    const double dtau = beta / (eiwt.rows() - 1);
+    const double dtau = m_beta / (m_eiwt.rows() - 1);
     
-    for (o = 0; o < eiwt.cols(); ++o) {for (t = 0; t < eiwt.rows(); ++t) eiwt(t, o) = std::exp(1i * std::fmod(matsfs(o) * (t * dtau), 2 * M_PI));}
+    for (o = 0; o < m_eiwt.cols(); ++o) {for (t = 0; t < m_eiwt.rows(); ++t) m_eiwt(t, o) = std::exp(1i * std::fmod(m_matsfs(o) * (t * dtau), 2 * M_PI));}
 }
 
-BareGreenFunction::BareGreenFunction(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt, const MPI_Comm& comm_) : GenericGreenFunction(beta_, nc, nfcut, ntau, comm_) {
+BareGreenFunction::BareGreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt, const MPI_Comm& comm) : GenericGreenFunction(beta, nc, nfcut, ntau, comm) {
     if (nt4eiwt > 1) {
-        eiwt.resize(nt4eiwt, nfcut + 1);
+        m_eiwt.resize(nt4eiwt, nfcut + 1);
         constructExpiwt();
     }
 //    else {  // nt4eiwt = 0, 1, in these cases construct expiwt array only for lowest positive frequency and a sufficiently
@@ -200,27 +200,27 @@ BareGreenFunction::BareGreenFunction(const double beta_, const std::size_t nc, c
 void BareGreenFunction::computeHighFreqExpan(const BareHamiltonian& H0) {
     // H0.mu is the effective chemical potential
     for (int s = 0; s < 2; ++s) {
-        G1[s] = -(H0.firstMoment()[s] - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
-        G2[s] = H0.secondMoment()[s] - 2.0 * H0.chemPot() * H0.firstMoment()[s] + H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
+        m_G1[s] = -(H0.firstMoment()[s] - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
+        m_G2[s] = H0.secondMoment()[s] - 2.0 * H0.chemPot() * H0.firstMoment()[s] + H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
     }
 }
 
 // Do Fourier inversion into discretized tau grid and create cubic spline with correct boundary conditions
 void BareGreenFunction::invFourierTrans() {
     GenericGreenFunction::invFourierTrans();
-    Gspl.build(G1, G2);  // x and y data are already linked to it
+    m_Gspl.build(m_G1, m_G2);  // x and y data are already linked to it
 }
 
-void BareGreenFunction::setParams(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt) {
+void BareGreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt) {
     // Make a copy for old beta for helping determine whether needs to reconstruct expiwt array
-    double oldbeta = beta;
+    double oldbeta = m_beta;
     
     // Update member variables inherited from GenericGreenFunction
-    GenericGreenFunction::setParams(beta_, nc, nfcut, ntau);  // beta has been updated to beta_
+    GenericGreenFunction::setParams(beta, nc, nfcut, ntau);  // beta has been updated to beta_
     
     // Determine whether needs to reconstruct expiwt array
-    if (tauGridSizeOfExpiwt() != nt4eiwt || eiwt.cols() != nfcut + 1 || std::fabs(oldbeta - beta_) > 1e-9) {
-        eiwt.resize(nt4eiwt, nfcut + 1);  // No-op if shapes match
+    if (tauGridSizeOfExpiwt() != nt4eiwt || m_eiwt.cols() != nfcut + 1 || std::fabs(oldbeta - beta) > 1e-9) {
+        m_eiwt.resize(nt4eiwt, nfcut + 1);  // No-op if shapes match
         if (nt4eiwt > 1) constructExpiwt();
         else if (nt4eiwt == 1) std::cout << "Warning: specified tau grid size of expiwt array is 1 (less than 2) so will not construct expiwt array nor use it!" << std::endl;
     }
@@ -232,19 +232,19 @@ void BareGreenFunction::setParams(const double beta_, const std::size_t nc, cons
 
 
 // Sw0 and Sw0var use MPI only to sum measurements on all processes
-GreenFunction::GreenFunction(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau,
-                             const std::size_t nbins4S, const MPI_Comm& comm_) : GenericGreenFunction(beta_, nc, nfcut, ntau, comm_),
+GreenFunction::GreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau,
+                             const std::size_t nbins4S, const MPI_Comm& comm) : GenericGreenFunction(beta, nc, nfcut, ntau, comm),
                                                           //Gwvar(2, nfcut + 1, nc, comm_),
-                                                          S(2, nbins4S, nc, comm_), dens(nc, 2), densvar(nc, 2) { }
+                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densvar(nc, 2) { }
 
 void GreenFunction::computeHighFreqExpan(const BareHamiltonian& H0, const double U) {
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
     const double mu = H0.chemPot() + U / 2;   // This is the true chemical potential; H0.mu is the effective chemical potential.
     for (int s = 0; s < 2; ++s) {
-        G1[s] = -(H0.firstMoment()[s] - mu * I + U * dens.col(1 - s).asDiagonal() * I);
-        G2[s] = H0.secondMoment()[s] - 2.0 * mu * H0.firstMoment()[s] + mu * mu * I
-            + U * dens.col(1 - s).asDiagonal() * (H0.firstMoment()[s] - mu * I) + U * (H0.firstMoment()[s] - mu * I) * dens.col(1 - s).asDiagonal()
-            + U * U * dens.col(1 - s).asDiagonal() * I;
+        m_G1[s] = -(H0.firstMoment()[s] - mu * I + U * m_dens.col(1 - s).asDiagonal() * I);
+        m_G2[s] = H0.secondMoment()[s] - 2.0 * mu * H0.firstMoment()[s] + mu * mu * I
+            + U * m_dens.col(1 - s).asDiagonal() * (H0.firstMoment()[s] - mu * I) + U * (H0.firstMoment()[s] - mu * I) * m_dens.col(1 - s).asDiagonal()
+            + U * U * m_dens.col(1 - s).asDiagonal() * I;
     }
 }
 
@@ -256,9 +256,9 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     if (tauGridSize() != G0.tauGridSize()) throw std::range_error("Tau grid sizes of G and G0 do not match!");
     if (freqCutoff() != G0.freqCutoff()) throw std::range_error("Frequency cutoffs of G and G0 do not match!");
     
-    auto Gmastpart = G.mastFlatPart();
+    auto Gmastpart = m_G.mastFlatPart();
     const auto G0mastpart = G0.valsOnTauGrid().mastFlatPart();
-    const double binsize4S = beta / nTauBins4selfEgf();
+    const double binsize4S = m_beta / nTauBins4selfEgf();
     std::array<std::size_t, 2> i2d;
     std::size_t i, ibin4S;
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> integrand(1, nTauBins4selfEgf(), nSites());  // Purely local to each process
@@ -269,8 +269,8 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
         i2d = Gmastpart.global2dIndex(i);
         // G0.interpValAtExtendedTau(i2d[0], tau, G.masteredPart(i));
         for (ibin4S = 0; ibin4S < nTauBins4selfEgf(); ++ibin4S) {
-            G0.interpValAtExtendedTau(i2d[0], imagts(i2d[1]) - (ibin4S + 0.5) * binsize4S, integrand[ibin4S]);
-            integrand[ibin4S] *= S(i2d[0], ibin4S);  // Automatically introduced a temporary here to deal with the aliasing issue
+            G0.interpValAtExtendedTau(i2d[0], m_imagts(i2d[1]) - (ibin4S + 0.5) * binsize4S, integrand[ibin4S]);
+            integrand[ibin4S] *= m_S(i2d[0], ibin4S);  // Automatically introduced a temporary here to deal with the aliasing issue
             // G.masteredPart(i).noalias() += g0 * S(i2d[0], ibin4S);   // This requires S is not scaled by its bin size
         }
         simpsonIntegrate<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>(integrand, binsize4S, Gmastpart[i]);  // Must explicitly instantiate
@@ -283,9 +283,9 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     double interr = 0.0, interr1;
     for (int s = 0; s < 2; ++s) {
         // Correct Gij(beta-) using relation Gij(0+) + Gij(beta-) = delta_ij
-        G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - G(s, 0);
+        m_G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_G(s, 0);
         
-        interr1 = (G(s, tauGridSize() - 1).diagonal().real() - dens.col(s)).cwiseAbs().maxCoeff();
+        interr1 = (m_G(s, tauGridSize() - 1).diagonal().real() - m_dens.col(s)).cwiseAbs().maxCoeff();
         if (interr1 > interr) interr = interr1;
     }
     
@@ -294,13 +294,13 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     return interr;
 }
 
-void GreenFunction::setParams(const double beta_, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S) {
-    GenericGreenFunction::setParams(beta_, nc, nfcut, ntau);   // Set member variables inherited from GenericGreenFunction
+void GreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S) {
+    GenericGreenFunction::setParams(beta, nc, nfcut, ntau);   // Set member variables inherited from GenericGreenFunction
     
     //Gwvar.resize(2, nfcut + 1, nc);  // No-op if sizes match
-    S.resize(2, nbins4S, nc);
-    dens.resize(nc, 2);
-    densvar.resize(nc, 2);
+    m_S.resize(2, nbins4S, nc);
+    m_dens.resize(nc, 2);
+    m_densvar.resize(nc, 2);
 }
 
 

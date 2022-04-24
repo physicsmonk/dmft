@@ -23,7 +23,7 @@ public:
     // Assumes all the std::vector are sorted ascendingly
     void build(const SqMatArray<std::complex<double>, n0, n1, nm>& selfen_matsub, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm = MPI_COMM_SELF);
     
-    PadeApproximant() : _comm(MPI_COMM_SELF), _prank(0), _psize(1), _napproxs(0), _dim0(0), _dimm(0) {}   // Inline default constructor
+    PadeApproximant() : m_comm(MPI_COMM_SELF), m_prank(0), m_psize(1), m_napproxs(0), m_dim0(0), m_dimm(0) {}   // Inline default constructor
     PadeApproximant(const SqMatArray<std::complex<double>, n0, n1, nm>& selfen_matsub, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm = MPI_COMM_SELF);
     PadeApproximant(const PadeApproximant&) = default;
     PadeApproximant(PadeApproximant&&) = default;
@@ -39,17 +39,17 @@ public:
     const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& selfEnergy() const;
     
 private:
-    typedef long double _hpfloat;   // Could modify this to implement even higher precision floating-point type for solving the linear least-square systems
-    MPI_Comm _comm;
-    int _prank, _psize;
-    std::size_t _napproxs, _dim0, _dimm;  // Store the relevant dimensions
+    typedef long double m_Hpfloat;   // Could modify this to implement even higher precision floating-point type for solving the linear least-square systems
+    MPI_Comm m_comm;
+    int m_prank, m_psize;
+    std::size_t m_napproxs, m_dim0, m_dimm;  // Store the relevant dimensions
     // Stores Pade coefficients. Must use a std::vector because the coefficients of different Pade approximants have different lengths.
     // Each Eigen::Vector contains the coefficients of a Pade approximant. The index of the std::vector is site, then spin, and then
     // approximant, major.
-    std::vector<Eigen::Vector<std::complex<_hpfloat>, Eigen::Dynamic> > _coeffs;
-    Eigen::Array<int, n0, 1> _nphys;  // Stores the number of physical approximants for each index of _dim0
+    std::vector<Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> > m_coeffs;
+    Eigen::Array<int, n0, 1> m_nphys;  // Stores the number of physical approximants for each index of _dim0
     // Stores the analytically continued (with positive delta) self-energy and the spectra matrix = (G(w + i * del) - G(w - i * del)) / (2 * pi * i)
-    SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm> _selfen, _spectramat;
+    SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm> m_selfen, m_spectramat;
 };
 
 template <int n0, int n1, int nm>
@@ -60,21 +60,21 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     Eigen::ArrayXi::const_iterator itM, itn0, itN;
     int iz, n;
     std::size_t r, s, x, r0, ir;
-    Eigen::Matrix<std::complex<_hpfloat>, Eigen::Dynamic, Eigen::Dynamic> A, F;
-    Eigen::Vector<std::complex<_hpfloat>, Eigen::Dynamic> zs, b;
+    Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> A, F;
+    Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> zs, b;
     
-    _comm = comm;
-    MPI_Comm_rank(_comm, &_prank);
-    MPI_Comm_size(_comm, &_psize);
+    m_comm = comm;
+    MPI_Comm_rank(m_comm, &m_prank);
+    MPI_Comm_size(m_comm, &m_psize);
     
     // Most evenly distribute tasks to each process, treating the three data dimensions on equal footing,
     // because the first data dimension could be small (around 10) so it is not so efficient when using
     // moderately many processes if just dividing the first data dimension
     const std::size_t totalsize = datalens.size() * startfreqs.size() * coefflens.size();
     const std::size_t n0Nsize = startfreqs.size() * coefflens.size();
-    const std::size_t bbsize = totalsize / _psize;
-    std::size_t localstart = _prank * bbsize;
-    std::size_t localfinal = (_prank < _psize - 1) ? localstart + bbsize : totalsize;
+    const std::size_t bbsize = totalsize / m_psize;
+    std::size_t localstart = m_prank * bbsize;
+    std::size_t localfinal = (m_prank < m_psize - 1) ? localstart + bbsize : totalsize;
     const std::size_t localMstart = localstart / n0Nsize;
     const std::size_t localMfinal = localfinal / n0Nsize + (localfinal % n0Nsize > 0);
     localstart %= n0Nsize;
@@ -99,12 +99,12 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     
     
     // Record run-time dimensions
-    _dim0 = selfen_matsub.dim0();
-    _dimm = selfen_matsub.dimm();
+    m_dim0 = selfen_matsub.dim0();
+    m_dimm = selfen_matsub.dimm();
     
-    const std::size_t nmsq = _dimm * _dimm;
-    F.resize(0, _dim0 * nmsq);
-    _coeffs.clear();
+    const std::size_t nmsq = m_dimm * m_dimm;
+    F.resize(0, m_dim0 * nmsq);
+    m_coeffs.clear();
     
     for (itM = localMbegin; itM < localMend; ++itM) {
         // Test
@@ -116,7 +116,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
             // std::cout << "Rank " << _prank << ": n0 = " << *itn0 << std::endl;
             for (iz = 0; iz < *itM; ++iz) zs(iz) = 1i * ((2 * (*itn0 + iz) + 1) * M_PI / beta);  // Assemble the z array
             // Assemble the f(z) array
-            for (s = 0; s < _dim0; ++s) {
+            for (s = 0; s < m_dim0; ++s) {
                 for (x = 0; x < nmsq; ++x) {
                     for (iz = 0; iz < *itM; ++iz) {
                         n = *itn0 + iz;
@@ -126,7 +126,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
                     }
                 }
             }
-            A = Eigen::Matrix<std::complex<_hpfloat>, Eigen::Dynamic, Eigen::Dynamic>::Ones(*itM, 2);
+            A = Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic>::Ones(*itM, 2);
             for (itN = itM == localMbegin && itn0 == localn0begin ? localNbegin : coefflens.cbegin();
                  itN < (itM == localMend - 1 && itn0 == localn0end - 1 ? localNend : coefflens.cend()) && *itN <= *itM;
                  ++itN) {
@@ -138,14 +138,14 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
                 A.conservativeResize(Eigen::NoChange, *itN);
                 // Assemble the left-half columns of coefficient matrix of the linear least square system
                 for (ir = r0; ir < r; ++ir) A.col(ir) = A.col(ir - 1).cwiseProduct(zs);
-                for (s = 0; s < _dim0; ++s) {
+                for (s = 0; s < m_dim0; ++s) {
                     for (x = 0; x < nmsq; ++x) {
                         A.rightCols(r).noalias() = F.col(s * nmsq + x).asDiagonal() * (-A.leftCols(r));
                         // Assemble the rhs vector of the linear least square system
                         b = -A.col(*itN - 1).cwiseProduct(zs);
                         // Solve for and store the unfiltered Pade coefficients
                         // _coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));
-                        _coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
+                        m_coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
                         // _coeffs.push_back((A.adjoint() * A).partialPivLu().solve(A.adjoint() * b));
                         // _coeffs.push_back((A.adjoint() * A).fullPivLu().solve(A.adjoint() * b));
                         
@@ -157,7 +157,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
         }
     }
     // Record dimension
-    _napproxs = _coeffs.size() / (_dim0 * nmsq);
+    m_napproxs = m_coeffs.size() / (m_dim0 * nmsq);
     
     // Test
     // std::cout << "Rank " << _prank << ": Check point 4: " << _napproxs << std::endl;
@@ -172,39 +172,39 @@ template <int n0, int n1, int nm>
 void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, const std::size_t np, const double low, const double high, const double del, const bool physonly) {
     assert(np > 1);
     
-    const std::size_t nmatelems = _dim0 * _dimm * _dimm;
+    const std::size_t nmatelems = m_dim0 * m_dimm * m_dimm;
     std::size_t i, s, x0, x1, k, o, r0, r, ir;
-    std::complex<_hpfloat> pol0, pol1;
-    Eigen::Vector<std::complex<_hpfloat>, Eigen::Dynamic> zs(np);
-    Eigen::Matrix<std::complex<_hpfloat>, Eigen::Dynamic, Eigen::Dynamic> zpol;
-    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> se(1, np, _dimm);  // Purely local
+    std::complex<m_Hpfloat> pol0, pol1;
+    Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> zs(np);
+    Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> zpol;
+    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> se(1, np, m_dimm);  // Purely local
     // Eigen::ArrayXd rho(np);
     bool is_physical;
     
-    _nphys = Eigen::ArrayXi::Zero(_dim0);
-    _selfen.mpiCommunicator(_comm);   // For mpi sum
-    _selfen.resize(_dim0, np, _dimm);
-    _selfen().setZero();
+    m_nphys = Eigen::ArrayXi::Zero(m_dim0);
+    m_selfen.mpiCommunicator(m_comm);   // For mpi sum
+    m_selfen.resize(m_dim0, np, m_dimm);
+    m_selfen().setZero();
     
     // zs has positive delta no matter the sign of the input del
-    zs = Eigen::Vector<std::complex<_hpfloat>, Eigen::Dynamic>::LinSpaced(np, low, high) + 1i * std::fabs(del) * Eigen::Vector<std::complex<_hpfloat>, Eigen::Dynamic>::Ones(np);
-    zpol = Eigen::Matrix<std::complex<_hpfloat>, Eigen::Dynamic, Eigen::Dynamic>::Ones(np, 1);
+    zs = Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic>::LinSpaced(np, low, high) + 1i * std::fabs(del) * Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic>::Ones(np);
+    zpol = Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic>::Ones(np, 1);
     
-    for (i = 0; i < _napproxs; ++i) {
+    for (i = 0; i < m_napproxs; ++i) {
         r0 = zpol.cols();
-        r = _coeffs[i * nmatelems].size() / 2;   // Next nmatelems coefficient vector have the same size
+        r = m_coeffs[i * nmatelems].size() / 2;   // Next nmatelems coefficient vector have the same size
         if (r > r0) {
             zpol.conservativeResize(Eigen::NoChange, r);
             for (ir = r0; ir < r; ++ir) zpol.col(ir) = zpol.col(ir - 1).cwiseProduct(zs);
         }
-        for (s = 0; s < _dim0; ++s) {
+        for (s = 0; s < m_dim0; ++s) {
             is_physical = true;
             for (o = 0; o < np; ++o) {
-                for (x1 = 0; x1 < _dimm; ++x1) {
-                    for (x0 = 0; x0 < _dimm; ++x0) {
-                        k = i * nmatelems + s * _dimm * _dimm + x1 * _dimm + x0;
-                        pol0 = (zpol.row(o).head(r) * _coeffs[k].head(r))(0);  // zpol.row(o) could be longer than r
-                        pol1 = (zpol.row(o).head(r) * _coeffs[k].tail(r))(0);
+                for (x1 = 0; x1 < m_dimm; ++x1) {
+                    for (x0 = 0; x0 < m_dimm; ++x0) {
+                        k = i * nmatelems + s * m_dimm * m_dimm + x1 * m_dimm + x0;
+                        pol0 = (zpol.row(o).head(r) * m_coeffs[k].head(r))(0);  // zpol.row(o) could be longer than r
+                        pol1 = (zpol.row(o).head(r) * m_coeffs[k].tail(r))(0);
                         se[o](x0, x1) = static_cast<std::complex<double> >(pol0 / (pol1 + zpol(o, r - 1) * zs(o)));
                     }
                 }
@@ -222,28 +222,28 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
                 }
             }
             if (is_physical) {
-                _nphys(s) += 1;
-                for (o = 0; o < np; ++o) _selfen(s, o) += se[o];
+                m_nphys(s) += 1;
+                for (o = 0; o < np; ++o) m_selfen(s, o) += se[o];
             }
         }
     }
     
-    MPI_Allreduce(MPI_IN_PLACE, _nphys.data(), static_cast<int>(_nphys.size()), MPI_INT, MPI_SUM, _comm);
+    MPI_Allreduce(MPI_IN_PLACE, m_nphys.data(), static_cast<int>(m_nphys.size()), MPI_INT, MPI_SUM, m_comm);
 //    _selfen.sumLocals2mastPart();
 //    std::array<std::size_t, 2> so;
 //    for (i = 0; i < _selfen.mastPartSize(); ++i) {
 //        so = _selfen.index2DinPart(i);
 //        if (_nphys(so[0]) > 0) _selfen.masteredPart(i) /= _nphys(so[0]);
 //    }
-    _selfen.allSum();   // full-size _selfen will be used by all processes
-    for (s = 0; s < _dim0; ++s) {
-        if (_nphys(s) > 0) for (o = 0; o < np; ++o) _selfen(s, o) /= _nphys(s);
+    m_selfen.allSum();   // full-size _selfen will be used by all processes
+    for (s = 0; s < m_dim0; ++s) {
+        if (m_nphys(s) > 0) for (o = 0; o < np; ++o) m_selfen(s, o) /= m_nphys(s);
     }
     
-    _spectramat.mpiCommunicator(_comm);
-    _spectramat.resize(_dim0, np, _dimm);
-    computeLattGFfCoeffs(H0, _selfen, zs, _spectramat);  // Only compute mastered partition of _spectramat
-    auto specmatmastpart = _spectramat.mastFlatPart();
+    m_spectramat.mpiCommunicator(m_comm);
+    m_spectramat.resize(m_dim0, np, m_dimm);
+    computeLattGFfCoeffs(H0, m_selfen, zs, m_spectramat);  // Only compute mastered partition of _spectramat
+    auto specmatmastpart = m_spectramat.mastFlatPart();
     // Call eval() to evaluate to a temporary to resolve the aliasing issue
     for (i = 0; i < specmatmastpart.size(); ++i) specmatmastpart[i] = (specmatmastpart[i] - specmatmastpart[i].adjoint().eval()) / (2i * M_PI);
     specmatmastpart.allGather();   // Make the full data available to all processes, although not necessary
@@ -251,17 +251,17 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
 
 template <int n0, int n1, int nm>
 inline const Eigen::Array<int, n0, 1>& PadeApproximant<n0, n1, nm>::nPhysSpectra() const {
-    return _nphys;
+    return m_nphys;
 }
 
 template <int n0, int n1, int nm>
 inline const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& PadeApproximant<n0, n1, nm>::spectraMatrix() const {
-    return _spectramat;
+    return m_spectramat;
 }
 
 template <int n0, int n1, int nm>
 inline const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& PadeApproximant<n0, n1, nm>::selfEnergy() const {
-    return _selfen;
+    return m_selfen;
 }
 
 

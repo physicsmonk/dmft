@@ -78,15 +78,15 @@ public:
         H = Eigen::MatrixXcd::Zero(2 * q, 2 * q);
         int l;
         for (l = 0; l < q; ++l) {
-            H(l, l) = 2.0 * t(0) * cos(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
+            H(l, l) = 2.0 * m_t(0) * cos(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
             H(l + q, l + q) = H(l, l);
-            H(l + q, l) = t(1);
+            H(l + q, l) = m_t(1);
         }
         for (l = 0; l < q - 1; ++l) {
-            H(l + 1, l) = t(0);
+            H(l + 1, l) = m_t(0);
             H(l + q + 1, l + q) = H(l + 1, l);
         }
-        const std::complex<double> hop = t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
+        const std::complex<double> hop = m_t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
         H(q - 1, 0) += hop;  // "+=" works for all q > 0
         H(0, q - 1) += std::conj(hop);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
         H(2 * q - 1, q) = H(q - 1, 0);
@@ -102,10 +102,10 @@ public:
         // Note the Fermi velocity matrix is already block diagonal; the spaces of the upper and lower lattices are decoupled.
         if (coord == 0) {  // Fermi velocity in x direction, along which the magnetic unit cell expands
             for (l = 0; l < q - 1; ++l) {
-                v(l + 1, l) = -1i * t(0);
+                v(l + 1, l) = -1i * m_t(0);
                 v(l + q + 1, l + q) = v(l + 1, l);
             }
-            const std::complex<double> hop = t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
+            const std::complex<double> hop = m_t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
             const std::complex<double> v0 = 1i * static_cast<double>(q) * hop - 1i * static_cast<double>(q - 1) * hop;
             v(q - 1, 0) += v0;  // "+=" works for all q > 0
             v(0, q - 1) += std::conj(v0);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
@@ -113,7 +113,7 @@ public:
         }
         else if (coord == 1) {  // Fermi velocity in y direction
             for (l = 0; l < q; ++l) {
-                v(l, l) = -2.0 * t(0) * sin(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
+                v(l, l) = -2.0 * m_t(0) * sin(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
                 v(l + q, l + q) = v(l, l);
             }
         }

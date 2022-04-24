@@ -20,28 +20,28 @@ typedef Eigen::Array<std::size_t, Eigen::Dynamic, 1> ArrayXsizet;
 // constructHamiltonian in derived classes to construct any Hamiltonian matrix they want.
 class BareHamiltonian {
 private:
-    MPI_Comm _comm;
-    int _psize, _prank;
-    std::size_t _kbbsize, _klocalsize, _klocalstart;
-    double _v0;   //  Unit cell volume/area/length
-    Eigen::MatrixXd _K;  // Stores reciprocal primative vectors in columns
-    ArrayXsizet _nk;   // Numbers of k-points along each reciprocal primative vector
-    std::array<double, 2> _erange;   // Energy range of the band structure
+    MPI_Comm m_comm;
+    int m_psize, m_prank;
+    std::size_t m_kbbsize, m_klocalsize, m_klocalstart;
+    double m_v0;   //  Unit cell volume/area/length
+    Eigen::MatrixXd m_K;  // Stores reciprocal primative vectors in columns
+    ArrayXsizet m_nk;   // Numbers of k-points along each reciprocal primative vector
+    std::array<double, 2> m_erange;   // Energy range of the band structure
     Eigen::ArrayXXd _bands;  // Stores energy bands; index is of (energy, (kx, ky, kz))
     // Block diagonalized Hamiltonian for the special case, 2D dimer Hubbard model in magnetic fields. First index runs over k-vectors (ky major)
     // and the second index runs over the eigenvalue space of the block diagonalization.
-    SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2> _HdimerMag2d;
+    SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2> m_HdimerMag2d;
     // Fermi velocity matrices in the space of _HdimerMag2d for the special case, 2D dimer Hubbard model in magnetic fields.
     // Local-size: first index is just x or y, second index runs over local k-vectors (ky major)
-    SqMatArray2XXcd _vdimerMag2d;
-    std::string _type;
-    Eigen::ArrayXd _dos;   // Stores density of states
-    double _mu;  // Chemical potential. Note band structure and DOS are independent of it.
-    SqMatArray21Xcd _m1, _m2;  // First and second moments
+    SqMatArray2XXcd m_vdimerMag2d;
+    std::string m_type;
+    Eigen::ArrayXd m_dos;   // Stores density of states
+    double m_mu;  // Chemical potential. Note band structure and DOS are independent of it.
+    SqMatArray21Xcd m_m1, m_m2;  // First and second moments
     
 protected:
-    Eigen::MatrixXd a;  // Stores primative vectors in columns
-    Eigen::ArrayXcd t;  // Stores hopping matrix elements
+    Eigen::MatrixXd m_a;  // Stores primative vectors in columns
+    Eigen::ArrayXcd m_t;  // Stores hopping matrix elements
     
 public:
     // No need for an explicit constructor, which is also user-friendly
@@ -49,12 +49,12 @@ public:
     
     // Provide a method for index converting for k-space storage, otherwise we could make a data wrapper
     std::size_t flatIndex(const std::size_t ix, const std::size_t iy, const std::size_t iz) const {
-        if (a.cols() != 3) throw std::bad_function_call();
-        return (ix * _nk(1) + iy) * _nk(2) + iz;
+        if (m_a.cols() != 3) throw std::bad_function_call();
+        return (ix * m_nk(1) + iy) * m_nk(2) + iz;
     }
     std::size_t flatIndex(const std::size_t ix, const std::size_t iy) const {
-        if (a.cols() != 2) throw std::bad_function_call();
-        return ix * _nk(1) + iy;
+        if (m_a.cols() != 2) throw std::bad_function_call();
+        return ix * m_nk(1) + iy;
     }
     
     void kVecAtIndex(std::size_t ik, Eigen::VectorXd& k) const;  // Calculate the ik-th k vector
@@ -63,7 +63,7 @@ public:
     
     template <typename Derived>
     void primVecs(const Eigen::MatrixBase<Derived>& a_);   // Set primative vectors
-    const Eigen::MatrixXd& primVecs() const {return a;}   // Return primative vectors
+    const Eigen::MatrixXd& primVecs() const {return m_a;}   // Return primative vectors
     
     virtual void constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const;
     virtual void constructFermiVelocities(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const;
@@ -73,35 +73,35 @@ public:
     
     void computeDOS(const std::size_t nbins);
     
-    void type(const std::string& tp) {_type = tp;}   // Set type
-    const std::string& type() const {return _type;}   // Return type
+    void type(const std::string& tp) {m_type = tp;}   // Set type
+    const std::string& type() const {return m_type;}   // Return type
     
     template <typename Derived>
-    void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {_erange = erange; _dos = ds;}  // Set DOS
-    const Eigen::ArrayXd& dos() const {return _dos;}   // Return DOS
+    void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
+    const Eigen::ArrayXd& dos() const {return m_dos;}   // Return DOS
     
     const Eigen::ArrayXXd& bands() const {return _bands;}
     
-    const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return _HdimerMag2d;}
-    const SqMatArray2XXcd& fermiVdimerMag2d() const {return _vdimerMag2d;}
+    const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return m_HdimerMag2d;}
+    const SqMatArray2XXcd& fermiVdimerMag2d() const {return m_vdimerMag2d;}
     
-    const std::array<double, 2>& energyRange() const {return _erange;}
+    const std::array<double, 2>& energyRange() const {return m_erange;}
     
-    const Eigen::MatrixXd& kPrimVecs() const {return _K;}
+    const Eigen::MatrixXd& kPrimVecs() const {return m_K;}
     
-    const ArrayXsizet& kGridSizes() const {return _nk;}
+    const ArrayXsizet& kGridSizes() const {return m_nk;}
     
     template <typename Derived>
-    void hopMatElem(const Eigen::DenseBase<Derived>& t_) {t = t_;}   // Set hoppong matrix elements
-    std::complex<double> hopMatElem(const std::size_t i) const {return t(i);}  // Return hopping matrix element
+    void hopMatElem(const Eigen::DenseBase<Derived>& t_) {m_t = t_;}   // Set hoppong matrix elements
+    std::complex<double> hopMatElem(const std::size_t i) const {return m_t(i);}  // Return hopping matrix element
     
-    void chemPot(const double mu) {_mu = mu;}   // Set chemical potential
-    double chemPot() const {return _mu;}   // Return chemical potential
+    void chemPot(const double mu) {m_mu = mu;}   // Set chemical potential
+    double chemPot() const {return m_mu;}   // Return chemical potential
     
-    void firstMoment(const SqMatArray21Xcd& m1) {_m1 = m1;}  // Set first moment
-    const SqMatArray21Xcd& firstMoment() const {return _m1;}   // Return first moment
-    void secondMoment(const SqMatArray21Xcd& m2) {_m2 = m2;}  // Set second moment
-    const SqMatArray21Xcd& secondMoment() const {return _m2;}   // Return second moment
+    void firstMoment(const SqMatArray21Xcd& m1) {m_m1 = m1;}  // Set first moment
+    const SqMatArray21Xcd& firstMoment() const {return m_m1;}   // Return first moment
+    void secondMoment(const SqMatArray21Xcd& m2) {m_m2 = m2;}  // Set second moment
+    const SqMatArray21Xcd& secondMoment() const {return m_m2;}   // Return second moment
 };
 
 // Set unit cell vectors and record basic info
@@ -114,80 +114,80 @@ void BareHamiltonian::primVecs(const Eigen::MatrixBase<Derived>& a_) {
         throw std::invalid_argument( "Primative vectors can only be of 1D, 2D, or 3D!" );
     }
     
-    a = a_;
+    m_a = a_;
     // Calculate reciprocal primative vectors
-    _K.resize(a.cols(), a.cols());
-    if (a.cols() == 1) {
-        _v0 = std::fabs(a(0, 0));
-        _K(0, 0) = 2 * M_PI / a(0, 0);
+    m_K.resize(m_a.cols(), m_a.cols());
+    if (m_a.cols() == 1) {
+        m_v0 = std::fabs(m_a(0, 0));
+        m_K(0, 0) = 2 * M_PI / m_a(0, 0);
     }
-    else if (a.cols() == 2) {
+    else if (m_a.cols() == 2) {
         Eigen::Rotation2Dd rot90(M_PI / 2);
         Eigen::VectorXd tmp(2);
-        tmp.noalias() = rot90 * a.col(1);
-        _v0 = std::fabs(a.col(0).dot(tmp));
-        _K.col(0) = (2 * M_PI) * tmp / a.col(0).dot(tmp);
-        tmp.noalias() = rot90 * a.col(0);
-        _K.col(1) = (2 * M_PI) * tmp / a.col(1).dot(tmp);
+        tmp.noalias() = rot90 * m_a.col(1);
+        m_v0 = std::fabs(m_a.col(0).dot(tmp));
+        m_K.col(0) = (2 * M_PI) * tmp / m_a.col(0).dot(tmp);
+        tmp.noalias() = rot90 * m_a.col(0);
+        m_K.col(1) = (2 * M_PI) * tmp / m_a.col(1).dot(tmp);
     }
-    else if (a.cols() == 3) {
-        Eigen::Matrix3d ar = a;  // Cast dynamic-sized a to static 3*3 matrix to allow cross product
-        _v0 = ar.col(0).dot(ar.col(1).cross(ar.col(2)));
-        _K.col(0).noalias() = (2 * M_PI / _v0) * ar.col(1).cross(ar.col(2));
-        _K.col(1).noalias() = (2 * M_PI / _v0) * ar.col(2).cross(ar.col(0));
-        _K.col(2).noalias() = (2 * M_PI / _v0) * ar.col(0).cross(ar.col(1));
-        _v0 = std::fabs(_v0);
+    else if (m_a.cols() == 3) {
+        Eigen::Matrix3d ar = m_a;  // Cast dynamic-sized a to static 3*3 matrix to allow cross product
+        m_v0 = ar.col(0).dot(ar.col(1).cross(ar.col(2)));
+        m_K.col(0).noalias() = (2 * M_PI / m_v0) * ar.col(1).cross(ar.col(2));
+        m_K.col(1).noalias() = (2 * M_PI / m_v0) * ar.col(2).cross(ar.col(0));
+        m_K.col(2).noalias() = (2 * M_PI / m_v0) * ar.col(0).cross(ar.col(1));
+        m_v0 = std::fabs(m_v0);
     }
 }
 
 template <typename Derived>
 void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
-    if (a.cols() != nk.size()) throw std::invalid_argument( "Space dimension of input k-point numbers did not match that of primative vectors!" );
+    if (m_a.cols() != nk.size()) throw std::invalid_argument( "Space dimension of input k-point numbers did not match that of primative vectors!" );
     int is_inter;
-    MPI_Comm_test_inter(_comm, &is_inter);
+    MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
     
     std::size_t nbands, ik;
-    Eigen::VectorXd k = Eigen::VectorXd::Zero(a.rows());
+    Eigen::VectorXd k = Eigen::VectorXd::Zero(m_a.rows());
     Eigen::MatrixXcd H;
     
     // Record info
-    _nk = nk;
+    m_nk = nk;
     constructHamiltonian(k, H);   // Call the implemented method in derived classes; read out H at a k-vector once to get basic info
     nbands = H.rows();
     
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es0(nbands);
     
     // Calculate bands
-    const std::size_t nkt = _nk.prod();
-    _kbbsize = nkt / _psize;
-    _klocalsize = (_prank < _psize - 1) ? _kbbsize : _kbbsize + nkt % _psize;
-    _klocalstart = _prank * _kbbsize;
-    _bands.resize(nbands, _klocalsize);   // Allocate local-sized _bands because it is not directly used in the program
-    for (ik = 0; ik < _klocalsize; ++ik) {
-        kVecAtIndex(ik + _klocalstart, k);
+    const std::size_t nkt = m_nk.prod();
+    m_kbbsize = nkt / m_psize;
+    m_klocalsize = (m_prank < m_psize - 1) ? m_kbbsize : m_kbbsize + nkt % m_psize;
+    m_klocalstart = m_prank * m_kbbsize;
+    _bands.resize(nbands, m_klocalsize);   // Allocate local-sized _bands because it is not directly used in the program
+    for (ik = 0; ik < m_klocalsize; ++ik) {
+        kVecAtIndex(ik + m_klocalstart, k);
         constructHamiltonian(k, H);  // Call the implemented method in derived classes
         es0.compute(H, Eigen::EigenvaluesOnly);  // Only the lower triangular part is used
         _bands.col(ik) = es0.eigenvalues();
     }
     
     // Record info because finding max or min is a little bit costly
-    _erange[0] = _bands.minCoeff();
-    _erange[1] = _bands.maxCoeff();
-    MPI_Allreduce(MPI_IN_PLACE, &_erange[0], 1, MPI_DOUBLE, MPI_MIN, _comm);
-    MPI_Allreduce(MPI_IN_PLACE, &_erange[1], 1, MPI_DOUBLE, MPI_MAX, _comm);
+    m_erange[0] = _bands.minCoeff();
+    m_erange[1] = _bands.maxCoeff();
+    MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
+    MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
     
     // Calculate the block diagonal Hamiltonian for the special case of 2D dimer Hubbard model in magnetic field
-    if (_type == "dimer_mag_2d") {
-        if (a.cols() != 2) throw std::invalid_argument("Space dimension must be 2 for 2D dimer Hubbard model in magnetic fields!");
+    if (m_type == "dimer_mag_2d") {
+        if (m_a.cols() != 2) throw std::invalid_argument("Space dimension must be 2 for 2D dimer Hubbard model in magnetic fields!");
         if (nbands % 2 != 0) throw std::range_error("Hamiltonian's dimension must be multiple of 2 for 2D dimer Hubbard model in magnetic fields!");
         const std::size_t nb_2 = nbands / 2;
         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(nb_2);
         Eigen::MatrixXcd fv;
-        _HdimerMag2d.mpiCommunicator(_comm);
-        _HdimerMag2d.resize(nkt, nb_2, 2);  // Allocate resources for _HdimerMag2d, full-size data is needed by all processes
-        auto Hmastpart = _HdimerMag2d.mastDim0Part();  // Choose only partitioning the first dimension
-        _vdimerMag2d.resize(2, Hmastpart.dim0(), nb_2);   // No need to gather, so just allocate local-size data
+        m_HdimerMag2d.mpiCommunicator(m_comm);
+        m_HdimerMag2d.resize(nkt, nb_2, 2);  // Allocate resources for _HdimerMag2d, full-size data is needed by all processes
+        auto Hmastpart = m_HdimerMag2d.mastDim0Part();  // Choose only partitioning the first dimension
+        m_vdimerMag2d.resize(2, Hmastpart.dim0(), nb_2);   // No need to gather, so just allocate local-size data
         std::size_t m;
         int co;
         for (ik = 0; ik < Hmastpart.dim0(); ++ik) {
@@ -203,7 +203,7 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
             // Caculate Fermi velocity matrices. fv is block diagonal and the top left and bottom right blocks are the same.
             for (co = 0; co < 2; ++co) {
                 constructFermiVelocities(co, k, fv);
-                _vdimerMag2d(co, ik).noalias() = es.eigenvectors().adjoint() * fv.topLeftCorner(nb_2, nb_2).selfadjointView<Eigen::Lower>() * es.eigenvectors();
+                m_vdimerMag2d(co, ik).noalias() = es.eigenvectors().adjoint() * fv.topLeftCorner(nb_2, nb_2).selfadjointView<Eigen::Lower>() * es.eigenvectors();
             }
         }
         Hmastpart.allGather();   // All gather because all processes need the full data
