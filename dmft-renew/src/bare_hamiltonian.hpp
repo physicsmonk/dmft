@@ -22,12 +22,12 @@ class BareHamiltonian {
 private:
     MPI_Comm m_comm;
     int m_psize, m_prank;
-    std::size_t m_kbbsize, m_klocalsize, m_klocalstart;
+    std::size_t m_klocalsize, m_klocalstart;
     double m_v0;   //  Unit cell volume/area/length
     Eigen::MatrixXd m_K;  // Stores reciprocal primative vectors in columns
     ArrayXsizet m_nk;   // Numbers of k-points along each reciprocal primative vector
     std::array<double, 2> m_erange;   // Energy range of the band structure
-    Eigen::ArrayXXd _bands;  // Stores energy bands; index is of (energy, (kx, ky, kz))
+    Eigen::ArrayXXd m_bands;  // Stores energy bands; index is of (energy, (kx, ky, kz))
     // Block diagonalized Hamiltonian for the special case, 2D dimer Hubbard model in magnetic fields. First index runs over k-vectors (ky major)
     // and the second index runs over the eigenvalue space of the block diagonalization.
     SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2> m_HdimerMag2d;
@@ -80,7 +80,7 @@ public:
     void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
     const Eigen::ArrayXd& dos() const {return m_dos;}   // Return DOS
     
-    const Eigen::ArrayXXd& bands() const {return _bands;}
+    const Eigen::ArrayXXd& bands() const {return m_bands;}
     
     const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return m_HdimerMag2d;}
     const SqMatArray2XXcd& fermiVdimerMag2d() const {return m_vdimerMag2d;}
@@ -160,20 +160,18 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     
     // Calculate bands
     const std::size_t nkt = m_nk.prod();
-    m_kbbsize = nkt / m_psize;
-    m_klocalsize = (m_prank < m_psize - 1) ? m_kbbsize : m_kbbsize + nkt % m_psize;
-    m_klocalstart = m_prank * m_kbbsize;
-    _bands.resize(nbands, m_klocalsize);   // Allocate local-sized _bands because it is not directly used in the program
+    mostEvenPart(nkt, m_psize, m_prank, m_klocalsize, m_klocalstart);
+    m_bands.resize(nbands, m_klocalsize);   // Allocate local-sized _bands because it is not directly used in the program
     for (ik = 0; ik < m_klocalsize; ++ik) {
         kVecAtIndex(ik + m_klocalstart, k);
         constructHamiltonian(k, H);  // Call the implemented method in derived classes
         es0.compute(H, Eigen::EigenvaluesOnly);  // Only the lower triangular part is used
-        _bands.col(ik) = es0.eigenvalues();
+        m_bands.col(ik) = es0.eigenvalues();
     }
     
     // Record info because finding max or min is a little bit costly
-    m_erange[0] = _bands.minCoeff();
-    m_erange[1] = _bands.maxCoeff();
+    m_erange[0] = m_bands.minCoeff();
+    m_erange[1] = m_bands.maxCoeff();
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
     

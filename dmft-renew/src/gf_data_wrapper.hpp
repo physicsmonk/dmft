@@ -16,6 +16,22 @@
 #include <iostream>
 #include <iomanip>
 
+// Get underlying data type of std::size_t
+#include <stdint.h>
+#include <limits.h>
+#if SIZE_MAX == UCHAR_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
+#elif SIZE_MAX == USHRT_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
+#elif SIZE_MAX == UINT_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED
+#elif SIZE_MAX == ULONG_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG
+#elif SIZE_MAX == ULLONG_MAX
+   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+#else
+   #error "what is happening here?"
+#endif
 
 /*****************************************************************************************************
 Storage class template
@@ -192,6 +208,20 @@ protected:
 Expression class template for MPI partitioning
 *******************************************************************************************************/
 
+// Helper function for obtaining partition size and start
+inline void mostEvenPart(const std::size_t size, const int psize, const int prank, std::size_t& partsize, std::size_t& partstart) {
+    const int r0 = psize - static_cast<int>(size) % psize;
+    const std::size_t bbsize = size / psize;
+    if (prank < r0) {
+        partsize = bbsize;
+        partstart = prank * bbsize;
+    }
+    else {
+        partsize = bbsize + 1;
+        partstart = prank * (bbsize + 1) - r0;
+    }
+}
+
 // Flat partition type
 template<typename SqMatArrType>
 class MastFlatPart {
@@ -259,9 +289,14 @@ void MastFlatPart<SqMatArrType>::sum2mastPart() {
     const std::size_t nmsq = m_sqmatarr.dimm() * m_sqmatarr.dimm();
     std::size_t chunksize, chunkstart;
     for (int dest = 0; dest < m_sqmatarr.m_psize; ++dest) {
-        // Same for all processes; or we could broadcast the local mastered size and start
-        chunksize = (dest < m_sqmatarr.m_psize - 1 ? m_sqmatarr.m_bbsize_flat : m_sqmatarr.m_bbsize_flat + m_sqmatarr.size() % m_sqmatarr.m_psize) * nmsq;
-        chunkstart = dest * m_sqmatarr.m_bbsize_flat * nmsq;
+        // Get size and start of the destination process
+        if (m_sqmatarr.m_prank == dest) {
+            chunksize = m_sqmatarr.m_mastsize_flat * nmsq;
+            chunkstart = m_sqmatarr.m_maststart_flat * nmsq;
+        }
+        // Broadcast size and start of the destination process to all processes
+        MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
+        MPI_Bcast(&chunkstart, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
         if (m_sqmatarr.m_prank == dest) {
             if constexpr (std::is_same<typename SqMatArrType::Scalar, double>::value)
                 MPI_Reduce(MPI_IN_PLACE, m_sqmatarr.m_data.data() + chunkstart, static_cast<int>(chunksize), MPI_DOUBLE, MPI_SUM, dest, m_sqmatarr.m_comm);
@@ -283,9 +318,14 @@ void MastFlatPart<SqMatArrType>::allGather() {
     const std::size_t nmsq = m_sqmatarr.dimm() * m_sqmatarr.dimm();
     std::size_t chunksize, chunkstart;
     for (int src = 0; src < m_sqmatarr.m_psize; ++src) {
-        // Same for all processes; or we could broadcast the local mastered size and start
-        chunksize = (src < m_sqmatarr.m_psize - 1 ? m_sqmatarr.m_bbsize_flat : m_sqmatarr.m_bbsize_flat + m_sqmatarr.size() % m_sqmatarr.m_psize) * nmsq;
-        chunkstart = src * m_sqmatarr.m_bbsize_flat * nmsq;
+        // Get size and start of the source process
+        if (m_sqmatarr.m_prank == src) {
+            chunksize = m_sqmatarr.m_mastsize_flat * nmsq;
+            chunkstart = m_sqmatarr.m_maststart_flat * nmsq;
+        }
+        // Broadcast size and start of the source process to all processes
+        MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
+        MPI_Bcast(&chunkstart, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
         if constexpr (std::is_same<typename SqMatArrType::Scalar, double>::value)
             MPI_Bcast(m_sqmatarr.m_data.data() + chunkstart, static_cast<int>(chunksize), MPI_DOUBLE, src, m_sqmatarr.m_comm);
         else if (std::is_same<typename SqMatArrType::Scalar, std::complex<double> >::value)
@@ -350,9 +390,14 @@ void MastDim0Part<SqMatArrType>::sum2mastPart() {
     const std::size_t dim1nmsq = m_sqmatarr.dim1() * m_sqmatarr.dimm() * m_sqmatarr.dimm();
     std::size_t chunksize, chunkstart;
     for (int dest = 0; dest < m_sqmatarr.m_psize; ++dest) {
-        // Same for all processes; or we could broadcast the local mastered size and start
-        chunksize = (dest < m_sqmatarr.m_psize - 1 ? m_sqmatarr.m_bbsize_dim0 : m_sqmatarr.m_bbsize_dim0 + m_sqmatarr.dim0() % m_sqmatarr.m_psize) * dim1nmsq;
-        chunkstart = dest * m_sqmatarr.m_bbsize_dim0 * dim1nmsq;
+        // Get size and start of the destination process
+        if (m_sqmatarr.m_prank == dest) {
+            chunksize = m_sqmatarr.m_mastsize_dim0 * dim1nmsq;
+            chunkstart = m_sqmatarr.m_maststart_dim0 * dim1nmsq;
+        }
+        // Broadcast size and start of the destination process to all processes
+        MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
+        MPI_Bcast(&chunkstart, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
         if (m_sqmatarr.m_prank == dest) {
             if constexpr (std::is_same<typename SqMatArrType::Scalar, double>::value)
                 MPI_Reduce(MPI_IN_PLACE, m_sqmatarr.m_data.data() + chunkstart, static_cast<int>(chunksize), MPI_DOUBLE, MPI_SUM, dest, m_sqmatarr.m_comm);
@@ -374,9 +419,14 @@ void MastDim0Part<SqMatArrType>::allGather() {
     const std::size_t dim1nmsq = m_sqmatarr.dim1() * m_sqmatarr.dimm() * m_sqmatarr.dimm();
     std::size_t chunksize, chunkstart;
     for (int src = 0; src < m_sqmatarr.m_psize; ++src) {
-        // Same for all processes; or we could broadcast the local mastered size and start
-        chunksize = (src < m_sqmatarr.m_psize - 1 ? m_sqmatarr.m_bbsize_dim0 : m_sqmatarr.m_bbsize_dim0 + m_sqmatarr.dim0() % m_sqmatarr.m_psize) * dim1nmsq;
-        chunkstart = src * m_sqmatarr.m_bbsize_dim0 * dim1nmsq;
+        // Get size and start of the source process
+        if (m_sqmatarr.m_prank == src) {
+            chunksize = m_sqmatarr.m_mastsize_dim0 * dim1nmsq;
+            chunkstart = m_sqmatarr.m_maststart_dim0 * dim1nmsq;
+        }
+        // Broadcast size and start of the source process to all processes
+        MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
+        MPI_Bcast(&chunkstart, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
         if constexpr (std::is_same<typename SqMatArrType::Scalar, double>::value)
             MPI_Bcast(m_sqmatarr.m_data.data() + chunkstart, static_cast<int>(chunksize), MPI_DOUBLE, src, m_sqmatarr.m_comm);
         else if (std::is_same<typename SqMatArrType::Scalar, std::complex<double> >::value)
@@ -396,14 +446,8 @@ class SqMatArray : public SqMatArrayStorage<_Scalar, _n0, _n1, _nm> {
     friend class MastDim0Part;
 
     void mpiImagPart() {
-        // Flatly partition
-        m_bbsize_flat = this->size() / m_psize;
-        m_mastsize_flat = (m_prank < m_psize - 1) ? m_bbsize_flat : m_bbsize_flat + this->size() % m_psize;
-        m_maststart_flat = m_prank * m_bbsize_flat;
-        // Partition only the first dimension
-        m_bbsize_dim0 = this->dim0() / m_psize;
-        m_mastsize_dim0 = (m_prank < m_psize - 1) ? m_bbsize_dim0 : m_bbsize_dim0 + this->dim0() % m_psize;
-        m_maststart_dim0 = m_prank * m_bbsize_dim0;
+        mostEvenPart(this->size(), m_psize, m_prank, m_mastsize_flat, m_maststart_flat);  // Flat partition
+        mostEvenPart(this->dim0(), m_psize, m_prank, m_mastsize_dim0, m_maststart_dim0);  // Partition only the first dimension
     }
     
 public:
@@ -497,7 +541,7 @@ public:
 protected:
     MPI_Comm m_comm;
     int m_psize, m_prank, m_is_inter;
-    std::size_t m_bbsize_flat, m_mastsize_flat, m_maststart_flat, m_bbsize_dim0, m_mastsize_dim0, m_maststart_dim0;
+    std::size_t m_mastsize_flat, m_maststart_flat, m_mastsize_dim0, m_maststart_dim0;
 };
 
 template<typename _Scalar, int _n0, int _n1, int _nm>

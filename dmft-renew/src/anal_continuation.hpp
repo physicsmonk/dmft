@@ -70,11 +70,14 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     // Most evenly distribute tasks to each process, treating the three data dimensions on equal footing,
     // because the first data dimension could be small (around 10) so it is not so efficient when using
     // moderately many processes if just dividing the first data dimension
-    const std::size_t totalsize = datalens.size() * startfreqs.size() * coefflens.size();
+    //const std::size_t totalsize = datalens.size() * startfreqs.size() * coefflens.size();
     const std::size_t n0Nsize = startfreqs.size() * coefflens.size();
-    const std::size_t bbsize = totalsize / m_psize;
-    std::size_t localstart = m_prank * bbsize;
-    std::size_t localfinal = (m_prank < m_psize - 1) ? localstart + bbsize : totalsize;
+    //const std::size_t bbsize = totalsize / m_psize;
+    //std::size_t localstart = m_prank * bbsize;
+    //std::size_t localfinal = (m_prank < m_psize - 1) ? localstart + bbsize : totalsize;
+    std::size_t localstart, localfinal;
+    mostEvenPart(datalens.size() * startfreqs.size() * coefflens.size(), m_psize, m_prank, localfinal, localstart);  // localfinal now is the local size
+    localfinal += localstart;  // Now obtain localfinal
     const std::size_t localMstart = localstart / n0Nsize;
     const std::size_t localMfinal = localfinal / n0Nsize + (localfinal % n0Nsize > 0);
     localstart %= n0Nsize;

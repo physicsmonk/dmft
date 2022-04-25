@@ -53,7 +53,7 @@ void BareHamiltonian::computeDOS(const std::size_t nbins) {
     int is_inter;
     MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
-    if (_bands.size() == 0) throw std::range_error("Cannot compute DOS because bands have not been computed!");
+    if (m_bands.size() == 0) throw std::range_error("Cannot compute DOS because bands have not been computed!");
     
     std::size_t ie, ib, ik;
     const double binsize = (m_erange[1] - m_erange[0]) / nbins;
@@ -62,8 +62,8 @@ void BareHamiltonian::computeDOS(const std::size_t nbins) {
     m_dos.setZero();
     
     for (ik = 0; ik < m_klocalsize; ++ik) {
-        for (ib = 0; ib < _bands.rows(); ++ib) {
-            ie = std::min(static_cast<std::size_t>((_bands(ib, ik) - m_erange[0]) / binsize), nbins - 1);
+        for (ib = 0; ib < m_bands.rows(); ++ib) {
+            ie = std::min(static_cast<std::size_t>((m_bands(ib, ik) - m_erange[0]) / binsize), nbins - 1);
             m_dos[ie] += 1.0;
         }
     }

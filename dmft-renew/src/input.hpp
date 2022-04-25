@@ -13,11 +13,10 @@
 #include <vector>
 #include "pugixml.hpp"
 #include <mpi.h>
-#include <stdint.h>
-#include <limits.h>
-
 
 // Get underlying data type of std::size_t
+#include <stdint.h>
+#include <limits.h>
 #if SIZE_MAX == UCHAR_MAX
    #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX
@@ -31,7 +30,6 @@
 #else
    #error "what is happening here?"
 #endif
-
 
 // Read from a xml doc root the data located at path. Use
 // template function to handle various output datatypes
