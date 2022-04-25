@@ -8,17 +8,18 @@
 #include <iostream>
 #include <iomanip>      // std::setw
 #include <fstream>
+#include <thread>       // std::this_thread::sleep_for
 #include <chrono>
 #include "input.hpp"
 #include "ct_aux_imp_solver.hpp"
 #include "self_consistency.hpp"
 #include "anal_continuation.hpp"
 
-#ifdef _WIN32
-#include <Windows.h>
-#else
-#include <unistd.h>
-#endif
+//#ifdef _WIN32
+//#include <Windows.h>
+//#else
+//#include <unistd.h>
+//#endif
 
 using namespace std::complex_literals;
 
@@ -368,11 +369,13 @@ int main(int argc, char * argv[]) {
     auto G = std::make_shared<GreenFunction>(beta, nc, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
     
     MPI_Barrier(MPI_COMM_WORLD);
-    usleep(1000 * prank);
+    //usleep(1000 * prank);
+    std::this_thread::sleep_for(std::chrono::milliseconds(prank));
     std::cout << "rank " << prank << " of " << psize << ": mastered size = " << G->fourierCoeffs().mastFlatPart().size() << ", mastered start = "
     << G->fourierCoeffs().mastFlatPart().start() << std::endl;
     MPI_Barrier(MPI_COMM_WORLD);
-    sleep(1);   // Wait 1 s
+    //sleep(1);   // Wait 1 s
+    std::this_thread::sleep_for(std::chrono::seconds(1));
     if (prank == 0) std::cout << sep << std::endl;
 
     auto impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
