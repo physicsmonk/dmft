@@ -17,8 +17,8 @@
 #include <iomanip>
 
 // Get underlying data type of std::size_t
-#include <stdint.h>
-#include <limits.h>
+#include <cstdint>
+#include <climits>
 #if SIZE_MAX == UCHAR_MAX
    #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX
@@ -30,7 +30,7 @@
 #elif SIZE_MAX == ULLONG_MAX
    #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
 #else
-   #error "what is happening here?"
+   #error "What is happening here?"
 #endif
 
 /*****************************************************************************************************
