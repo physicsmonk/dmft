@@ -181,6 +181,8 @@ int main(int argc, char * argv[]) {
     std::string measurewhat("S");
     std::size_t histmaxorder = 100;
     std::string verbosity("off");
+    
+    std::string ansatz("metal");
     int nitmax = 20;
     double G0stepsize = 1.0;
     std::string converge_type("average_error");
@@ -234,6 +236,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(measurewhat, docroot, "numerical/QMC/whatToMeasure", MPI_COMM_WORLD, prank);
     readxml_bcast(histmaxorder, docroot, "numerical/QMC/maxOrderForHistogram", MPI_COMM_WORLD, prank);
     readxml_bcast(verbosity, docroot, "numerical/QMC/verbosity", MPI_COMM_WORLD, prank);
+    readxml_bcast(ansatz, docroot, "numerical/selfConsistency/ansatz", MPI_COMM_WORLD, prank);
     readxml_bcast(nitmax, docroot, "numerical/selfConsistency/maxIteration", MPI_COMM_WORLD, prank);
     readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD, prank);
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD, prank);
@@ -409,7 +412,20 @@ int main(int argc, char * argv[]) {
 //    double sgn;
     
     // Initialize self-energy and Green's functions
-    dmft.selfEnergy()().setZero();
+    if (ansatz == "insulator") {
+        G0->computeHighFreqExpan(*H0);
+        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
+        G->elecDensities().setOnes();
+        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
+        G->computeHighFreqExpan(*H0, U);
+        auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
+        std::array<std::size_t, 2> so;
+        for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
+            so = selfenmastpart.global2dIndex(i);
+            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
+        }
+    }
+    else dmft.selfEnergy().mastFlatPart()().setZero();  // Initialization for metallic solution (zero-U limit)
     G0->fourierCoeffs()().setZero();
 //    if (H0->dosType() == "semicircular") {
 //        for (std::size_t i = 0; i < G->fourierCoeffs().mastPartSize(); ++i) {
@@ -420,6 +436,7 @@ int main(int argc, char * argv[]) {
 //            G->fourierCoeffs().masteredPart(i)(0, 0) = -0.5 * (zeta - sgn * std::sqrt(zetasq - 4.0));
 //        }
 //    }
+    
     const int cw = 12;
     std::ofstream fiter;
     if (prank == 0) {

@@ -97,74 +97,7 @@ void DMFTIterator::approxSelfEnergy() {
 // Update the lattice Green's function using the current self-energy
 void DMFTIterator::updateLatticeGF() {
     if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 1) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
-    else {
-//        std::array<std::size_t, 2> so;
-//        const std::size_t nc = _Gimp->nSites();
-//        std::complex<double> iwu(_H0->mu, 0.0);
-//
-//        if (nc == 1) {  // Single site case, where we can utilize the noninteracting density of states
-//            const std::size_t nbins = _H0->dos().size();
-//            if (nbins == 0) throw std::range_error("DOS has not been computed or set!");
-//            std::size_t ie;
-//            const double binsize = (_H0->energyRange()[1] - _H0->energyRange()[0]) / nbins;
-//            double e;
-//            SqMatArray<std::complex<double>, 1, Eigen::Dynamic, 1> integrand(nbins, 1);  // Purly local to each process; include two end points where dos is zero
-//
-//            for (std::size_t i = 0; i < Glat.mastPartSize(); ++i) {
-//                so = Glat.index2DinPart(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-//                iwu.imag((2 * so[1] + 1) * M_PI / _Gbath->inverseTemperature());
-//                // Glat.masteredPart(i).setZero();
-//                // Update the lattice Green's function
-//                for (ie = 0; ie < nbins; ++ie) {
-//                    e = (ie + 0.5) * binsize + _H0->energyRange()[0];
-//                    integrand[ie](0) = -_H0->dos()(ie) / (iwu - e - selfenergy.masteredPart(i)(0));
-//                    // Glat.masteredPart(i).noalias() -= binsize * _H0->dos()(ie) * ((1i * w + _H0->mu - e) * Eigen::MatrixXcd::Identity(nc, nc) - selfenergy.masteredPart(i)).inverse();
-//                }
-//                simpsonIntegrate(integrand, binsize, Glat.masteredPart(i));
-//                // Add head and tail parts to the integral
-//                Glat.masteredPart(i) += (binsize / 4) * (integrand[0] + integrand[nbins - 1]);
-//            }
-//        }
-//        else if (nc > 1) {
-//            const std::size_t spatodim = _H0->kPrimVecs().rows();
-//            if (spatodim == 0) throw std::range_error("Reciprocal primative vectors have not been set!");
-//            // else if (spatodim > 2) throw std::range_error("k-space integration has only been implemented for 1- and 2-dimensional cases!");
-//            // SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> integrand0(nk, nc);
-//
-//            if (_H0->type() == "dimer_mag_2d") {
-//                if (_H0->hamDimerMag2d().size() == 0) throw std::range_error("Block Hamiltonian of the 2D dimer Hubbard model in magnetic fields has not been computed!");
-//                std::size_t ist;
-//                for (std::size_t i = 0; i < Glat.mastPartSize(); ++i) {
-//                    so = Glat.index2DinPart(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-//                    iwu.imag((2 * so[1] + 1) * M_PI / _Gbath->inverseTemperature());
-//                    Glat.masteredPart(i).setZero();
-//                    for (ist = 0; ist < _H0->hamDimerMag2d().size(); ++ist) {
-//                        Glat.masteredPart(i) += -(iwu * Eigen::Matrix2cd::Identity() - _H0->hamDimerMag2d()[ist] - selfenergy.masteredPart(i)).inverse();
-//                    }
-//                    Glat.masteredPart(i) /= static_cast<double>(_H0->hamDimerMag2d().size());
-//                }
-//            }
-//            else {
-//                if (_H0->kGridSizes().size() == 0) throw std::range_error("Grid size for the reciprocal space has not been set!");
-//                const std::size_t nk = _H0->kGridSizes().prod();
-//                std::size_t ik;
-//                Eigen::VectorXd k;
-//                Eigen::MatrixXcd H;
-//                for (std::size_t i = 0; i < Glat.mastPartSize(); ++i) {
-//                    so = Glat.index2DinPart(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-//                    iwu.imag((2 * so[1] + 1) * M_PI / _Gbath->inverseTemperature());
-//                    Glat.masteredPart(i).setZero();
-//                    for (ik = 0; ik < nk; ++ik) {
-//                        _H0->kVecAtIndex(ik, k);
-//                        _H0->constructHamiltonian(k, H);
-//                        Glat.masteredPart(i) += -(iwu * Eigen::MatrixXcd::Identity(nc, nc) - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(nc, nc) - selfenergy.masteredPart(i)).inverse();
-//                    }
-//                    Glat.masteredPart(i) /= static_cast<double>(nk);
-//                }
-//            }
-//        }
-        computeLattGFfCoeffs(*m_ptr2H0, m_selfen, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
-    }
+    else computeLattGFfCoeffs(*m_ptr2H0, m_selfen, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
 }
 
 std::pair<bool, double> DMFTIterator::checkConvergence() const {
