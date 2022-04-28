@@ -417,7 +417,7 @@ int main(int argc, char * argv[]) {
         // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
         G->elecDensities().setOnes();
         G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
-        G->computeHighFreqExpan(*H0, U);
+        G->computeHighFreqExpan(*H0, 10.0 * t);
         auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
         std::array<std::size_t, 2> so;
         for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
