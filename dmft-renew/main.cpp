@@ -413,17 +413,17 @@ int main(int argc, char * argv[]) {
     
     // Initialize self-energy and Green's functions
     if (ansatz == "insulator") {
-//        G0->computeHighFreqExpan(*H0);
-//        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
-//        G->elecDensities().setOnes();
-//        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
-//        G->computeHighFreqExpan(*H0, 10.0 * t);
+        G0->computeHighFreqExpan(*H0);
+        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
+        G->elecDensities().setOnes();
+        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
+        G->computeHighFreqExpan(*H0, U);
         auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
         std::array<std::size_t, 2> so;
         for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
             so = selfenmastpart.global2dIndex(i);
-//            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
-            selfenmastpart[i] = U * U / (4i * G0->matsubFreqs()(so[1])) * Eigen::MatrixXcd::Identity(nc, nc);
+            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
+            //selfenmastpart[i] = U * U / (4i * G0->matsubFreqs()(so[1])) * Eigen::MatrixXcd::Identity(nc, nc);
         }
     }
     else dmft.selfEnergy().mastFlatPart()().setZero();  // Initialization for metallic solution (zero-U limit)
