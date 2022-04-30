@@ -413,19 +413,12 @@ int main(int argc, char * argv[]) {
     
     // Initialize self-energy and Green's functions
     if (ansatz == "insulator") {
-//        G0->computeHighFreqExpan(*H0);
-//        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
-//        G->elecDensities().setOnes();
-//        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
-//        G->computeHighFreqExpan(*H0, 15.0 * std::abs(t));   // std::abs works for real and complex arguments
-//        auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
         auto G0wmastpart = G0->fourierCoeffs().mastFlatPart();
         std::array<std::size_t, 2> so;
         for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
-//            so = selfenmastpart.global2dIndex(i);
-//            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
             so = G0wmastpart.global2dIndex(i);
-            G0wmastpart[i] = -Eigen::MatrixXcd::Identity(nc, nc) / (1i * G0->matsubFreqs()(so[1]) + mu_eff);
+            // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
+            G0wmastpart[i] = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->firstMoment()[0]).inverse();
         }
         G0wmastpart.allGather();
         G0->invFourierTrans();
