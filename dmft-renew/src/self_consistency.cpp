@@ -27,13 +27,13 @@ DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::share
 
 // Update the bath Green's function using the current lattice Green's function and self-energy
 void DMFTIterator::updateBathGF() {
-    ++m_iter;
+    //++m_iter;
     
     auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
     
     if (stepsize < 0 || stepsize > 1) throw std::invalid_argument( "Step size for updating bath Green's function must be in [0, 1]!" );
     
-    if (m_iter == 1) stepsize = 1.0;
+    //if (m_iter == 1) stepsize = 1.0;
     
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = m_Glat.mastFlatPart();

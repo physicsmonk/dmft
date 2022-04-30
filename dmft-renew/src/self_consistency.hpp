@@ -33,7 +33,7 @@ public:
     DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp);
     
     std::size_t numIterations() const {return m_iter;}
-    
+    void incrementIter() {++m_iter;}
     void resetIterator() {m_iter = 0;}
     
     void updateBathGF();

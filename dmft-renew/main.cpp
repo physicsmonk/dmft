@@ -413,21 +413,29 @@ int main(int argc, char * argv[]) {
     
     // Initialize self-energy and Green's functions
     if (ansatz == "insulator") {
-        G0->computeHighFreqExpan(*H0);
-        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
-        G->elecDensities().setOnes();
-        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
-        G->computeHighFreqExpan(*H0, 15.0 * std::abs(t));   // std::abs works for real and complex arguments
-        auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
+//        G0->computeHighFreqExpan(*H0);
+//        // Set an inital empirical guess for electron densities, for calculating the inital guess of G's high-frequency expansion coefficients
+//        G->elecDensities().setOnes();
+//        G->elecDensities() *= 0.5 / U * mu_eff + 0.5;
+//        G->computeHighFreqExpan(*H0, 15.0 * std::abs(t));   // std::abs works for real and complex arguments
+//        auto selfenmastpart = dmft.selfEnergy().mastFlatPart();
+        auto G0wmastpart = G0->fourierCoeffs().mastFlatPart();
         std::array<std::size_t, 2> so;
-        for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-            so = selfenmastpart.global2dIndex(i);
-            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
-            //selfenmastpart[i] = U * U / (4i * G0->matsubFreqs()(so[1])) * Eigen::MatrixXcd::Identity(nc, nc);
+        for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
+//            so = selfenmastpart.global2dIndex(i);
+//            selfenmastpart[i].noalias() = G->getFCoeffHighFreq(static_cast<int>(so[0]), G->matsubFreqs()(so[1])).inverse() - G0->getFCoeffHighFreq(static_cast<int>(so[0]), G0->matsubFreqs()(so[1])).inverse();  // At large-U limit self-energy is (close to) its high frequency expansion
+            so = G0wmastpart.global2dIndex(i);
+            G0wmastpart[i] = -Eigen::MatrixXcd::Identity(nc, nc) / (1i * G0->matsubFreqs()(so[1]) + mu_eff);
         }
+        G0wmastpart.allGather();
+        G0->invFourierTrans();
     }
-    else dmft.selfEnergy().mastFlatPart()().setZero();  // Initialization for metallic solution (zero-U limit)
-    G0->fourierCoeffs()().setZero();
+    else {  // Initialization for metallic solution (zero-U limit)
+        G0->fourierCoeffs().mastFlatPart()().setZero();
+        dmft.selfEnergy().mastFlatPart()().setZero();
+        dmft.updateLatticeGF();
+        dmft.updateBathGF();
+    }
 //    if (H0->dosType() == "semicircular") {
 //        for (std::size_t i = 0; i < G->fourierCoeffs().mastPartSize(); ++i) {
 //            so = G->fourierCoeffs().index2DinPart(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
@@ -470,9 +478,7 @@ int main(int argc, char * argv[]) {
         fiter << std::fixed << std::setprecision(6);
     }
     do {
-        dmft.updateLatticeGF();
-        
-        dmft.updateBathGF();   // Iterator increments in here
+        dmft.incrementIter();
         
         if (prank == 0) std::cout << "DMFT iteration " << dmft.numIterations() << ":" << std::endl;
         
@@ -515,6 +521,10 @@ int main(int argc, char * argv[]) {
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
+        
+        dmft.updateLatticeGF();
+        
+        dmft.updateBathGF();
         
         converg = dmft.checkConvergence();
         
