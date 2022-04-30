@@ -418,7 +418,7 @@ int main(int argc, char * argv[]) {
         for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
             so = G0wmastpart.global2dIndex(i);
             // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
-            G0wmastpart[i] = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->firstMoment()[0]).inverse();
+            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->firstMoment()[so[0]]).inverse();
         }
         G0wmastpart.allGather();
         G0->invFourierTrans();
