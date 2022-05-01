@@ -23,7 +23,8 @@ private:
     std::shared_ptr<const GreenFunction> m_ptr2Gimp;
     
 protected:
-    SqMatArray2XXcd m_Glat;  // This is the lattice Green's function (differing from the canonical definition by a minus sign)
+    SqMatArray2XXcd m_G0old;  // A copy of old G0 in imaginary-time space
+    SqMatArray2XXcd m_Glat;  // This is the lattice Green's function in Mastubara frequency space (differing from the canonical definition by a minus sign)
     SqMatArray2XXcd m_selfen;
     std::size_t m_iter;  // The number of iterations
     

@@ -16,7 +16,7 @@ using namespace std::complex_literals;
 DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) : m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
-    parameters["convergence type"] = std::string("average_error");  // Or "max_error"
+    parameters["convergence type"] = std::string("Gimp_Glat_average_error");  // Or "Gimp_Glat_max_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     // parameters["integration spline type"] = std::string("akima");
     
@@ -29,9 +29,12 @@ DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::share
 void DMFTIterator::updateBathGF() {
     //++m_iter;
     
-    auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
+    // First record old bath Green's function in imaginary-time space for corresponding cases
+    const auto convergtype = std::any_cast<std::string>(parameters.at("convergence type"));
+    if (convergtype == "G0_average_error" || convergtype == "G0_max_error") m_G0old = m_ptr2Gbath->valsOnTauGrid();
     
-    if (stepsize < 0 || stepsize > 1) throw std::invalid_argument( "Step size for updating bath Green's function must be in [0, 1]!" );
+    auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
+    if (stepsize < 0 || stepsize > 1) throw std::invalid_argument("Step size for updating bath Green's function must be in [0, 1]!");
     
     //if (m_iter == 1) stepsize = 1.0;
     
@@ -47,8 +50,7 @@ void DMFTIterator::updateBathGF() {
         for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             iwu.imag(m_ptr2Gimp->matsubFreqs()(so[1]));
-            Gbathmastpart(i, 0, 0) *= 1.0 - stepsize;  // Number of sites is 1
-            Gbathmastpart(i, 0, 0) += stepsize / (-iwu - (t * t) * Glatmastpart(i, 0, 0));  // Number of sites is 1
+            Gbathmastpart(i, 0, 0) = (1.0 - stepsize) * Gbathmastpart(i, 0, 0) + stepsize / (-iwu - (t * t) * Glatmastpart(i, 0, 0));  // Number of sites is 1
         }
     }
     else if (m_ptr2H0->type() == "bethe_dimer") {
@@ -66,16 +68,13 @@ void DMFTIterator::updateBathGF() {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             zeta(0, 0).imag(m_ptr2Gimp->matsubFreqs()(so[1]));
             zeta(1, 1).imag(m_ptr2Gimp->matsubFreqs()(so[1]));
-            Gbathmastpart[i] *= 1.0 - stepsize;
-            Gbathmastpart[i].noalias() += stepsize * (-zeta - (t * t) * Glatmastpart[i]).inverse();
+            Gbathmastpart[i] = (1.0 - stepsize) * Gbathmastpart[i] + stepsize * (-zeta - (t * t) * Glatmastpart[i]).inverse();
         }
     }
     else {
         auto selfemastpart = m_selfen.mastFlatPart();
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
-            Gbathmastpart[i] *= 1.0 - stepsize;
-            Gbathmastpart[i].noalias() += stepsize * (Glatmastpart[i].inverse() - selfemastpart[i]).inverse();
-        }
+        for (std::size_t i = 0; i < Glatmastpart.size(); ++i)
+            Gbathmastpart[i] = (1.0 - stepsize) * Gbathmastpart[i] + stepsize * (Glatmastpart[i].inverse() - selfemastpart[i]).inverse();
     }
     
     // Do all-gather because every process needs full access to the Fourier coefficients of the Bath Green's function
@@ -105,21 +104,30 @@ std::pair<bool, double> DMFTIterator::checkConvergence() const {
     const auto prec = std::any_cast<double>(parameters.at("convergence criterion"));
     std::pair<bool, double> convergence(false, 0.0);
     
-    if (convergtype == "average_error") {
+    if (convergtype == "Gimp_Glat_average_error") {
         convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).squaredNorm();
         // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
         MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
         convergence.second = std::sqrt( convergence.second / (2 * (m_ptr2Gimp->freqCutoff() + 1) * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
     }
-    else if (convergtype == "max_error") {
+    else if (convergtype == "Gimp_Glat_max_error") {
         convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).cwiseAbs().maxCoeff();
         // Find the global maximum difference
         MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
     }
-    
-    if (convergence.second < prec) {
-        convergence.first = true;
+    else if (convergtype == "G0_average_error") {
+        convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).squaredNorm();
+        // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
+        convergence.second = std::sqrt( convergence.second / (2 * m_ptr2Gbath->tauGridSize() * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
     }
+    else if (convergtype == "G0_max_error") {
+        convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).cwiseAbs().maxCoeff();
+        // Find the global maximum difference
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
+    }
+    
+    if (convergence.second < prec) convergence.first = true;
     
     return convergence;
 }
