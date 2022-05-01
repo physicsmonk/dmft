@@ -16,7 +16,7 @@ using namespace std::complex_literals;
 DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) : m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
-    parameters["convergence type"] = std::string("Gimp_Glat_average_error");  // Or "Gimp_Glat_max_error", "G0_..."
+    parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     // parameters["integration spline type"] = std::string("akima");
     
@@ -104,18 +104,7 @@ std::pair<bool, double> DMFTIterator::checkConvergence() const {
     const auto prec = std::any_cast<double>(parameters.at("convergence criterion"));
     std::pair<bool, double> convergence(false, 0.0);
     
-    if (convergtype == "Gimp_Glat_average_error") {
-        convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).squaredNorm();
-        // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
-        convergence.second = std::sqrt( convergence.second / (2 * (m_ptr2Gimp->freqCutoff() + 1) * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
-    }
-    else if (convergtype == "Gimp_Glat_max_error") {
-        convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).cwiseAbs().maxCoeff();
-        // Find the global maximum difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
-    }
-    else if (convergtype == "G0_average_error") {
+    if (convergtype == "G0_average_error") {
         convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).squaredNorm();
         // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
         MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
@@ -125,6 +114,17 @@ std::pair<bool, double> DMFTIterator::checkConvergence() const {
         convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).cwiseAbs().maxCoeff();
         // Find the global maximum difference
         MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
+    }
+    else if (convergtype == "Gimp_Glat_average_error") {
+        convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).squaredNorm();
+        // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
+        convergence.second = std::sqrt( convergence.second / (2 * (m_ptr2Gimp->freqCutoff() + 1) * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
+    }
+    else {  // Default to Gimp_Glat_max_error
+        convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).cwiseAbs().maxCoeff();
+        // Find the global maximum difference
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
     }
     
     if (convergence.second < prec) convergence.first = true;

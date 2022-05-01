@@ -185,7 +185,7 @@ int main(int argc, char * argv[]) {
     std::string ansatz("metal");
     int nitmax = 20;
     double G0stepsize = 1.0;
-    std::string converge_type("Gimp_Glat_average_error");
+    std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
     
     bool physonly = true;
