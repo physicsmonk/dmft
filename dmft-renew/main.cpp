@@ -188,6 +188,7 @@ int main(int argc, char * argv[]) {
     std::string converge_type("average_error");
     double converge_criterion = 0.005;
     
+    bool physonly = true;
     int ndatalens = 13;
     int mindatalen = 50;
     int maxdatalen = 98;
@@ -241,6 +242,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD, prank);
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD, prank);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD, prank);
+    readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
     readxml_bcast(mindatalen, docroot, "numerical/PadeInterpolation/numDataLengths.min", MPI_COMM_WORLD, prank);
     readxml_bcast(maxdatalen, docroot, "numerical/PadeInterpolation/numDataLengths.max", MPI_COMM_WORLD, prank);
@@ -339,13 +341,13 @@ int main(int argc, char * argv[]) {
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
                    Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
     
-        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy);
+        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         
         sigmaxx = longitConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
         if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
         
         if (prank == 0) {
-            std::cout << "#phys. spectra: " << pade.nPhysSpectra().sum() << std::endl;
+            std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
             printData("spectramatrix.txt", pade.spectraMatrix());
@@ -447,23 +449,23 @@ int main(int argc, char * argv[]) {
         if (measurewhat == "S") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " Converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
             << " Im<S0>/w0" << std::setw(20) << " Var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " <n> int err"
-            << std::setw(cw + 1) << " #phys spec" << std::setw(cw + 1) << " sigmaxx";
+            << std::setw(cw + 1) << " #spectra" << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
             fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
             << " ---------" << std::setw(20) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " -----------"
-            << std::setw(cw + 1) << " ----------" << std::setw(cw + 1) << " -------";
+            << std::setw(cw + 1) << " --------" << std::setw(cw + 1) << " -------";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
             fiter << std::endl;
         }
         else if (measurewhat == "G") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " Converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(20) << " Var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " #phys spec"
+            << " Im<S0>/w0" << std::setw(20) << " Var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " #spectra"
             << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
             fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
-            << " ---------" << std::setw(20) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " ----------"
+            << " ---------" << std::setw(20) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " --------"
             << std::setw(cw + 1) << " -------";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
             fiter << std::endl;
@@ -490,7 +492,7 @@ int main(int argc, char * argv[]) {
         pade.build(dmft.selfEnergy(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
                    Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
-        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy);
+        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
