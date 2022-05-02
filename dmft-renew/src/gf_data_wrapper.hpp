@@ -536,7 +536,7 @@ public:
     }
     
     void allSum();   // allSum-reduce the whole m_data on all local processes
-    void bCast(const int rank);   // Broadcast the whole m_data on process "rank" to other processes
+    void broadcast(const int rank);   // Broadcast the whole m_data on process "rank" to other processes
     
 protected:
     MPI_Comm m_comm;
@@ -555,7 +555,7 @@ void SqMatArray<_Scalar, _n0, _n1, _nm>::allSum() {
 }
 
 template<typename _Scalar, int _n0, int _n1, int _nm>
-void SqMatArray<_Scalar, _n0, _n1, _nm>::bCast(const int rank) {
+void SqMatArray<_Scalar, _n0, _n1, _nm>::broadcast(const int rank) {
     static_assert(std::is_same<_Scalar, double>::value || std::is_same<_Scalar, std::complex<double> >::value);
     if constexpr (std::is_same<_Scalar, double>::value)
         MPI_Bcast(this->m_data.data(), static_cast<int>(this->m_data.size()), MPI_DOUBLE, rank, m_comm);

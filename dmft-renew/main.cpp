@@ -335,7 +335,7 @@ int main(int argc, char * argv[]) {
             }
             else std::cout << "Unable to open file" << std::endl;
         }
-        selfenw.bCast(0);
+        selfenw.broadcast(0);
         
         pade.build(selfenw, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
@@ -425,11 +425,31 @@ int main(int argc, char * argv[]) {
         G0wmastpart.allGather();
         G0->invFourierTrans();
     }
-    else {  // Initialization for metallic solution (zero-U limit)
+    else if (ansatz == "metal") {  // Initialization for metallic solution (zero-U limit)
         G0->fourierCoeffs().mastFlatPart()().setZero();
         dmft.selfEnergy().mastFlatPart()().setZero();
         dmft.updateLatticeGF();
         dmft.updateBathGF();
+    }
+    else {  // Read in initial G0 from file, can be used to do continuation calculations
+        if (prank == 0) {
+            std::ifstream fin;
+            fin.open("G0.txt");
+            if (fin.is_open()) {
+                fin >> G0->valsOnTauGrid();
+                fin.close();
+            }
+            else std::cout << "Unable to open file" << std::endl;
+            fin.clear();  // Clear flags
+            fin.open("G0mastubara.txt");
+            if (fin.is_open()) {
+                fin >> G0->fourierCoeffs();
+                fin.close();
+            }
+            else std::cout << "Unable to open file" << std::endl;
+        }
+        G0->valsOnTauGrid().broadcast(0);
+        G0->fourierCoeffs().broadcast(0);
     }
 //    if (H0->dosType() == "semicircular") {
 //        for (std::size_t i = 0; i < G->fourierCoeffs().mastPartSize(); ++i) {
