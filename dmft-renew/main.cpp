@@ -441,7 +441,7 @@ int main(int argc, char * argv[]) {
             }
             else std::cout << "Unable to open file" << std::endl;
             fin.clear();  // Clear flags
-            fin.open("G0mastubara.txt");
+            fin.open("G0matsubara.txt");
             if (fin.is_open()) {
                 fin >> G0->fourierCoeffs();
                 fin.close();
