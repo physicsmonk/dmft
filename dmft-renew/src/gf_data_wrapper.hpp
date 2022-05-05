@@ -632,7 +632,8 @@ std::istream& operator>>(std::istream& is, SqMatArray<Scalar, n0, n1, nm>& sqmat
 
 typedef SqMatArray<double, 2, 1, Eigen::Dynamic> SqMatArray21Xd;
 typedef SqMatArray<std::complex<double>, 2, 1, Eigen::Dynamic> SqMatArray21Xcd;
-
+typedef SqMatArray<double, 2, 2, Eigen::Dynamic> SqMatArray22Xd;
+typedef SqMatArray<std::complex<double>, 2, 2, Eigen::Dynamic> SqMatArray22Xcd;
 typedef SqMatArray<double, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXd;
 typedef SqMatArray<std::complex<double>, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXcd;
 

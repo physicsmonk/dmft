@@ -497,7 +497,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
             // we can absorb the sign into S.
             for (x = 0; x < nc; ++x) {
                 for (p = 0; p < m_vertices.size(); ++p) {
-                    m_ptr2problem->G->selfEgf()(s, ibins4S(p, rm))(m_vertices[p].site, x) += (m_fermisign * sgns(p, rm) / (binsize4S * nrandmeasure)) * MG(p, x);
+                    m_ptr2problem->G->selfEnGF()(s, ibins4S(p, rm))(m_vertices[p].site, x) += (m_fermisign * sgns(p, rm) / (binsize4S * nrandmeasure)) * MG(p, x);
                     denssample(x) += std::real(sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
                 }
             }
@@ -659,7 +659,7 @@ double CTAUXImpuritySolver::solve() {
     if (does_measure) {
         m_ptr2problem->G->elecDensities().setZero();
         m_ptr2problem->G->elecDensVars().setZero();
-        if (measure_what == "S") m_ptr2problem->G->selfEgf()().setZero();
+        if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
         else if (measure_what == "G") {
             // To directly measure G's correction in frequency space, which is more costly than measuring S
             m_ptr2problem->G->fourierCoeffs()().setZero();
@@ -749,8 +749,8 @@ double CTAUXImpuritySolver::solve() {
         
         if (measure_what == "S") {
             // Combine accumulated measurements of S on all processes and process them
-            m_ptr2problem->G->selfEgf().allSum();
-            m_ptr2problem->G->selfEgf()() /= m_nmeasure * m_measuredfermisign;  // Average value of measured quantity
+            m_ptr2problem->G->selfEnGF().allSum();
+            m_ptr2problem->G->selfEnGF()() /= m_nmeasure * m_measuredfermisign;  // Average value of measured quantity
             
             // Each process only evaluate G(iw) on its mastered imaginary partition; return an estimation of Simpson integration error
             // for obtaining electron densities

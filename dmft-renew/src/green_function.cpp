@@ -18,8 +18,7 @@ GenericGreenFunction::GenericGreenFunction(const double beta, const std::size_t 
 m_beta(beta),
 m_matsfs(Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta)),
 m_imagts(Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta)),
-m_Gw(2, nfcut + 1, nc, comm), m_G(2, ntau, nc, comm), m_G1(2, 1, nc), m_G2(2, 1, nc),
-m_Gspl(m_imagts, m_G) {
+m_Gw(2, nfcut + 1, nc, comm), m_Gt(2, ntau, nc, comm), m_Ghfc(2, 2, nc) {
     if (ntau < 2) throw std::invalid_argument( "Tau grid size of GenericGreenFunction cannot be less than 2!" );
 }
 
@@ -28,7 +27,7 @@ void GenericGreenFunction::fourierTransform() {
     auto Gwmastpart = m_Gw.mastFlatPart();
     std::array<std::size_t, 2> so;
     
-    m_Gspl.build(m_G1, m_G2);  // x and y data are already linked to it
+    m_Gspl.build(&m_imagts, &m_Gt, m_Ghfc);
     
     for (std::size_t i = 0; i < Gwmastpart.size(); ++i) {
         so = Gwmastpart.global2dIndex(i);
@@ -47,20 +46,20 @@ void GenericGreenFunction::invFourierTrans() {
     std::complex<double> ff;
     Eigen::MatrixXcd gw_no_high_freq(nSites(), nSites());
     
-    m_G().setZero();
+    m_Gt().setZero();
     for (i = 0; i < Gwmastpart.size(); ++i) {
         so = Gwmastpart.global2dIndex(i);  // Get index in (spin, omega) space w.r.t. the full-sized data
-        gw_no_high_freq = Gwmastpart[i] - getFCoeffHighFreq(static_cast<int>(so[0]), m_matsfs(so[1]));
+        gw_no_high_freq = Gwmastpart[i] - fCoeffHighFreq(static_cast<int>(so[0]), 1i * m_matsfs(so[1]));
         for (t = 0; t < tauGridSize() - 1; ++t) {
             ff = std::exp(1i * std::fmod(m_matsfs(so[1]) * m_imagts(t), 2 * M_PI));
             // G(tau) on each process accumulates the part of the Fourier coefficients mastered by that process
-            m_G(so[0], t) += (gw_no_high_freq / ff + gw_no_high_freq.adjoint() * ff) / m_beta;
+            m_Gt(so[0], t) += (gw_no_high_freq / ff + gw_no_high_freq.adjoint() * ff) / m_beta;
         }
     }
     // Now sum the partially summed results on every process, to obtain the complete Fourier inversion
-    m_G.allSum();
+    m_Gt.allSum();
     // Add the high frequency expansion part
-    for (s = 0; s < 2; ++s) {for (t = 0; t < tauGridSize() - 1; ++t) m_G(s, t) += getValAtTauHighFreq(s, m_imagts(t));}
+    for (s = 0; s < 2; ++s) {for (t = 0; t < tauGridSize() - 1; ++t) m_Gt(s, t) += valAtTauHighFreq(s, m_imagts(t));}
     
     for (int s = 0; s < 2; ++s) {
 //        // Special treatment for tau = 0, accounting for discontinuity of Green's function at tau = 0: Gij(0+) - Gij(0-) = delta_ij.
@@ -69,7 +68,7 @@ void GenericGreenFunction::invFourierTrans() {
 //        G(s, 0) += Eigen::MatrixXcd::Identity(nSites(), nSites()) / 2.0;
         
         // Fill Gij(beta-) using relation Gij(0+) + Gij(beta-) = delta_ij
-        m_G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_G(s, 0);
+        m_Gt(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_Gt(s, 0);
     }
     //}
 }
@@ -78,7 +77,7 @@ void GenericGreenFunction::invFourierTrans() {
 // tau = beta in program means tau = beta- in physics, etc.
 // Note that we only stored G(tau) for 0 < tau < beta, so other values are retrieved by Green's function's symmetries.
 // Optional "approach = 1" defines the direction for tau to approach zero, and is only used when tau = 0.
-std::complex<double> GenericGreenFunction::getValAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const {
+std::complex<double> GenericGreenFunction::valAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
     
@@ -89,11 +88,11 @@ std::complex<double> GenericGreenFunction::getValAtExtendedTau(const int spin, c
         ext_tau_ind += tauGridSize() - 1;
     }
     
-    return sgn * m_G(spin, ext_tau_ind, x1, x2);
+    return sgn * m_Gt(spin, ext_tau_ind, x1, x2);
 }
 
 // Overloaded version for getting Green's function matrix in site space
-const auto GenericGreenFunction::getValAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const {
+const auto GenericGreenFunction::valAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
     
@@ -104,7 +103,7 @@ const auto GenericGreenFunction::getValAtExtendedTau(const int spin, int ext_tau
         ext_tau_ind += tauGridSize() - 1;
     }
     
-    return sgn * m_G(spin, ext_tau_ind);
+    return sgn * m_Gt(spin, ext_tau_ind);
 }
 
 std::complex<double> GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, const std::size_t x1, const std::size_t x2, double tau) const {
@@ -154,9 +153,8 @@ void GenericGreenFunction::setParams(const double beta, const std::size_t nc, co
     m_matsfs = Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta);
     m_imagts = Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta);
     m_Gw.resize(2, nfcut + 1, nc);  // No-op if sizes match; adapts to both MPI and non-MPI versions
-    m_G.resize(2, ntau, nc);
-    m_G1.resize(2, 1, nc);
-    m_G2.resize(2, 1, nc);   // Gspl is already linked to the data
+    m_Gt.resize(2, ntau, nc);
+    m_Ghfc.resize(2, 2, nc);
 }
 
 
@@ -200,15 +198,15 @@ BareGreenFunction::BareGreenFunction(const double beta, const std::size_t nc, co
 void BareGreenFunction::computeHighFreqExpan(const BareHamiltonian& H0) {
     // H0.mu is the effective chemical potential
     for (int s = 0; s < 2; ++s) {
-        m_G1[s] = -(H0.firstMoment()[s] - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
-        m_G2[s] = H0.secondMoment()[s] - 2.0 * H0.chemPot() * H0.firstMoment()[s] + H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
+        m_Ghfc(s, 0) = -(H0.moments()(s, 0) - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
+        m_Ghfc(s, 1) = H0.moments()(s, 1) - 2.0 * H0.chemPot() * H0.moments()(s, 0) + H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
     }
 }
 
 // Do Fourier inversion into discretized tau grid and create cubic spline with correct boundary conditions
 void BareGreenFunction::invFourierTrans() {
     GenericGreenFunction::invFourierTrans();
-    m_Gspl.build(m_G1, m_G2);  // x and y data are already linked to it
+    m_Gspl.build(&m_imagts, &m_Gt, m_Ghfc);
 }
 
 void BareGreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt) {
@@ -241,9 +239,9 @@ void GreenFunction::computeHighFreqExpan(const BareHamiltonian& H0, const double
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
     const double mu = H0.chemPot() + U / 2;   // This is the true chemical potential; H0.mu is the effective chemical potential.
     for (int s = 0; s < 2; ++s) {
-        m_G1[s] = -(H0.firstMoment()[s] - mu * I + U * m_dens.col(1 - s).asDiagonal() * I);
-        m_G2[s] = H0.secondMoment()[s] - 2.0 * mu * H0.firstMoment()[s] + mu * mu * I
-            + U * m_dens.col(1 - s).asDiagonal() * (H0.firstMoment()[s] - mu * I) + U * (H0.firstMoment()[s] - mu * I) * m_dens.col(1 - s).asDiagonal()
+        m_Ghfc(s, 0) = -(H0.moments()(s, 0) - mu * I + U * m_dens.col(1 - s).asDiagonal() * I);
+        m_Ghfc(s, 1) = H0.moments()(s, 1) - 2.0 * mu * H0.moments()(s, 0) + mu * mu * I
+            + U * m_dens.col(1 - s).asDiagonal() * (H0.moments()(s, 0) - mu * I) + U * (H0.moments()(s, 0) - mu * I) * m_dens.col(1 - s).asDiagonal()
             + U * U * m_dens.col(1 - s).asDiagonal() * I;
     }
 }
@@ -256,7 +254,7 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     if (tauGridSize() != G0.tauGridSize()) throw std::range_error("Tau grid sizes of G and G0 do not match!");
     if (freqCutoff() != G0.freqCutoff()) throw std::range_error("Frequency cutoffs of G and G0 do not match!");
     
-    auto Gmastpart = m_G.mastFlatPart();
+    auto Gmastpart = m_Gt.mastFlatPart();
     const auto G0mastpart = G0.valsOnTauGrid().mastFlatPart();
     const double binsize4S = m_beta / nTauBins4selfEgf();
     std::array<std::size_t, 2> i2d;
@@ -283,9 +281,9 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     double interr = 0.0, interr1;
     for (int s = 0; s < 2; ++s) {
         // Correct Gij(beta-) using relation Gij(0+) + Gij(beta-) = delta_ij
-        m_G(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_G(s, 0);
+        m_Gt(s, tauGridSize() - 1) = Eigen::MatrixXcd::Identity(nSites(), nSites()) - m_Gt(s, 0);
         
-        interr1 = (m_G(s, tauGridSize() - 1).diagonal().real() - m_dens.col(s)).cwiseAbs().maxCoeff();
+        interr1 = (m_Gt(s, tauGridSize() - 1).diagonal().real() - m_dens.col(s)).cwiseAbs().maxCoeff();
         if (interr1 > interr) interr = interr1;
     }
     

@@ -13,7 +13,7 @@
 using namespace std::complex_literals;
 
 
-DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) : m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
+DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) : m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfenstatic(2, 1, Gimp->nSites()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
     parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
@@ -36,10 +36,13 @@ void DMFTIterator::updateBathGF() {
     auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
     if (stepsize < 0 || stepsize > 1) throw std::invalid_argument("Step size for updating bath Green's function must be in [0, 1]!");
     
-    //if (m_iter == 1) stepsize = 1.0;
-    
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = m_Glat.mastFlatPart();
+    
+    if (m_iter == 0) {
+        stepsize = 1.0;  // This means that at zero step (initialization), directly initialize bath Green's function
+        Gbathmastpart().setZero();
+    }
     
     if (m_ptr2H0->type() == "bethe") {
         if (m_ptr2Gimp->nSites() != 1) throw std::range_error("Number of sites must be 1 for Bethe lattice (with semicircular DOS)!");
@@ -91,11 +94,12 @@ void DMFTIterator::approxSelfEnergy() {
     const auto Gimpmastpart = m_ptr2Gimp->fourierCoeffs().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
+    for (int s = 0; s < 2; ++s) m_selfenstatic[s] = m_ptr2Gbath->highFreqCoeffs()(s, 0) - m_ptr2Gimp->highFreqCoeffs()(s, 0);
 }
 
 // Update the lattice Green's function using the current self-energy
 void DMFTIterator::updateLatticeGF() {
-    if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 1) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
+    if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 0) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
     else computeLattGFfCoeffs(*m_ptr2H0, m_selfen, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
 }
 

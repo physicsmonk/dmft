@@ -274,19 +274,18 @@ int main(int argc, char * argv[]) {
     
     // Note this constructor: if nc is of type int, on some computers it could be implicitely converted to MPI_Comm type, not std::size_t type,
     // and call another constructor, very dangerous
-    SqMatArray21Xcd moment(2, 1, nc);
-    moment[0] << 0.0, tz,
-                 tz, 0.0;
-    moment[1] = moment[0];
+    SqMatArray22Xcd moments(2, 2, nc);
+    moments(0, 0) << 0.0, tz,
+                     tz, 0.0;  // Set first moment
+    moments(0, 1) << 4.0 * t * t + tz * tz, 0.0,
+                     0.0,                   4.0 * t * t + tz * tz;  // Set second moment
+    moments(1, 0) = moments(0, 0);
+    moments(1, 1) = moments(0, 1);
+    H0->moments(std::move(moments));
 //    H0->firstMoment[0] = Eigen::MatrixXcd::Zero(1, 1);
-    H0->firstMoment(moment);
-    moment[0] << 4.0 * t * t + tz * tz, 0.0,
-                 0.0,                   4.0 * t * t + tz * tz;
-    moment[1] = moment[0];
 //    H0->secondMoment[0] = Eigen::MatrixXcd::Ones(1, 1);
 //    H0->secondMoment[0] << t * t + tz * tz, 0.0,
 //                           0.0, t * t + tz * tz;
-    H0->secondMoment(moment);
     
     H0->primVecs((Eigen::Matrix2d() << q, 0, 0, 1).finished());
     
@@ -326,18 +325,27 @@ int main(int argc, char * argv[]) {
     double sigmaxx, sigmaxy = 0.0;
     
     if (analcontrun) {
-        SqMatArray2XXcd selfenw(2, nfcut + 1, nc, MPI_COMM_WORLD);
+        SqMatArray2XXcd selfen(2, nfcut + 1, nc, MPI_COMM_WORLD);
+        SqMatArray21Xcd selfenstatic(2, 1, nc, MPI_COMM_WORLD);
         if (prank == 0) {
             std::ifstream fin("selfenergy.txt");
             if (fin.is_open()) {
-                fin >> selfenw;
+                fin >> selfen;
+                fin.close();
+            }
+            else std::cout << "Unable to open file" << std::endl;
+            fin.clear();  // Clear flags
+            fin.open("selfenergy_staticpart.txt");
+            if (fin.is_open()) {
+                fin >> selfenstatic;
                 fin.close();
             }
             else std::cout << "Unable to open file" << std::endl;
         }
-        selfenw.broadcast(0);
+        selfen.broadcast(0);
+        selfenstatic.broadcast(0);
         
-        pade.build(selfenw, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+        pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
                    Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
     
@@ -420,13 +428,12 @@ int main(int argc, char * argv[]) {
         for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
             so = G0wmastpart.global2dIndex(i);
             // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
-            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->firstMoment()[so[0]]).inverse();
+            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->moments()(so[0], 0)).inverse();
         }
         G0wmastpart.allGather();
         G0->invFourierTrans();
     }
     else if (ansatz == "metal") {  // Initialization for metallic solution (zero-U limit)
-        G0->fourierCoeffs().mastFlatPart()().setZero();
         dmft.selfEnergy().mastFlatPart()().setZero();
         dmft.updateLatticeGF();
         dmft.updateBathGF();
@@ -501,7 +508,7 @@ int main(int argc, char * argv[]) {
         if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
         tstart = std::chrono::high_resolution_clock::now();
         dmft.selfEnergy().mastFlatPart().allGather();
-        pade.build(dmft.selfEnergy(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+        pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
                    Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
         pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
@@ -517,6 +524,7 @@ int main(int argc, char * argv[]) {
             printData("G.txt", G->valsOnTauGrid());
             printData("Gmatsubara.txt", G->fourierCoeffs());
             printData("selfenergy.txt", dmft.selfEnergy());
+            printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart());
             printData("spectramatrix.txt", pade.spectraMatrix());
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }

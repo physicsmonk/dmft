@@ -26,6 +26,7 @@ protected:
     SqMatArray2XXcd m_G0old;  // A copy of old G0 in imaginary-time space
     SqMatArray2XXcd m_Glat;  // This is the lattice Green's function in Matsubara frequency space (differing from the canonical definition by a minus sign)
     SqMatArray2XXcd m_selfen;
+    SqMatArray21Xcd m_selfenstatic;
     std::size_t m_iter;  // The number of iterations
     
 public:
@@ -46,8 +47,11 @@ public:
     std::pair<bool, double> checkConvergence() const;
     
     SqMatArray2XXcd& selfEnergy() {return m_selfen;}
-    
     const SqMatArray2XXcd& selfEnergy() const {return m_selfen;}
+    const auto selfEnHighFreq(const int spin, const std::complex<double> z) const {
+        return m_ptr2Gbath->highFreqCoeffs()(spin, 0) - m_ptr2Gimp->highFreqCoeffs()(spin, 0) + (m_ptr2Gimp->highFreqCoeffs()(spin, 1) - m_ptr2Gimp->highFreqCoeffs()(spin, 0) * m_ptr2Gimp->highFreqCoeffs()(spin, 0) - m_ptr2Gbath->highFreqCoeffs()(spin, 1) + m_ptr2Gbath->highFreqCoeffs()(spin, 0) * m_ptr2Gbath->highFreqCoeffs()(spin, 0)) / z;
+    }
+    const SqMatArray21Xcd& selfEnStaticPart() const {return m_selfenstatic;}
 };
 
 

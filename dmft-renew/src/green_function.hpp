@@ -25,15 +25,15 @@ protected:
     // Gw only stores matrices at positive frequencies because of the relation conj(Gij(iw)) = Gji(-iw). Due to this relation,
     // G is Hermitian in site space so essentially we can just store its upper triangular part, nontheless we store the
     // whole matrix because this is natural when calculated by Fourier inversion and this can also facilitate some calculations.
-    SqMatArray2XXcd m_Gw, m_G;
-    // Coefficient matrices of second and third high-frequency expansion of Green's function:
+    SqMatArray2XXcd m_Gw, m_Gt;
+    // Coefficient matrices of first- and second-order high-frequency expansion of Green's function:
     // G(iw) = -I / iw + G1 / (iw)^2 - G2 / (iw)^3 + ...
     // G1 = G'(0+) - G'(0-) = G'(0+) + G'(beta-), G2 = G"(0+) - G"(0-) = G"(0+) + G"(beta-).
-    SqMatArray21Xcd m_G1, m_G2;
+    SqMatArray22Xcd m_Ghfc;
     CubicSplineMat2XXcd m_Gspl;  // Cubic spline for G(tau)
     
 public:
-    GenericGreenFunction() : m_beta(0.0), m_Gspl(m_imagts, m_G) {}
+    GenericGreenFunction() : m_beta(0.0) {}
     GenericGreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const MPI_Comm& comm = MPI_COMM_SELF);
     GenericGreenFunction(const GenericGreenFunction&) = default;
     GenericGreenFunction(GenericGreenFunction&&) = default;
@@ -44,7 +44,7 @@ public:
     
     double inverseTemperature() const {return m_beta;}
     
-    std::size_t tauGridSize() const {return m_G.dim1();}
+    std::size_t tauGridSize() const {return m_Gt.dim1();}
     
     bool isDiscretized() const {return tauGridSize() > 1;}
     
@@ -58,29 +58,31 @@ public:
     const SqMatArray2XXcd &fourierCoeffs() const {return m_Gw;}
     SqMatArray2XXcd &fourierCoeffs() {return m_Gw;}
     
-    const SqMatArray2XXcd &valsOnTauGrid() const {return m_G;}
-    SqMatArray2XXcd &valsOnTauGrid() {return m_G;}
+    const SqMatArray2XXcd &valsOnTauGrid() const {return m_Gt;}
+    SqMatArray2XXcd &valsOnTauGrid() {return m_Gt;}
     
+    const SqMatArray22Xcd& highFreqCoeffs() const {return m_Ghfc;}
     // Return a const Eigen cwise-operation expression, whose type is too complicated to write
-    const auto getFCoeffHighFreq(const int spin, const double omega) const {
+    const auto fCoeffHighFreq(const int spin, const std::complex<double> z) const {
         // We can safely return this Eigen expression because G1 and G2 are members of this class, not temporary objects within this function.
         // The first-order coefficient is -(G(0+) + G(beta-)) = -I.
-        return -Eigen::MatrixXcd::Identity(nSites(), nSites()) / (1i * omega) + m_G1[spin] / (-omega * omega) - m_G2[spin] / (-1i * omega * omega * omega);
+        const std::complex<double> zsq = z * z;
+        return -Eigen::MatrixXcd::Identity(nSites(), nSites()) / z + m_Ghfc(spin, 0) / zsq - m_Ghfc(spin, 1) / (zsq * z);
     }
     // Return a const Eigen cwise-operation expression, whose type is too complicated to write
-    const auto getValAtTauHighFreq(const int spin, const double tau) const {
+    const auto valAtTauHighFreq(const int spin, const double tau) const {
         assert(tau >=0 && tau <= m_beta);
         // We can safely return this Eigen expression because G1 and G2 are members of this class, not temporary objects within this function
-        return 0.5 * Eigen::MatrixXcd::Identity(nSites(), nSites()) + ((2.0 * tau - m_beta) / 4.0) * m_G1[spin] - ((m_beta - tau) * tau / 4.0) * m_G2[spin];
+        return 0.5 * Eigen::MatrixXcd::Identity(nSites(), nSites()) + ((2.0 * tau - m_beta) / 4.0) * m_Ghfc(spin, 0) - ((m_beta - tau) * tau / 4.0) * m_Ghfc(spin, 1);
     }
     
     void fourierTransform();
     virtual void invFourierTrans();
     
-    std::complex<double> getValAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const;
+    std::complex<double> valAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const;
     
     // Return a const Eigen cwise-operation expression, whose type is too complicated to write
-    const auto getValAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const;
+    const auto valAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const;
     
     std::complex<double> interpValAtExtendedTau(const std::size_t spin, const std::size_t x1, const std::size_t x2, double tau) const;
     
@@ -145,8 +147,8 @@ public:
     // const SqMatArray2XXd& fCoeffsVar() const {return Gwvar;}
     // SqMatArray2XXd& fCoeffsVar() {return Gwvar;}
     
-    const SqMatArray2XXcd& selfEgf() const {return m_S;}
-    SqMatArray2XXcd& selfEgf() {return m_S;}
+    const SqMatArray2XXcd& selfEnGF() const {return m_S;}
+    SqMatArray2XXcd& selfEnGF() {return m_S;}
     
     std::size_t nTauBins4selfEgf() const {return m_S.dim1();}
     

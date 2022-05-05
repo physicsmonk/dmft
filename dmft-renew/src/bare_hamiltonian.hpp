@@ -37,7 +37,7 @@ private:
     std::string m_type;
     Eigen::ArrayXd m_dos;   // Stores density of states
     double m_mu;  // Chemical potential. Note band structure and DOS are independent of it.
-    SqMatArray21Xcd m_m1, m_m2;  // First and second moments
+    SqMatArray22Xcd m_moments;  // First and second moments
     
 protected:
     Eigen::MatrixXd m_a;  // Stores primative vectors in columns
@@ -62,7 +62,7 @@ public:
     void setMPIcomm(const MPI_Comm& comm);
     
     template <typename Derived>
-    void primVecs(const Eigen::MatrixBase<Derived>& a_);   // Set primative vectors
+    void primVecs(const Eigen::MatrixBase<Derived>& a);   // Set primative vectors
     const Eigen::MatrixXd& primVecs() const {return m_a;}   // Return primative vectors
     
     virtual void constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const;
@@ -98,23 +98,22 @@ public:
     void chemPot(const double mu) {m_mu = mu;}   // Set chemical potential
     double chemPot() const {return m_mu;}   // Return chemical potential
     
-    void firstMoment(const SqMatArray21Xcd& m1) {m_m1 = m1;}  // Set first moment
-    const SqMatArray21Xcd& firstMoment() const {return m_m1;}   // Return first moment
-    void secondMoment(const SqMatArray21Xcd& m2) {m_m2 = m2;}  // Set second moment
-    const SqMatArray21Xcd& secondMoment() const {return m_m2;}   // Return second moment
+    void moments(const SqMatArray22Xcd& mmts) {m_moments = mmts;}  // Set moments by copying
+    void moments(SqMatArray22Xcd&& mmts) {m_moments = mmts;}  // Set moments by moving
+    const SqMatArray22Xcd& moments() const {return m_moments;}   // Return moments
 };
 
 // Set unit cell vectors and record basic info
 template <typename Derived>
-void BareHamiltonian::primVecs(const Eigen::MatrixBase<Derived>& a_) {
-    if (a_.rows() != a_.cols()) {
+void BareHamiltonian::primVecs(const Eigen::MatrixBase<Derived>& a) {
+    if (a.rows() != a.cols()) {
         throw std::invalid_argument( "The dimension and number of primative vectors do not match!" );
     }
-    else if (a_.cols() == 0 || a_.cols() > 3) {
+    else if (a.cols() == 0 || a.cols() > 3) {
         throw std::invalid_argument( "Primative vectors can only be of 1D, 2D, or 3D!" );
     }
     
-    m_a = a_;
+    m_a = a;
     // Calculate reciprocal primative vectors
     m_K.resize(m_a.cols(), m_a.cols());
     if (m_a.cols() == 1) {
