@@ -745,7 +745,7 @@ double CTAUXImpuritySolver::solve() {
         for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
-        m_ptr2problem->G->computeHighFreqExpan(*(m_ptr2problem->H0), m_ptr2problem->U);
+        m_ptr2problem->G->computeHighFreqCoeffs(*(m_ptr2problem->H0), m_ptr2problem->U);
         
         if (measure_what == "S") {
             // Combine accumulated measurements of S on all processes and process them

@@ -116,7 +116,7 @@ public:
     
     std::complex<double> expiwt(const std::size_t t, const std::size_t o) const {return m_eiwt(t, o);}
     
-    void computeHighFreqExpan(const BareHamiltonian& H0);
+    void computeHighFreqCoeffs(const BareHamiltonian& H0);
     
     void invFourierTrans();
     
@@ -158,7 +158,7 @@ public:
     const Eigen::MatrixX2d& elecDensVars() const {return m_densvar;}
     Eigen::MatrixX2d& elecDensVars() {return m_densvar;}
     
-    void computeHighFreqExpan(const BareHamiltonian& H0, const double U);
+    void computeHighFreqCoeffs(const BareHamiltonian& H0, const double U);
     
     double evalFromSelfEgf(const BareGreenFunction& G0);
     

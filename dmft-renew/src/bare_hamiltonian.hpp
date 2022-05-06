@@ -278,9 +278,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
                 so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
                 wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
-                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) {
-                    Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfenmastpart[i]).inverse();
-                }
+                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfenmastpart[i]).inverse();
                 Gwmastpart[i] /= static_cast<double>(H0.hamDimerMag2d().size());
             }
         }

@@ -195,7 +195,7 @@ BareGreenFunction::BareGreenFunction(const double beta, const std::size_t nc, co
    Weiss field) does not simply correspond to K with U switched to zero, but to K0, i.e., the chemical potential of the bare Green's function is
    the effective chemical potential mu - U / 2 used in the impurity solver. On the other hand, the chemical potential of the interacting Green's
    function that will be used in the high-frequency expansion is just the true chemical potential mu. */
-void BareGreenFunction::computeHighFreqExpan(const BareHamiltonian& H0) {
+void BareGreenFunction::computeHighFreqCoeffs(const BareHamiltonian& H0) {
     // H0.mu is the effective chemical potential
     for (int s = 0; s < 2; ++s) {
         m_Ghfc(s, 0) = -(H0.moments()(s, 0) - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
@@ -235,7 +235,7 @@ GreenFunction::GreenFunction(const double beta, const std::size_t nc, const std:
                                                           //Gwvar(2, nfcut + 1, nc, comm_),
                                                           m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densvar(nc, 2) { }
 
-void GreenFunction::computeHighFreqExpan(const BareHamiltonian& H0, const double U) {
+void GreenFunction::computeHighFreqCoeffs(const BareHamiltonian& H0, const double U) {
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
     const double mu = H0.chemPot() + U / 2;   // This is the true chemical potential; H0.mu is the effective chemical potential.
     for (int s = 0; s < 2; ++s) {

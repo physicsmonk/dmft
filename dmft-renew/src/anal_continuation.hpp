@@ -65,7 +65,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     Eigen::ArrayXi::const_iterator itM, itn0, itN;
     int iz, n;
     std::size_t r, s, x0, x1, r0, ir;
-    Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> A, F;
+    Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> A, F(0, selfen_matsub.dim0() * selfen_matsub.dimm() * selfen_matsub.dimm());
     Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> zs, b;
     
     int prank, psize;
@@ -106,9 +106,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     // std::cout << "Rank " << _prank << ": localMstart = " << localMstart << ", localMfinal = " << localMfinal << "; localn0start = " << localn0start
     // << ", localn0final = " << localn0final << "; localNstart = " << localNstart << ", localNfinal = " << localNfinal << std::endl;
     
-    F.resize(0, selfen_matsub.dim0() * selfen_matsub.dimm() * selfen_matsub.dimm());
     m_coeffs.clear();
-    
     for (itM = localMbegin; itM < localMend; ++itM) {
         // Test
         // std::cout << "Rank " << _prank << ": M = " << *itM << std::endl;
@@ -190,8 +188,8 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
     bool is_physical;
     
     m_nphys = Eigen::ArrayXi::Zero(m_ptr2selfenstatic->dim0());
-    m_selfenR.resize(m_ptr2selfenstatic->dim0(), np, m_ptr2selfenstatic->dimm());  // Resize m_selfenR to the right dimension
-    for (s = 0; s < m_selfenR.dim0(); ++s) {for (o = 0; o < np; ++o) m_selfenR(s, o) = (*m_ptr2selfenstatic)[s];}  // Initialize m_selfenR with the static part
+    m_selfenR.resize(m_ptr2selfenstatic->dim0(), np, m_ptr2selfenstatic->dimm());
+    m_selfenR().setZero();
     
     // zs has positive delta no matter the sign of the input del
     zs = Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic>::LinSpaced(np, low, high) + 1i * std::fabs(del) * Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic>::Ones(np);
@@ -242,9 +240,12 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
 //        so = _selfen.index2DinPart(i);
 //        if (_nphys(so[0]) > 0) _selfen.masteredPart(i) /= _nphys(so[0]);
 //    }
-    m_selfenR.allSum();   // full-size m_selfenR will be used by all processes
+    m_selfenR.allSum();   // Sum results from all Pade approximants on all processes; full-size m_selfenR will be used by all processes
     for (s = 0; s < m_selfenR.dim0(); ++s) {
-        if (m_nphys(s) > 0) {for (o = 0; o < np; ++o) m_selfenR(s, o) /= m_nphys(s);}
+        for (o = 0; o < np; ++o) {
+            if (m_nphys(s) > 0) m_selfenR(s, o) /= m_nphys(s);
+            m_selfenR(s, o) += (*m_ptr2selfenstatic)[s];  // Add static part back to the analytically-continued self-energy
+        }
     }
     
     m_spectramat.resize(m_selfenR.dim0(), np, m_selfenR.dimm());

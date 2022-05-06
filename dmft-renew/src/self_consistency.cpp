@@ -22,7 +22,7 @@ DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::share
     
     // Compute high-frequency expansion coefficients of bath Green's function, which only depend on bare Hamiltonian
     // and thus only need to be calculated once when bare Hamiltonian passed in.
-    m_ptr2Gbath->computeHighFreqExpan(*m_ptr2H0);
+    m_ptr2Gbath->computeHighFreqCoeffs(*m_ptr2H0);
 }
 
 // Update the bath Green's function using the current lattice Green's function and self-energy
