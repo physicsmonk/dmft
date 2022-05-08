@@ -88,6 +88,8 @@ public:
     
     void interpValAtExtendedTau(const std::size_t spin, double tau, Eigen::Ref<Eigen::MatrixXcd> result) const;
     
+    virtual void symmetrizeSpins();
+    
     virtual void setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau);
 };
 
@@ -150,7 +152,7 @@ public:
     const SqMatArray2XXcd& selfEnGF() const {return m_S;}
     SqMatArray2XXcd& selfEnGF() {return m_S;}
     
-    std::size_t nTauBins4selfEgf() const {return m_S.dim1();}
+    std::size_t nTauBins4selfEnGF() const {return m_S.dim1();}
     
     const Eigen::MatrixX2d& elecDensities() const {return m_dens;}
     Eigen::MatrixX2d& elecDensities() {return m_dens;}
@@ -160,7 +162,9 @@ public:
     
     void computeHighFreqCoeffs(const BareHamiltonian& H0, const double U);
     
-    double evalFromSelfEgf(const BareGreenFunction& G0);
+    double evalFromSelfEnGF(const BareGreenFunction& G0);
+    
+    void symmetrizeSpins();
     
     void setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S);
 };

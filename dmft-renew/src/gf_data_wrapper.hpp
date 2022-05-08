@@ -353,6 +353,14 @@ public:
     typename SqMatArrType::ConstColsBlockXpr operator()() const {
         return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
+    typename SqMatArrType::NColsBlockXpr operator()(const std::size_t i0) {
+        assert(i0 < m_sqmatarr.m_mastsize_dim0);
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1DimmAtCompileTime>((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.dim1() * m_sqmatarr.dimm());
+    }
+    typename SqMatArrType::ConstNColsBlockXpr operator()(const std::size_t i0) const {
+        assert(i0 < m_sqmatarr.m_mastsize_dim0);
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1DimmAtCompileTime>((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.dim1() * m_sqmatarr.dimm());
+    }
     typename SqMatArrType::NColsBlockXpr operator()(const std::size_t i0, const std::size_t i1) {
         assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1());
         return m_sqmatarr.m_data.template middleCols<SqMatArrType::UnitSizeAtCompileTime>(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
@@ -453,6 +461,7 @@ class SqMatArray : public SqMatArrayStorage<_Scalar, _n0, _n1, _nm> {
 public:
     typedef _Scalar Scalar;
     static constexpr int UnitSizeAtCompileTime = _nm;
+    static constexpr int Dim1DimmAtCompileTime = _n1 == Eigen::Dynamic || _nm == Eigen::Dynamic ? Eigen::Dynamic : _n1 * _nm;
     typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::ColsBlockXpr ColsBlockXpr;
     typedef typename Eigen::DenseBase<typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType>::ConstColsBlockXpr ConstColsBlockXpr;
     // Below templates accept _nm being fixed size or dynamic, and in the former case the runtime size must equal _nm
@@ -485,6 +494,16 @@ public:
     // Expose the underlying Eigen::Matrix object for global manipulation (should not do resize)
     typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType& operator()() {return this->m_data;}
     const typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType& operator()() const {return this->m_data;}
+    
+    // Access each dim0 block
+    NColsBlockXpr operator()(const std::size_t i0) {
+        assert(i0 < this->dim0());
+        return this->m_data.template middleCols<Dim1DimmAtCompileTime>(i0 * this->dim1() * this->dimm(), this->dim1() * this->dimm());
+    }
+    ConstNColsBlockXpr operator()(const std::size_t i0) const {
+        assert(i0 < this->dim0());
+        return this->m_data.template middleCols<Dim1DimmAtCompileTime>(i0 * this->dim1() * this->dimm(), this->dim1() * this->dimm());
+    }
     
     // Just sequentially access each unit matrix, which becomes intuitive when _n0 = 1 or _n1 = 1.
     NColsBlockXpr operator[](const std::size_t i) {

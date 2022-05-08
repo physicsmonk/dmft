@@ -180,6 +180,7 @@ int main(int argc, char * argv[]) {
     std::size_t warmupsize = 10000;
     std::string measurewhat("S");
     std::size_t histmaxorder = 100;
+    std::string magneticorder("paramagnetic");
     std::string verbosity("off");
     
     std::string ansatz("metal");
@@ -236,6 +237,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(warmupsize, docroot, "numerical/QMC/numWarmupSteps", MPI_COMM_WORLD, prank);
     readxml_bcast(measurewhat, docroot, "numerical/QMC/whatToMeasure", MPI_COMM_WORLD, prank);
     readxml_bcast(histmaxorder, docroot, "numerical/QMC/maxOrderForHistogram", MPI_COMM_WORLD, prank);
+    readxml_bcast(magneticorder, docroot, "numerical/QMC/magneticOrder", MPI_COMM_WORLD, prank);
     readxml_bcast(verbosity, docroot, "numerical/QMC/verbosity", MPI_COMM_WORLD, prank);
     readxml_bcast(ansatz, docroot, "numerical/selfConsistency/ansatz", MPI_COMM_WORLD, prank);
     readxml_bcast(nitmax, docroot, "numerical/selfConsistency/maxIteration", MPI_COMM_WORLD, prank);
@@ -351,8 +353,8 @@ int main(int argc, char * argv[]) {
     
         pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         
-        sigmaxx = longitConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
+        sigmaxx = longitConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
         
         if (prank == 0) {
             std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
@@ -401,6 +403,7 @@ int main(int argc, char * argv[]) {
     // impsolver.parameters.at("does measure") = false;
     impsolver.parameters.at("measure what") = measurewhat;
     impsolver.parameters.at("histogram max order") = histmaxorder;
+    impsolver.parameters.at("magnetic order") = magneticorder;
     impsolver.parameters.at("verbosity") = verbosity;
     
     DMFTIterator dmft(H0, G0, G);
@@ -507,7 +510,7 @@ int main(int argc, char * argv[]) {
         
         if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
         tstart = std::chrono::high_resolution_clock::now();
-        dmft.selfEnergy().mastFlatPart().allGather();
+        //dmft.selfEnergy().mastFlatPart().allGather();
         pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
                    Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
@@ -517,7 +520,7 @@ int main(int argc, char * argv[]) {
         if (prank == 0) std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
         
         // Output results
-        G->fourierCoeffs().mastFlatPart().allGather();
+        //G->fourierCoeffs().mastFlatPart().allGather();
         if (prank == 0) {
             printData("G0.txt", G0->valsOnTauGrid());
             printData("G0matsubara.txt", G0->fourierCoeffs());
@@ -531,8 +534,8 @@ int main(int argc, char * argv[]) {
         
         if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
         tstart = std::chrono::high_resolution_clock::now();
-        sigmaxx = longitConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.selfEnergy(), beta, minenergy, maxenergy, delenergy);
+        sigmaxx = longitConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;

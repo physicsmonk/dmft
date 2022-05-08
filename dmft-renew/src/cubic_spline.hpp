@@ -41,7 +41,7 @@ public:
     
     CubicSplineMat() : m_ptr2x(nullptr), m_ptr2y(nullptr), m_dx(0.0) {}
     // Build spline on construction
-    CubicSplineMat(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 2, _nm>& Ghfc) : m_ptr2x(x), m_ptr2y(y), m_dx((*x)(1) - (*x)(0)) {build(x, y, Ghfc);}
+    CubicSplineMat(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 2, _nm>& Ghfc) {build(x, y, Ghfc);}
     CubicSplineMat(const CubicSplineMat&) = default;
     CubicSplineMat(CubicSplineMat&&) = default;
     CubicSplineMat& operator=(const CubicSplineMat&) = default;
@@ -55,6 +55,8 @@ public:
     std::complex<double> fourierTransform(const std::size_t i0, const double omega, const std::size_t im0, const std::size_t im1) const;
     
     void fourierTransform(const std::size_t i0, const double omega, Eigen::Ref<Eigen::Matrix<_ScalarT, Eigen::Dynamic, Eigen::Dynamic> > result) const;
+    
+    void symmetrizeDim0();
 };
 
 // This building algorithm is in terms of the second derivative. See in this link en.wikiversity.org/wiki/Cubic_Spline_Interpolation
@@ -184,6 +186,20 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(const std::size_t
     result.resize(m_ptr2y->dimm(), m_ptr2y->dimm());  // For blocks, this just does runtime assertion that the new size matches the original size
     for (im1 = 0; im1 < m_ptr2y->dimm(); ++im1) {
         for (im0 = 0; im0 < m_ptr2y->dimm(); ++im0) result(im0, im1) = fourierTransform(i0, omega, im0, im1);
+    }
+}
+
+// Cubic spline is a linear transformation, i.e., the cubic spline of y1(x) + y2(x) equals the sum of cubic splines of y1(x) and y2(x), so the
+// symmetrization of the cubic spline coefficients corresponds exactly to the symmetrization of the input data
+template <typename _ScalarT, int _n0, int _n1, int _nm>
+void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::symmetrizeDim0() {
+    if (m_ptr2y != nullptr) {
+        constexpr int nmsqAtCompileTime = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * _nm;
+        const std::size_t nmsq = m_ptr2y->dimm() * m_ptr2y->dimm();
+        std::size_t i0;
+        for (i0 = 1; i0 < m_ptr2y->dim0(); ++i0) m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq) += m_deriv2.template middleCols<nmsqAtCompileTime>(i0 * nmsq, nmsq);
+        m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq) /= static_cast<double>(m_ptr2y->dim0());
+        for (i0 = 1; i0 < m_ptr2y->dim0(); ++i0) m_deriv2.template middleCols<nmsqAtCompileTime>(i0 * nmsq, nmsq) = m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq);
     }
 }
 

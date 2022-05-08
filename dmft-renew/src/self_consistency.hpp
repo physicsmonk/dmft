@@ -49,7 +49,9 @@ public:
     SqMatArray2XXcd& selfEnergy() {return m_selfen;}
     const SqMatArray2XXcd& selfEnergy() const {return m_selfen;}
     const auto selfEnHighFreq(const int spin, const std::complex<double> z) const {
-        return m_ptr2Gbath->highFreqCoeffs()(spin, 0) - m_ptr2Gimp->highFreqCoeffs()(spin, 0) + (m_ptr2Gimp->highFreqCoeffs()(spin, 1) - m_ptr2Gimp->highFreqCoeffs()(spin, 0) * m_ptr2Gimp->highFreqCoeffs()(spin, 0) - m_ptr2Gbath->highFreqCoeffs()(spin, 1) + m_ptr2Gbath->highFreqCoeffs()(spin, 0) * m_ptr2Gbath->highFreqCoeffs()(spin, 0)) / z;
+        return m_ptr2Gbath->highFreqCoeffs()(spin, 0) - m_ptr2Gimp->highFreqCoeffs()(spin, 0)
+        + (m_ptr2Gimp->highFreqCoeffs()(spin, 1) - m_ptr2Gimp->highFreqCoeffs()(spin, 0) * m_ptr2Gimp->highFreqCoeffs()(spin, 0)
+           - m_ptr2Gbath->highFreqCoeffs()(spin, 1) + m_ptr2Gbath->highFreqCoeffs()(spin, 0) * m_ptr2Gbath->highFreqCoeffs()(spin, 0)) / z;
     }
     const SqMatArray21Xcd& selfEnStaticPart() const {return m_selfenstatic;}
 };

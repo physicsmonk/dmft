@@ -38,7 +38,7 @@ public:
     
     const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& spectraMatrix() const;
     
-    const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& selfEnergy() const;
+    const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& RetardedselfEn() const;
     
 private:
     typedef long double m_Hpfloat;   // Could modify this to implement even higher precision floating-point type for solving the linear least-square systems
@@ -267,7 +267,7 @@ inline const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& PadeAppro
 }
 
 template <int n0, int n1, int nm>
-inline const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& PadeApproximant<n0, n1, nm>::selfEnergy() const {
+inline const SqMatArray<std::complex<double>, n0, Eigen::Dynamic, nm>& PadeApproximant<n0, n1, nm>::RetardedselfEn() const {
     return m_selfenR;
 }
 

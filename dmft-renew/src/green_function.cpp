@@ -80,14 +80,11 @@ void GenericGreenFunction::invFourierTrans() {
 std::complex<double> GenericGreenFunction::valAtExtendedTau(const int spin, const std::size_t x1, const std::size_t x2, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
-    
     double sgn = 1.0;
-    
     if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach == LeftLimit)) {  // Case of tau < 0: using antiperiodicity of Green's functions
         sgn = -1.0;
         ext_tau_ind += tauGridSize() - 1;
     }
-    
     return sgn * m_Gt(spin, ext_tau_ind, x1, x2);
 }
 
@@ -95,55 +92,55 @@ std::complex<double> GenericGreenFunction::valAtExtendedTau(const int spin, cons
 const auto GenericGreenFunction::valAtExtendedTau(const int spin, int ext_tau_ind, const LimitDirection approach) const {
     // Cast to int because ext_tau_ind can be negative
     assert( tauGridSize() > 0 && ext_tau_ind > -static_cast<int>(tauGridSize()) && ext_tau_ind < static_cast<int>(tauGridSize()) );
-    
     double sgn = 1.0;
-    
     if (ext_tau_ind < 0 || (ext_tau_ind == 0 && approach == LeftLimit)) {  // Case of tau < 0: using antiperiodicity of Green's functions
         sgn = -1.0;
         ext_tau_ind += tauGridSize() - 1;
     }
-    
     return sgn * m_Gt(spin, ext_tau_ind);
 }
 
 std::complex<double> GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, const std::size_t x1, const std::size_t x2, double tau) const {
     assert(tau >= -m_beta && tau <= m_beta);
-    
     // Green's function has a period of 2 * beta; now -beta <= rtau <= beta
     // const double rtau = tau - round(tau / (2 * beta)) * 2 * beta;
     // This round function rounds half-way up, so will swap the cases of tau = beta, -beta, leading to error w.r.t.
     // the discontinuity at tau = beta, -beta. This is because we considered tau = beta means tau = beta- and tau = -beta
     // means -beta+0. Also rounding number can get tricky. Anyway in program tau's range is always within [-beta, beta],
     // so we just save the effort for making this more general.
-    
     double sgn = 1.0;
-    
     if (tau < 0) {
         sgn = -1.0;
         tau += m_beta;
     }
-    
     return sgn * m_Gspl.equidistAt(spin, tau, x1, x2);
 }
 
 // Eigen::Ref<Eigen::MatrixXcd> also references fixed size matrix
 void GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, double tau, Eigen::Ref<Eigen::MatrixXcd> result) const {
     assert(tau >= -m_beta && tau <= m_beta);
-    
     // Green's function has a period of 2 * beta; now -beta <= rtau <= beta
     // const double rtau = tau - round(tau / (2 * beta)) * 2 * beta;
     double sgn = 1.0;
-    
     if (tau < 0) {
         sgn = -1.0;
         tau += m_beta;
     }
-    
     std::size_t x0, x1;
     result.resize(nSites(), nSites());
     for (x1 = 0; x1 < nSites(); ++x1) {for (x0 = x1; x0 < nSites(); ++x0) result(x0, x1) = sgn * m_Gspl.equidistAt(spin, tau, x0, x1);}
     //result = result.template selfadjointView<Eigen::Lower>();
     result.triangularView<Eigen::Upper>() = result.adjoint();  // No aliasing issue
+}
+
+void GenericGreenFunction::symmetrizeSpins() {
+    m_Gw(0) = (m_Gw(0) + m_Gw(1)) / 2.0;
+    m_Gw(1) = m_Gw(0);
+    m_Gt(0) = (m_Gt(0) + m_Gt(1)) / 2.0;
+    m_Gt(1) = m_Gt(0);
+    m_Ghfc(0) = (m_Ghfc(0) + m_Ghfc(1)) / 2.0;
+    m_Ghfc(1) = m_Ghfc(0);
+    m_Gspl.symmetrizeDim0();
 }
 
 void GenericGreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau) {
@@ -248,32 +245,32 @@ void GreenFunction::computeHighFreqCoeffs(const BareHamiltonian& H0, const doubl
 
 // Each process only evaluate G on its mastered imaginary partition. No need to gather the Fourier coefficients because from here the
 // flow is entering the DMFT equations. Return an estimation of Simpson integration error.
-double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
-    if (nTauBins4selfEgf() == 0) throw std::domain_error( "Number of bins for S is zero so cannot evaluate Green's function from S!" );
+double GreenFunction::evalFromSelfEnGF(const BareGreenFunction& G0) {
+    if (nTauBins4selfEnGF() == 0) throw std::domain_error( "Number of bins for S is zero so cannot evaluate Green's function from S!" );
     if (!isDiscretized()) throw std::domain_error( "GreenFunction in tau space was not discretized so cannot evaluate it from S!" );
     if (tauGridSize() != G0.tauGridSize()) throw std::range_error("Tau grid sizes of G and G0 do not match!");
     if (freqCutoff() != G0.freqCutoff()) throw std::range_error("Frequency cutoffs of G and G0 do not match!");
     
     auto Gmastpart = m_Gt.mastFlatPart();
     const auto G0mastpart = G0.valsOnTauGrid().mastFlatPart();
-    const double binsize4S = m_beta / nTauBins4selfEgf();
+    const double binsize4S = m_beta / nTauBins4selfEnGF();
     std::array<std::size_t, 2> i2d;
     std::size_t i, ibin4S;
-    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> integrand(1, nTauBins4selfEgf(), nSites());  // Purely local to each process
+    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> integrand(1, nTauBins4selfEnGF(), nSites());  // Purely local to each process
     
     // Evaluate G in tau space.
     for (i = 0; i < Gmastpart.size(); ++i) {
         // Each process only evaluates the G's on its mastered partition
         i2d = Gmastpart.global2dIndex(i);
         // G0.interpValAtExtendedTau(i2d[0], tau, G.masteredPart(i));
-        for (ibin4S = 0; ibin4S < nTauBins4selfEgf(); ++ibin4S) {
+        for (ibin4S = 0; ibin4S < nTauBins4selfEnGF(); ++ibin4S) {
             G0.interpValAtExtendedTau(i2d[0], m_imagts(i2d[1]) - (ibin4S + 0.5) * binsize4S, integrand[ibin4S]);
             integrand[ibin4S] *= m_S(i2d[0], ibin4S);  // Automatically introduced a temporary here to deal with the aliasing issue
             // G.masteredPart(i).noalias() += g0 * S(i2d[0], ibin4S);   // This requires S is not scaled by its bin size
         }
         simpsonIntegrate<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic>(integrand, binsize4S, Gmastpart[i]);  // Must explicitly instantiate
         // Also add head and tail parts to the integral
-        Gmastpart[i] += (binsize4S / 4) * (integrand[0] + integrand[nTauBins4selfEgf() - 1]) + G0mastpart[i];
+        Gmastpart[i] += (binsize4S / 4) * (integrand[0] + integrand[nTauBins4selfEnGF() - 1]) + G0mastpart[i];
     }
     Gmastpart.allGather();  // All-gather for next Fourier transform
     
@@ -290,6 +287,16 @@ double GreenFunction::evalFromSelfEgf(const BareGreenFunction& G0) {
     fourierTransform();   // Only evaluate to mastered partition
     
     return interr;
+}
+
+void GreenFunction::symmetrizeSpins() {
+    GenericGreenFunction::symmetrizeSpins();
+    m_S(0) = (m_S(0) + m_S(1)) / 2.0;
+    m_S(1) = m_S(0);
+    m_dens.col(0) = (m_dens.col(0) + m_dens.col(1)) / 2.0;
+    m_dens.col(1) = m_dens.col(0);
+    m_densvar.col(0) = (m_densvar.col(0) + m_densvar.col(1)) / 2.0;
+    m_densvar.col(1) = m_densvar.col(0);
 }
 
 void GreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S) {

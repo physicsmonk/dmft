@@ -444,7 +444,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
     const double beta = m_ptr2problem->G0->inverseTemperature();
     if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error("Temperatures of G and G0 do not match!");
     
-    const std::size_t nbins4S = m_ptr2problem->G->nTauBins4selfEgf();
+    const std::size_t nbins4S = m_ptr2problem->G->nTauBins4selfEnGF();
     const double binsize4S = beta / nbins4S;
     // const double dtau4eiwt = beta / (_problem->G0->tauGridSizeOfExpiwt() - 1);
     Eigen::VectorXd eV_1(m_vertices.size());
@@ -611,7 +611,7 @@ CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> proble
     parameters["shift t&site"] = false;
     parameters["does measure"] = true;
     parameters["measure what"] = std::string("S");
-    // parameters["integration spline type"] = std::string("akima");
+    parameters["magnetic order"] = std::string("paramagnetic");  // Or ferromagnetic or antiferromagnetic
     m_reng.seed(m_oldseed);
 }
 
@@ -749,12 +749,12 @@ double CTAUXImpuritySolver::solve() {
         
         if (measure_what == "S") {
             // Combine accumulated measurements of S on all processes and process them
-            m_ptr2problem->G->selfEnGF().allSum();
+            m_ptr2problem->G->selfEnGF().allSum();   // All processes need the full-size S
             m_ptr2problem->G->selfEnGF()() /= m_nmeasure * m_measuredfermisign;  // Average value of measured quantity
             
             // Each process only evaluate G(iw) on its mastered imaginary partition; return an estimation of Simpson integration error
             // for obtaining electron densities
-            simpinterror = m_ptr2problem->G->evalFromSelfEgf(*(m_ptr2problem->G0));
+            simpinterror = m_ptr2problem->G->evalFromSelfEnGF(*(m_ptr2problem->G0));
         }
         else if (measure_what == "G") {
             auto Gwmastpart = m_ptr2problem->G->fourierCoeffs().mastFlatPart();
@@ -766,6 +766,11 @@ double CTAUXImpuritySolver::solve() {
             //_problem->G->fCoeffsVar().masteredPart(i) = ((_problem->G->fCoeffsVar().masteredPart(i) / (nmeasure * measured_fermi_sign) - _problem->G->fourierCoeffs().masteredPart(i).cwiseAbs2()) / (nmeasure - 1)).cwiseSqrt();
             
             m_ptr2problem->G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
+        }
+        const auto magneticorder = std::any_cast<std::string>(parameters.at("magnetic order"));
+        if (magneticorder == "paramagnetic") {
+            m_ptr2problem->G->fourierCoeffs().mastFlatPart().allGather();   // For symmetrization
+            m_ptr2problem->G->symmetrizeSpins();
         }
     }
     return simpinterror;  // -1 means not used Simpson integration and thus not estimate the error

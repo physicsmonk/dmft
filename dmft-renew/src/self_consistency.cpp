@@ -94,6 +94,7 @@ void DMFTIterator::approxSelfEnergy() {
     const auto Gimpmastpart = m_ptr2Gimp->fourierCoeffs().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
+    selfenmastpart.allGather();  // For Pade interpolation after calling this method
     for (int s = 0; s < 2; ++s) m_selfenstatic[s] = m_ptr2Gbath->highFreqCoeffs()(s, 0) - m_ptr2Gimp->highFreqCoeffs()(s, 0);
 }
 

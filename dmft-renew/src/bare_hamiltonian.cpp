@@ -58,8 +58,7 @@ void BareHamiltonian::computeDOS(const std::size_t nbins) {
     std::size_t ie, ib, ik;
     const double binsize = (m_erange[1] - m_erange[0]) / nbins;
     
-    m_dos.resize(nbins);
-    m_dos.setZero();
+    m_dos = Eigen::ArrayXd::Zero(nbins);
     
     for (ik = 0; ik < m_klocalsize; ++ik) {
         for (ib = 0; ib < m_bands.rows(); ++ib) {
