@@ -353,13 +353,14 @@ int main(int argc, char * argv[]) {
     
         pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         
-        sigmaxx = longitConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
+        sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
         
         if (prank == 0) {
             std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
+            printData("selfenergy_retarded.txt", pade.retardedSelfEn());
             printData("spectramatrix.txt", pade.spectraMatrix());
         }
         
@@ -528,14 +529,15 @@ int main(int argc, char * argv[]) {
             printData("Gmatsubara.txt", G->fourierCoeffs());
             printData("selfenergy.txt", dmft.selfEnergy());
             printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart());
+            printData("selfenergy_retarded.txt", pade.retardedSelfEn());
             printData("spectramatrix.txt", pade.spectraMatrix());
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
         
         if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
         tstart = std::chrono::high_resolution_clock::now();
-        sigmaxx = longitConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.RetardedselfEn(), beta, minenergy, maxenergy, delenergy);
+        sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
