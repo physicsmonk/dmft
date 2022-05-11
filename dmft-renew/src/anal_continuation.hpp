@@ -106,8 +106,8 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     // std::cout << "Rank " << _prank << ": localMstart = " << localMstart << ", localMfinal = " << localMfinal << "; localn0start = " << localn0start
     // << ", localn0final = " << localn0final << "; localNstart = " << localNstart << ", localNfinal = " << localNfinal << std::endl;
     
-    // Eigen::BDCSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;
-    Eigen::JacobiSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > jacobisvd;
+    Eigen::BDCSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;
+    //Eigen::JacobiSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > jacobisvd;
     
     m_coeffs.clear();
     for (itM = localMbegin; itM < localMend; ++itM) {
@@ -154,8 +154,8 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
                             b = -A.col(*itN - 1).cwiseProduct(zs);
                             // Solve for and store the unfiltered Pade coefficients
                             // BDCSVD should be compiled without unsafe math optimizations, e.g., for Intel's compiler, compile with -fp-model precise option
-                            jacobisvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
-                            m_coeffs.push_back(jacobisvd.solve(b));
+                            bdcsvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+                            m_coeffs.push_back(bdcsvd.solve(b));
                             // m_coeffs.push_back(A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b));  // Most accurate but a little bit slow
                             // m_coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));  // Faster but less accurate than BDCSVD
                             // m_coeffs.push_back(A.colPivHouseholderQr().solve(b));  // Faster but less accurate than BDCSVD
@@ -228,7 +228,7 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
                 else if (physonly) {
                     // Checks causality by checking if the Hermitian matrix (selfen - selfen^H) / 2i is negative semi-definite.
                     // If not, mark the corresponding approximant as unphysical.
-                    if ( (((selfenR[o] - selfenR[o].adjoint()) / 2i).selfadjointView<Eigen::Lower>().eigenvalues().array() > 0).any() ) {
+                    if ( (((selfenR[o] - selfenR[o].adjoint()) / 2i).selfadjointView<Eigen::Lower>().eigenvalues().array() > 0.0).any() ) {
                         is_physical = false;
                         break;
                     }
