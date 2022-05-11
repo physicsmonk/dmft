@@ -66,7 +66,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     int iz, n;
     std::size_t r, s, x0, x1, r0, ir;
     Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> A, F(0, selfen_matsub.dim0() * selfen_matsub.dimm() * selfen_matsub.dimm());
-    Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> zs, b, sol;
+    Eigen::Vector<std::complex<m_Hpfloat>, Eigen::Dynamic> zs, b;
     
     int prank, psize;
     MPI_Comm_rank(comm, &prank);
@@ -105,6 +105,9 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
     // Test
     // std::cout << "Rank " << _prank << ": localMstart = " << localMstart << ", localMfinal = " << localMfinal << "; localn0start = " << localn0start
     // << ", localn0final = " << localn0final << "; localNstart = " << localNstart << ", localNfinal = " << localNfinal << std::endl;
+    
+    Eigen::BDCSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;
+    // Eigen::JacobiSVD<Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> > jacobisvd;
     
     m_coeffs.clear();
     for (itM = localMbegin; itM < localMend; ++itM) {
@@ -150,10 +153,12 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
                             // Assemble the rhs vector of the linear least square system
                             b = -A.col(*itN - 1).cwiseProduct(zs);
                             // Solve for and store the unfiltered Pade coefficients
-                            sol = A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b);  // Most accurate but a little bit slow
-                            m_coeffs.push_back(std::move(sol));
-                            // m_coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));  // Faster than BDCSVD and about as accurate
-                            // m_coeffs.push_back(A.colPivHouseholderQr().solve(b));  // Faster than BDCSVD and about as accurate
+                            // BDCSVD should be compiled without unsafe math optimizations, e.g., for Intel's compiler, compile with -fp-model precise option
+                            bdcsvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+                            m_coeffs.push_back(bdcsvd.solve(b));
+                            // m_coeffs.push_back(A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b));  // Most accurate but a little bit slow
+                            // m_coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));  // Faster but less accurate than BDCSVD
+                            // m_coeffs.push_back(A.colPivHouseholderQr().solve(b));  // Faster but less accurate than BDCSVD
                             // m_coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
                             // _coeffs.push_back((A.adjoint() * A).partialPivLu().solve(A.adjoint() * b));
                             // _coeffs.push_back((A.adjoint() * A).fullPivLu().solve(A.adjoint() * b));
