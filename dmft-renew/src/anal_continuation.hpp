@@ -150,8 +150,10 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
                             // Assemble the rhs vector of the linear least square system
                             b = -A.col(*itN - 1).cwiseProduct(zs);
                             // Solve for and store the unfiltered Pade coefficients
-                            // _coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));
-                            m_coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
+                            m_coeffs.push_back(A.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b));  // Most accurate but a little bit slow
+                            // m_coeffs.push_back(A.completeOrthogonalDecomposition().solve(b));  // Faster than BDCSVD and about as accurate
+                            // m_coeffs.push_back(A.colPivHouseholderQr().solve(b));  // Faster than BDCSVD and about as accurate
+                            // m_coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
                             // _coeffs.push_back((A.adjoint() * A).partialPivLu().solve(A.adjoint() * b));
                             // _coeffs.push_back((A.adjoint() * A).fullPivLu().solve(A.adjoint() * b));
                             
