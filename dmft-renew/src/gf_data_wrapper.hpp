@@ -20,7 +20,7 @@
 
 // Get underlying data type of std::size_t
 #include <cstdint>
-#include <limits>
+#include <climits>
 #if SIZE_MAX == UCHAR_MAX
    #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX

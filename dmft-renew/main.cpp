@@ -10,6 +10,7 @@
 #include <fstream>
 #include <thread>       // std::this_thread::sleep_for
 #include <chrono>
+#include <limits>
 #include "input.hpp"
 #include "ct_aux_imp_solver.hpp"
 #include "self_consistency.hpp"
