@@ -25,9 +25,9 @@ using namespace std::complex_literals;
 
 // For testing
 template <typename ScalarT, int n0, int n1, int nm>
-void printData(const std::string& fname, const SqMatArray<ScalarT, n0, n1, nm>& data) {
+void printData(const std::string& fname, const SqMatArray<ScalarT, n0, n1, nm>& data, const int precision = 6) {
     std::ofstream myfile(fname, std::fstream::out | std::fstream::trunc);
-    myfile << std::fixed << std::setprecision(12);
+    myfile << std::setprecision(precision);
     if (myfile.is_open()) {
         myfile << data;
         myfile.close();
@@ -36,9 +36,9 @@ void printData(const std::string& fname, const SqMatArray<ScalarT, n0, n1, nm>& 
 }
 
 template <typename Derived>
-void printData(const std::string& fname, const Eigen::DenseBase<Derived>& data) {
+void printData(const std::string& fname, const Eigen::DenseBase<Derived>& data, const int precision = 6) {
     std::ofstream myfile(fname, std::fstream::out | std::fstream::trunc);
-    myfile << std::fixed << std::setprecision(12);
+    myfile << std::setprecision(precision);
     if (myfile.is_open()) {
         myfile << data;
         myfile.close();
@@ -310,12 +310,7 @@ int main(int argc, char * argv[]) {
         //std::ofstream filebands("bands.txt");
         //filebands << H0->bands();
         //filebands.close();
-        std::ofstream filedos("dos.txt", std::fstream::out | std::fstream::trunc);
-        if (filedos.is_open()) {
-            filedos << H0->dos();
-            filedos.close();
-        }
-        else std::cout << "Unable to open file" << std::endl;
+        printData("dos.txt", H0->dos());
     }
     
     // Test
@@ -527,8 +522,8 @@ int main(int argc, char * argv[]) {
             printData("G0matsubara.txt", G0->fourierCoeffs());
             printData("G.txt", G->valsOnTauGrid());
             printData("Gmatsubara.txt", G->fourierCoeffs());
-            printData("selfenergy.txt", dmft.selfEnergy());
-            printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart());
+            printData("selfenergy.txt", dmft.selfEnergy(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_retarded.txt", pade.retardedSelfEn());
             printData("spectramatrix.txt", pade.spectraMatrix());
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());

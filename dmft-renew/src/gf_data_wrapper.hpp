@@ -13,12 +13,14 @@
 #include <array>
 #include <Eigen/Core>
 #include <mpi.h>
+#include <string>
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 
 // Get underlying data type of std::size_t
 #include <cstdint>
-#include <climits>
+#include <limits>
 #if SIZE_MAX == UCHAR_MAX
    #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX
@@ -605,15 +607,39 @@ std::ostream& operator<<(std::ostream& os, const SqMatArray<Scalar, n0, n1, nm>&
 //
 //    MPI_Type_contiguous(charspernum, MPI_CHAR, &NumAsStr);
 //    MPI_Type_commit(&NumAsStr);
-    const int w = static_cast<int>(os.precision()) + 3;
+    std::ostringstream ostr;
     std::size_t i0, i1, im0, im1;
+    const std::size_t size = sqmats().size();
+    int width = 0;
+    
+    // Get maximum width
+    ostr.copyfmt(os);
+    for (i0 = 0; i0 < size; ++i0) {
+        if constexpr (std::is_same<Scalar, std::complex<double> >::value) {
+            ostr << sqmats()(i0).real();
+            width = std::max(width, static_cast<int>(ostr.str().length()));
+            ostr.str(std::string());
+            ostr.clear();
+            ostr << sqmats()(i0).imag();
+            width = std::max(width, static_cast<int>(ostr.str().length()));
+            ostr.str(std::string());
+            ostr.clear();
+        }
+        else {
+            ostr << sqmats()(i0);
+            width = std::max(width, static_cast<int>(ostr.str().length()));
+            ostr.str(std::string());
+            ostr.clear();
+        }
+    }
+    
     for (i1 = 0; i1 < sqmats.dim1(); ++i1) {
         for (i0 = 0; i0 < sqmats.dim0(); ++i0) {
             for (im1 = 0; im1 < sqmats.dimm(); ++im1) {
                 for (im0 = 0; im0 < sqmats.dimm(); ++im0) {
-                    if constexpr (std::is_same<Scalar, std::complex<double> >::value) os << std::setw(w) << sqmats(i0, i1, im0, im1).real() << " "
-                        << std::setw(w) << sqmats(i0, i1, im0, im1).imag() << "  ";
-                    else os << std::setw(w) << sqmats(i0, i1, im0, im1) << "  ";
+                    if constexpr (std::is_same<Scalar, std::complex<double> >::value) os << std::setw(width) << sqmats(i0, i1, im0, im1).real() << " "
+                        << std::setw(width) << sqmats(i0, i1, im0, im1).imag() << "  ";
+                    else os << std::setw(width) << sqmats(i0, i1, im0, im1) << "  ";
                 }
             }
         }

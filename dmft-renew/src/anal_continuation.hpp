@@ -119,7 +119,7 @@ void PadeApproximant<n0, n1, nm>::build(const SqMatArray<std::complex<double>, n
         for (itn0 = itM == localMbegin ? localn0begin : startfreqs.cbegin(); itn0 < n0end; ++itn0) {
             // Test
             // std::cout << "Rank " << _prank << ": n0 = " << *itn0 << std::endl;
-            for (iz = 0; iz < *itM; ++iz) zs(iz) = 1i * ((2 * (*itn0 + iz) + 1) * M_PI / beta);  // Assemble the z array
+            for (iz = 0; iz < *itM; ++iz) zs(iz) = 1il * ((2.0l * (*itn0 + iz) + 1.0l) * M_PI / beta);  // Assemble the z array
             // Assemble the f(z) array
             for (s = 0; s < selfen_matsub.dim0(); ++s) {
                 for (x1 = 0; x1 < selfen_matsub.dimm(); ++x1) {
@@ -192,7 +192,7 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
     Eigen::Matrix<std::complex<m_Hpfloat>, Eigen::Dynamic, Eigen::Dynamic> zpol;
     // Purely local; will be used to temporarily store the static part of the self-energy
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> selfenR(1, np, m_ptr2selfenstatic->dimm());
-    // Eigen::ArrayXd rho(np);
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(m_ptr2selfenstatic->dimm());
     bool is_physical;
     
     m_nphys = Eigen::ArrayXi::Zero(m_ptr2selfenstatic->dim0());
@@ -228,7 +228,9 @@ void PadeApproximant<n0, n1, nm>::computeSpectra(const BareHamiltonian& H0, cons
                 else if (physonly) {
                     // Checks causality by checking if the Hermitian matrix (selfen - selfen^H) / 2i is negative semi-definite.
                     // If not, mark the corresponding approximant as unphysical.
-                    if ( (((selfenR[o] - selfenR[o].adjoint()) / 2i).selfadjointView<Eigen::Lower>().eigenvalues().array() > 0.0).any() ) {
+                    es.compute((selfenR[o] - selfenR[o].adjoint()) / 2i, Eigen::EigenvaluesOnly);
+                    //if ( (((selfenR[o] - selfenR[o].adjoint()) / 2i).selfadjointView<Eigen::Lower>().eigenvalues().array() > 0.0).any() ) {
+                    if ((es.eigenvalues().array() > 0.0).any()) {
                         is_physical = false;
                         break;
                     }
