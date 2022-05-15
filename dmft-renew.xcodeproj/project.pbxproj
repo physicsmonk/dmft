@@ -50,6 +50,23 @@
 		442FCD172813349F00C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		442FCD18281337F200C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		442FCD19281340B300C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
+		44934F132830AC8900620D90 /* block_progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = block_progress_bar.hpp; sourceTree = "<group>"; };
+		44934F142830AC8900620D90 /* display_width.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = display_width.hpp; sourceTree = "<group>"; };
+		44934F152830AC8900620D90 /* termcolor.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = termcolor.hpp; sourceTree = "<group>"; };
+		44934F162830AC8900620D90 /* progress_type.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = progress_type.hpp; sourceTree = "<group>"; };
+		44934F172830AC8900620D90 /* cursor_movement.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = cursor_movement.hpp; sourceTree = "<group>"; };
+		44934F192830AC8900620D90 /* stream_helper.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = stream_helper.hpp; sourceTree = "<group>"; };
+		44934F1A2830AC8900620D90 /* multi_progress.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = multi_progress.hpp; sourceTree = "<group>"; };
+		44934F1B2830AC8900620D90 /* dynamic_progress.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = dynamic_progress.hpp; sourceTree = "<group>"; };
+		44934F1C2830AC8900620D90 /* font_style.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = font_style.hpp; sourceTree = "<group>"; };
+		44934F1D2830AC8900620D90 /* progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = progress_bar.hpp; sourceTree = "<group>"; };
+		44934F1E2830AC8900620D90 /* terminal_size.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = terminal_size.hpp; sourceTree = "<group>"; };
+		44934F1F2830AC8900620D90 /* color.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = color.hpp; sourceTree = "<group>"; };
+		44934F202830AC8900620D90 /* cursor_control.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = cursor_control.hpp; sourceTree = "<group>"; };
+		44934F212830AC8900620D90 /* progress_spinner.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = progress_spinner.hpp; sourceTree = "<group>"; };
+		44934F222830AC8900620D90 /* indeterminate_progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = indeterminate_progress_bar.hpp; sourceTree = "<group>"; };
+		44934F232830AC8900620D90 /* setting.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = setting.hpp; sourceTree = "<group>"; };
+		44934F242830B2A900620D90 /* mpreal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mpreal.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +140,8 @@
 		442FCCF928132BB100C4993D /* dependencies */ = {
 			isa = PBXGroup;
 			children = (
+				44934F242830B2A900620D90 /* mpreal.h */,
+				44934F122830AC8900620D90 /* indicators */,
 				442FCCFA28132BEF00C4993D /* pugixml */,
 			);
 			path = dependencies;
@@ -137,6 +156,37 @@
 				442FCD172813349F00C4993D /* CMakeLists.txt */,
 			);
 			path = pugixml;
+			sourceTree = "<group>";
+		};
+		44934F122830AC8900620D90 /* indicators */ = {
+			isa = PBXGroup;
+			children = (
+				44934F132830AC8900620D90 /* block_progress_bar.hpp */,
+				44934F142830AC8900620D90 /* display_width.hpp */,
+				44934F152830AC8900620D90 /* termcolor.hpp */,
+				44934F162830AC8900620D90 /* progress_type.hpp */,
+				44934F172830AC8900620D90 /* cursor_movement.hpp */,
+				44934F182830AC8900620D90 /* details */,
+				44934F1A2830AC8900620D90 /* multi_progress.hpp */,
+				44934F1B2830AC8900620D90 /* dynamic_progress.hpp */,
+				44934F1C2830AC8900620D90 /* font_style.hpp */,
+				44934F1D2830AC8900620D90 /* progress_bar.hpp */,
+				44934F1E2830AC8900620D90 /* terminal_size.hpp */,
+				44934F1F2830AC8900620D90 /* color.hpp */,
+				44934F202830AC8900620D90 /* cursor_control.hpp */,
+				44934F212830AC8900620D90 /* progress_spinner.hpp */,
+				44934F222830AC8900620D90 /* indeterminate_progress_bar.hpp */,
+				44934F232830AC8900620D90 /* setting.hpp */,
+			);
+			path = indicators;
+			sourceTree = "<group>";
+		};
+		44934F182830AC8900620D90 /* details */ = {
+			isa = PBXGroup;
+			children = (
+				44934F192830AC8900620D90 /* stream_helper.hpp */,
+			);
+			path = details;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -324,12 +374,20 @@
 				HEADER_SEARCH_PATHS = (
 					/usr/local/include,
 					"/opt/homebrew/Cellar/open-mpi/4.1.2/include",
+					/opt/homebrew/Cellar/mpfr/4.1.0/include,
+					/opt/homebrew/Cellar/gmp/6.2.1_1/include,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"/opt/homebrew/Cellar/open-mpi/4.1.2/lib",
+					/opt/homebrew/Cellar/mpfr/4.1.0/lib,
+					/opt/homebrew/Cellar/gmp/6.2.1_1/lib,
 				);
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"-lmpfr",
+					"-lgmp",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -341,12 +399,20 @@
 				HEADER_SEARCH_PATHS = (
 					/usr/local/include,
 					"/opt/homebrew/Cellar/open-mpi/4.1.2/include",
+					/opt/homebrew/Cellar/mpfr/4.1.0/include,
+					/opt/homebrew/Cellar/gmp/6.2.1_1/include,
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
 					"/opt/homebrew/Cellar/open-mpi/4.1.2/lib",
+					/opt/homebrew/Cellar/mpfr/4.1.0/lib,
+					/opt/homebrew/Cellar/gmp/6.2.1_1/lib,
 				);
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"-lmpfr",
+					"-lgmp",
+				);
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;

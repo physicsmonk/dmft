@@ -1,4 +1,7 @@
 find_package(MPI REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(GMP REQUIRED)
+find_package(MPFR REQUIRED)
 
 # Add dependent library, this will build pugixml under build/ subdirectory in the project's build tree
 add_subdirectory(../dependencies/pugixml dependencies/pugixml)
@@ -11,10 +14,13 @@ add_library(dmft
 
 target_include_directories(dmft PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    /home1/08105/tg874048/eigen-3.4.0  # Add Eigen include dir
-    /work2/08105/tg874048/stampede2/apps/indicators/include  # Add indicator (header-only) include dir
+    ${CMAKE_CURRENT_SOURCE_DIR}/../dependencies
     )
 
 target_link_libraries(dmft PUBLIC
+    Eigen3::Eigen
+    ${MPFR_LIBRARIES}
+    ${GMP_LIBRARIES}
     MPI::MPI_CXX
-    pugixml)
+    pugixml
+    )

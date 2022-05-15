@@ -10,6 +10,7 @@
 
 #include <Eigen/Geometry>
 #include <Eigen/Eigenvalues>
+#include "mpreal.h"
 #include "gf_data_wrapper.hpp"
 
 
@@ -252,7 +253,11 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
         
         for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
             so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-            wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
+            if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
+                wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
+                wu.imag(energies(so[1]).imag().toDouble());
+            }
+            else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
             // Glat.masteredPart(i).setZero();
             // Update the lattice Green's function
             for (ie = 0; ie < nbins; ++ie) {
@@ -277,7 +282,11 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             Gwmastpart().setZero();
             for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
                 so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-                wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
+                if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
+                    wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
+                    wu.imag(energies(so[1]).imag().toDouble());
+                }
+                else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
                 for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfenmastpart[i]).inverse();
                 Gwmastpart[i] /= static_cast<double>(H0.hamDimerMag2d().size());
             }
@@ -291,7 +300,11 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             Gwmastpart().setZero();
             for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
                 so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
-                wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
+                if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
+                    wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
+                    wu.imag(energies(so[1]).imag().toDouble());
+                }
+                else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
                 for (ik = 0; ik < nk; ++ik) {
                     H0.kVecAtIndex(ik, k);
                     H0.constructHamiltonian(k, H);

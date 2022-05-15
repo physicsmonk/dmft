@@ -319,7 +319,8 @@ int main(int argc, char * argv[]) {
     // return 0;
     
     
-    PadeApproximant2XX pade;
+    //mpfr::mpreal::set_default_prec(128);  // Set default precision for Pade interpolation
+    PadeApproximant2XXld pade;
     double sigmaxx, sigmaxy = 0.0;
     
     if (analcontrun) {
