@@ -1,9 +1,9 @@
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
 find_package(MPI REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(GMP REQUIRED)
 find_package(MPFR REQUIRED)
-
-set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 # Add dependent library
 add_subdirectory(dependencies/pugixml)
