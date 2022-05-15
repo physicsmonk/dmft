@@ -67,6 +67,8 @@
 		44934F222830AC8900620D90 /* indeterminate_progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = indeterminate_progress_bar.hpp; sourceTree = "<group>"; };
 		44934F232830AC8900620D90 /* setting.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = setting.hpp; sourceTree = "<group>"; };
 		44934F242830B2A900620D90 /* mpreal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mpreal.h; sourceTree = "<group>"; };
+		44934F2728317F3500620D90 /* FindMPFR.cmake */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = FindMPFR.cmake; sourceTree = "<group>"; };
+		44934F2828317F3500620D90 /* FindGMP.cmake */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = FindGMP.cmake; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -84,6 +86,8 @@
 		442FCCE02813167A00C4993D = {
 			isa = PBXGroup;
 			children = (
+				442FCCEC2813167A00C4993D /* main.cpp */,
+				442FCD19281340B300C4993D /* CMakeLists.txt */,
 				442FCCEB2813167A00C4993D /* dmft-renew */,
 				442FCCEA2813167A00C4993D /* Products */,
 				442FCCF3281319FF00C4993D /* Frameworks */,
@@ -101,10 +105,10 @@
 		442FCCEB2813167A00C4993D /* dmft-renew */ = {
 			isa = PBXGroup;
 			children = (
+				44934F2628317F3500620D90 /* cmake */,
+				442FCD18281337F200C4993D /* CMakeLists.txt */,
 				442FCCF928132BB100C4993D /* dependencies */,
 				442FCCF628132B4500C4993D /* src */,
-				442FCCEC2813167A00C4993D /* main.cpp */,
-				442FCD19281340B300C4993D /* CMakeLists.txt */,
 			);
 			path = "dmft-renew";
 			sourceTree = "<group>";
@@ -132,7 +136,6 @@
 				442FCD0F28132E3400C4993D /* green_function.hpp */,
 				442FCD1228132E4B00C4993D /* input.hpp */,
 				442FCD1528132EA500C4993D /* anal_continuation.hpp */,
-				442FCD18281337F200C4993D /* CMakeLists.txt */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -187,6 +190,15 @@
 				44934F192830AC8900620D90 /* stream_helper.hpp */,
 			);
 			path = details;
+			sourceTree = "<group>";
+		};
+		44934F2628317F3500620D90 /* cmake */ = {
+			isa = PBXGroup;
+			children = (
+				44934F2728317F3500620D90 /* FindMPFR.cmake */,
+				44934F2828317F3500620D90 /* FindGMP.cmake */,
+			);
+			path = cmake;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */

@@ -19,7 +19,7 @@
 using namespace std::complex_literals;
 
 
-template <typename _InnerFloatType, int _n0, int _n1, int _nm>
+template <typename _InnerRealType, int _n0, int _n1, int _nm>
 class PadeApproximant {
 public:
     // Assumes all the std::vector are sorted ascendingly. Pass pointer to selfen_static not const reference because
@@ -48,14 +48,14 @@ private:
     // Stores Pade coefficients. Must use a std::vector because the coefficients of different Pade approximants have different lengths.
     // Each Eigen::Vector contains the coefficients of a Pade approximant. The index of the std::vector is site, then spin, and then
     // approximant, major.
-    std::vector<Eigen::Vector<std::complex<_InnerFloatType>, Eigen::Dynamic> > m_coeffs;
+    std::vector<Eigen::Vector<std::complex<_InnerRealType>, Eigen::Dynamic> > m_coeffs;
     Eigen::Array<int, _n0, 1> m_nphys;  // Stores the number of physical approximants for each index of _dim0
     // Stores the analytically continued (with positive delta) self-energy and the spectra matrix = (G(w + i * del) - G(w - i * del)) / (2 * pi * i)
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_selfenR, m_spectramat;
 };
 
-template <typename _InnerFloatType, int _n0, int _n1, int _nm>
-PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType, _n0, _n1, _nm>::build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm) {
+template <typename _InnerRealType, int _n0, int _n1, int _nm>
+PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, _n0, _n1, _nm>::build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm) {
     if (startfreqs.maxCoeff() + datalens.maxCoeff() > static_cast<int>(selfen_matsub.dim1()) || -startfreqs.minCoeff() - 1 >= static_cast<int>(selfen_matsub.dim1()))
         throw std::range_error("Required data length exceeds the used data length for building Pade approximant!");
     
@@ -64,8 +64,8 @@ PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType
     Eigen::ArrayXi::const_iterator itM, itn0, itN;
     int iz, n;
     std::size_t r, s, x0, x1, r0, ir;
-    Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> A, F(0, selfen_matsub.dim0() * selfen_matsub.dimm() * selfen_matsub.dimm());
-    Eigen::Vector<std::complex<_InnerFloatType>, Eigen::Dynamic> zs, b;
+    Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> A, F(0, selfen_matsub.dim0() * selfen_matsub.dimm() * selfen_matsub.dimm());
+    Eigen::Vector<std::complex<_InnerRealType>, Eigen::Dynamic> zs, b;
     
     int prank, psize;
     MPI_Comm_rank(comm, &prank);
@@ -106,7 +106,7 @@ PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType
     // << ", localn0final = " << localn0final << "; localNstart = " << localNstart << ", localNfinal = " << localNfinal << std::endl;
     
     //Eigen::JacobiSVD<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > jacobisvd;  // Optimally accurate but very slow
-    Eigen::BDCSVD<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;  // Most accurate but a little bit slow
+    Eigen::BDCSVD<Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;  // Most accurate but a little bit slow
     //Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > cod;  // Faster but less accurate than BDCSVD
     //Eigen::ColPivHouseholderQR<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > cpqr;  // Faster but less accurate than BDCSVD
     
@@ -120,7 +120,7 @@ PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType
         for (itn0 = itM == localMbegin ? localn0begin : startfreqs.cbegin(); itn0 < n0end; ++itn0) {
             // Test
             // std::cout << "Rank " << _prank << ": n0 = " << *itn0 << std::endl;
-            for (iz = 0; iz < *itM; ++iz) zs(iz) = std::complex<_InnerFloatType>(0.0, (2 * (*itn0 + iz) + 1) * M_PI / beta);  // Assemble the z array
+            for (iz = 0; iz < *itM; ++iz) zs(iz) = std::complex<_InnerRealType>(0.0, (2 * (*itn0 + iz) + 1) * M_PI / beta);  // Assemble the z array
             // Assemble the f(z) array
             for (s = 0; s < selfen_matsub.dim0(); ++s) {
                 for (x1 = 0; x1 < selfen_matsub.dimm(); ++x1) {
@@ -134,7 +134,7 @@ PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType
                     }
                 }
             }
-            A = Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic>::Ones(*itM, 2);
+            A = Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic>::Ones(*itM, 2);
             Nend = itM == localMend - 1 && itn0 == localn0end - 1 ? localNend : coefflens.cend();
             for (itN = itM == localMbegin && itn0 == localn0begin ? localNbegin : coefflens.cbegin();
                  itN < Nend && *itN <= *itM;
@@ -177,16 +177,16 @@ PadeApproximant<_InnerFloatType, _n0, _n1, _nm>& PadeApproximant<_InnerFloatType
     return *this;
 }
 
-template <typename _InnerFloatType, int _n0, int _n1, int _nm>
-void PadeApproximant<_InnerFloatType, _n0, _n1, _nm>::computeSpectra(const BareHamiltonian& H0, const std::size_t np, const double low, const double high, const double del, const bool physonly) {
+template <typename _InnerRealType, int _n0, int _n1, int _nm>
+void PadeApproximant<_InnerRealType, _n0, _n1, _nm>::computeSpectra(const BareHamiltonian& H0, const std::size_t np, const double low, const double high, const double del, const bool physonly) {
     assert(np > 1);
     
     const std::size_t nmatelems = m_ptr2selfenstatic->dim0() * m_ptr2selfenstatic->dimm() * m_ptr2selfenstatic->dimm();
     const std::size_t napproxs = m_coeffs.size() / nmatelems;
     std::size_t i, s, x0, x1, k, o, r0, r, ir;
-    std::complex<_InnerFloatType> SigmaR;
-    Eigen::Vector<std::complex<_InnerFloatType>, Eigen::Dynamic> zs = Eigen::Vector<_InnerFloatType, Eigen::Dynamic>::LinSpaced(np, low, high) + std::complex<_InnerFloatType>(0.0, std::fabs(del)) * Eigen::Vector<_InnerFloatType, Eigen::Dynamic>::Ones(np);
-    Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> zpol = Eigen::Matrix<_InnerFloatType, Eigen::Dynamic, Eigen::Dynamic>::Ones(np, 1);
+    std::complex<_InnerRealType> SigmaR;
+    Eigen::Vector<std::complex<_InnerRealType>, Eigen::Dynamic> zs = Eigen::Vector<_InnerRealType, Eigen::Dynamic>::LinSpaced(np, low, high) + std::complex<_InnerRealType>(0.0, std::fabs(del)) * Eigen::Vector<_InnerRealType, Eigen::Dynamic>::Ones(np);
+    Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> zpol = Eigen::Matrix<_InnerRealType, Eigen::Dynamic, Eigen::Dynamic>::Ones(np, 1);
     // Purely local; will be used to temporarily store the static part of the self-energy
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> selfenR(1, np, m_ptr2selfenstatic->dimm());
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(m_ptr2selfenstatic->dimm());
@@ -211,7 +211,7 @@ void PadeApproximant<_InnerFloatType, _n0, _n1, _nm>::computeSpectra(const BareH
                         k = i * nmatelems + (s * m_selfenR.dimm() + x1) * m_selfenR.dimm() + x0;
                         // zpol.row(o) could be longer than r
                         SigmaR = (zpol.row(o).head(r) * m_coeffs[k].head(r))(0) / ((zpol.row(o).head(r) * m_coeffs[k].tail(r))(0) + zpol(o, r - 1) * zs(o));
-                        if constexpr (std::is_same<_InnerFloatType, mpfr::mpreal>::value) {
+                        if constexpr (std::is_same<_InnerRealType, mpfr::mpreal>::value) {
                             // Can only assign to double complex like this because no direct conversion to double complex
                             selfenR(0, o, x0, x1).real(SigmaR.real().toDouble());
                             selfenR(0, o, x0, x1).imag(SigmaR.imag().toDouble());

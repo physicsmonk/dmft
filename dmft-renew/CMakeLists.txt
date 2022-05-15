@@ -1,15 +1,29 @@
-cmake_minimum_required(VERSION 3.16.1)
+find_package(MPI REQUIRED)
+find_package(Eigen3 REQUIRED NO_MODULE)
+find_package(GMP REQUIRED)
+find_package(MPFR REQUIRED)
 
-project(dimerHubbardMag
-    LANGUAGES CXX)
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
-set(CMAKE_VERBOSE_MAKEFILE ON)
+# Add dependent library
+add_subdirectory(dependencies/pugixml)
 
-set(CMAKE_CXX_COMPILER mpiicpc)
+add_library(dmft
+    src/bare_hamiltonian.cpp
+    src/green_function.cpp
+    src/ct_aux_imp_solver.cpp
+    src/self_consistency.cpp
+    )
 
-# Add the dmft library
-add_subdirectory(src)
+target_include_directories(dmft PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/dependencies
+    )
 
-add_executable(${PROJECT_NAME} main.cpp)
-
-target_link_libraries(${PROJECT_NAME} PRIVATE dmft)
+target_link_libraries(dmft PUBLIC
+    Eigen3::Eigen
+    ${MPFR_LIBRARIES}
+    ${GMP_LIBRARIES}
+    MPI::MPI_CXX
+    pugixml
+    )
