@@ -113,7 +113,7 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
     m_coeffs.clear();
     for (itM = localMbegin; itM < localMend; ++itM) {
         // Test
-        std::cout << "Rank " << prank << ": M = " << *itM << std::endl;
+        //std::cout << "Rank " << prank << ": M = " << *itM << std::endl;
         zs.resize(*itM);
         F.resize(*itM, Eigen::NoChange);
         n0end = itM == localMend - 1 ? localn0end : startfreqs.cend();
