@@ -29,7 +29,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		442FCCE92813167A00C4993D /* dmft-renew */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "dmft-renew"; sourceTree = BUILT_PRODUCTS_DIR; };
+		442FCCE92813167A00C4993D /* dmft */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = dmft; sourceTree = BUILT_PRODUCTS_DIR; };
 		442FCCEC2813167A00C4993D /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		442FCCF4281319FF00C4993D /* libmpi.40.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libmpi.40.dylib; path = "../../../../opt/homebrew/Cellar/open-mpi/4.1.2/lib/libmpi.40.dylib"; sourceTree = "<group>"; };
 		442FCCFB28132BEF00C4993D /* pugiconfig.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = pugiconfig.hpp; sourceTree = "<group>"; };
@@ -88,7 +88,7 @@
 			children = (
 				442FCCEC2813167A00C4993D /* main.cpp */,
 				442FCD19281340B300C4993D /* CMakeLists.txt */,
-				442FCCEB2813167A00C4993D /* dmft-renew */,
+				442FCCEB2813167A00C4993D /* dmft */,
 				442FCCEA2813167A00C4993D /* Products */,
 				442FCCF3281319FF00C4993D /* Frameworks */,
 			);
@@ -97,12 +97,12 @@
 		442FCCEA2813167A00C4993D /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				442FCCE92813167A00C4993D /* dmft-renew */,
+				442FCCE92813167A00C4993D /* dmft */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		442FCCEB2813167A00C4993D /* dmft-renew */ = {
+		442FCCEB2813167A00C4993D /* dmft */ = {
 			isa = PBXGroup;
 			children = (
 				44934F2628317F3500620D90 /* cmake */,
@@ -110,7 +110,7 @@
 				442FCCF928132BB100C4993D /* dependencies */,
 				442FCCF628132B4500C4993D /* src */,
 			);
-			path = "dmft-renew";
+			path = dmft;
 			sourceTree = "<group>";
 		};
 		442FCCF3281319FF00C4993D /* Frameworks */ = {
@@ -204,9 +204,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		442FCCE82813167A00C4993D /* dmft-renew */ = {
+		442FCCE82813167A00C4993D /* dmft */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 442FCCF02813167A00C4993D /* Build configuration list for PBXNativeTarget "dmft-renew" */;
+			buildConfigurationList = 442FCCF02813167A00C4993D /* Build configuration list for PBXNativeTarget "dmft" */;
 			buildPhases = (
 				442FCCE52813167A00C4993D /* Sources */,
 				442FCCE62813167A00C4993D /* Frameworks */,
@@ -216,9 +216,9 @@
 			);
 			dependencies = (
 			);
-			name = "dmft-renew";
+			name = dmft;
 			productName = "dmft-renew";
-			productReference = 442FCCE92813167A00C4993D /* dmft-renew */;
+			productReference = 442FCCE92813167A00C4993D /* dmft */;
 			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
@@ -235,7 +235,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 442FCCE42813167A00C4993D /* Build configuration list for PBXProject "dmft-renew" */;
+			buildConfigurationList = 442FCCE42813167A00C4993D /* Build configuration list for PBXProject "dmft" */;
 			compatibilityVersion = "Xcode 13.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -248,7 +248,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				442FCCE82813167A00C4993D /* dmft-renew */,
+				442FCCE82813167A00C4993D /* dmft */,
 			);
 		};
 /* End PBXProject section */
@@ -432,7 +432,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		442FCCE42813167A00C4993D /* Build configuration list for PBXProject "dmft-renew" */ = {
+		442FCCE42813167A00C4993D /* Build configuration list for PBXProject "dmft" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				442FCCEE2813167A00C4993D /* Debug */,
@@ -441,7 +441,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		442FCCF02813167A00C4993D /* Build configuration list for PBXNativeTarget "dmft-renew" */ = {
+		442FCCF02813167A00C4993D /* Build configuration list for PBXNativeTarget "dmft" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				442FCCF12813167A00C4993D /* Debug */,
