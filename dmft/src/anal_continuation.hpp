@@ -18,16 +18,17 @@
 
 using namespace std::complex_literals;
 
+enum LSsolver : int {BDCSVD = 0, CompleteOrthogonalDecomposition = 1, ColPivHouseholderQR = 2};
 
 template <typename _InnerRealType, int _n0, int _n1, int _nm>
 class PadeApproximant {
 public:
     // Assumes all the std::vector are sorted ascendingly. Pass pointer to selfen_static not const reference because
     // selfen_static will be accessed later on so we want passing const temporaries trigger compliation error.
-    PadeApproximant& build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm = MPI_COMM_SELF);
+    PadeApproximant& build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const LSsolver lssolver, const MPI_Comm& comm = MPI_COMM_SELF);
     
     PadeApproximant() : m_ptr2selfenstatic(nullptr) {}   // Inline default constructor
-    PadeApproximant(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm = MPI_COMM_SELF) {build(selfen_matsub, selfen_static, beta, datalens, startfreqs, coefflens, comm);}
+    PadeApproximant(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const LSsolver lssolver, const MPI_Comm& comm = MPI_COMM_SELF) {build(selfen_matsub, selfen_static, beta, datalens, startfreqs, coefflens, lssolver, comm);}
     PadeApproximant(const PadeApproximant&) = default;
     PadeApproximant(PadeApproximant&&) = default;
     PadeApproximant& operator=(const PadeApproximant&) = default;
@@ -55,7 +56,7 @@ private:
 };
 
 template <typename _InnerRealType, int _n0, int _n1, int _nm>
-PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, _n0, _n1, _nm>::build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm) {
+PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, _n0, _n1, _nm>::build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_matsub, const SqMatArray<std::complex<double>, _n0, 1, _nm> *selfen_static, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const LSsolver lssolver, const MPI_Comm& comm) {
     if (startfreqs.maxCoeff() + datalens.maxCoeff() > static_cast<int>(selfen_matsub.dim1()) || -startfreqs.minCoeff() - 1 >= static_cast<int>(selfen_matsub.dim1()))
         throw std::range_error("Required data length exceeds the used data length for building Pade approximant!");
     
@@ -105,10 +106,11 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
     // std::cout << "Rank " << _prank << ": localMstart = " << localMstart << ", localMfinal = " << localMfinal << "; localn0start = " << localn0start
     // << ", localn0final = " << localn0final << "; localNstart = " << localNstart << ", localNfinal = " << localNfinal << std::endl;
     
+    // Empty solvers
     //Eigen::JacobiSVD<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > jacobisvd;  // Optimally accurate but very slow
     Eigen::BDCSVD<Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> > bdcsvd;  // Most accurate but a little bit slow
-    //Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > cod;  // Faster but less accurate than BDCSVD
-    //Eigen::ColPivHouseholderQR<Eigen::Matrix<std::complex<_InnerFloatType>, Eigen::Dynamic, Eigen::Dynamic> > cpqr;  // Faster but less accurate than BDCSVD
+    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> > cod;  // Faster but less accurate than BDCSVD
+    Eigen::ColPivHouseholderQR<Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> > cpqr;  // Faster but less accurate than BDCSVD
     
     m_coeffs.clear();
     for (itM = localMbegin; itM < localMend; ++itM) {
@@ -155,8 +157,19 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
                             b = -A.col(*itN - 1).cwiseProduct(zs);
                             // Solve for and store the unfiltered Pade coefficients
                             // BDCSVD should be compiled without unsafe math optimizations, e.g., for Intel's compiler, compile with -fp-model precise option
-                            //bdcsvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
-                            m_coeffs.push_back(bdcsvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b));
+                            switch (lssolver) {
+                                case BDCSVD:
+                                    m_coeffs.push_back(bdcsvd.compute(A, Eigen::ComputeThinU | Eigen::ComputeThinV).solve(b));
+                                    break;
+                                    
+                                case CompleteOrthogonalDecomposition:
+                                    m_coeffs.push_back(cod.compute(A).solve(b));
+                                    break;
+                                    
+                                case ColPivHouseholderQR:
+                                    m_coeffs.push_back(cpqr.compute(A).solve(b));
+                                    break;
+                            }
                             // m_coeffs.push_back((A.adjoint() * A).ldlt().solve(A.adjoint() * b));
                             
                             // Test

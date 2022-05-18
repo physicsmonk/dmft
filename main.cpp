@@ -204,6 +204,7 @@ int main(int argc, char * argv[]) {
     double minenergy = -10.0;
     double maxenergy = 10.0;
     double delenergy = 0.01;
+    std::string lssover("BDCSVD");
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -259,6 +260,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(minenergy, docroot, "numerical/PadeInterpolation/energyGridSize.min", MPI_COMM_WORLD, prank);
     readxml_bcast(maxenergy, docroot, "numerical/PadeInterpolation/energyGridSize.max", MPI_COMM_WORLD, prank);
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
+    readxml_bcast(lssover, docroot, "numerical/PadeInterpolation/leastSquaresSolver", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/runPadeOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
 
@@ -321,6 +323,9 @@ int main(int argc, char * argv[]) {
     
     //mpfr::mpreal::set_default_prec(128);  // Set default precision for Pade interpolation
     PadeApproximant2XXld pade;
+    LSsolver lss = BDCSVD;
+    if (lssover == "CompleteOrthogonalDecomposition") lss = CompleteOrthogonalDecomposition;
+    else if (lssover == "ColPivHouseholderQR") lss = ColPivHouseholderQR;
     double sigmaxx, sigmaxy = 0.0;
     
     if (analcontrun) {
@@ -346,7 +351,7 @@ int main(int argc, char * argv[]) {
         
         pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
+                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
     
         pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         
@@ -362,6 +367,9 @@ int main(int argc, char * argv[]) {
         }
         
         MPI_Finalize();
+        auto stop = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::ratio<60> > duration = stop - start;   // Unit is hours
+        if (prank == 0) std::cout << "Execution time: " << duration.count() << " minutes" << std::endl;
         return 0;
     }
     
@@ -511,7 +519,7 @@ int main(int argc, char * argv[]) {
         //dmft.selfEnergy().mastFlatPart().allGather();
         pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
                    Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
+                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
         pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
@@ -585,9 +593,7 @@ int main(int argc, char * argv[]) {
     // Get ending timepoint
     auto stop = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::ratio<3600> > duration = stop - start;   // Unit is hours
-    if (prank == 0) {
-        std::cout << "Execution time: " << duration.count() << " hours" << std::endl;
-    }
+    if (prank == 0) std::cout << "Execution time: " << duration.count() << " hours" << std::endl;
     
     return 0;
 }
