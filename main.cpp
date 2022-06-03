@@ -516,7 +516,7 @@ int main(int argc, char * argv[]) {
         
         dmft.approxSelfEnergy();
         
-        if (!computesigmaxxonce) {
+        if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) {
             if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
@@ -546,7 +546,7 @@ int main(int argc, char * argv[]) {
             printData("Gmatsubara.txt", G->fourierCoeffs());
             printData("selfenergy.txt", dmft.selfEnergy(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
-            if (!computesigmaxxonce) {
+            if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) {
                 printData("selfenergy_retarded.txt", pade.retardedSelfEn());
                 printData("spectramatrix.txt", pade.spectraMatrix());
             }
