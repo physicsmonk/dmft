@@ -564,19 +564,18 @@ int main(int argc, char * argv[]) {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
                 << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
-                << std::setw(cw) << interr << " " << std::setw(cw) << pade.nPhysSpectra().sum();
-                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << sigmaxx;
-                else fiter << " " << std::setw(cw) << "--";
+                << std::setw(cw) << interr;
+                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
+                else fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
                 fiter << std::endl;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
-                << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
-                << std::setw(cw) << pade.nPhysSpectra().sum();
-                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << sigmaxx;
-                else fiter << " " << std::setw(cw) << "--";
+                << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
+                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
+                else fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
                 fiter << std::endl;
             }
