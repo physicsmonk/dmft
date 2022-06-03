@@ -477,25 +477,25 @@ int main(int argc, char * argv[]) {
         fiter.open("iterations.txt", std::fstream::out | std::fstream::trunc);
         // std::cout << "\u03A3 \u03C9" << std::endl;
         if (measurewhat == "S") {
-            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " Converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(20) << " Var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " <n> int err"
+            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
+            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " <n> int err"
             << std::setw(cw + 1) << " #spectra" << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
             fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
-            << " ---------" << std::setw(20) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " -----------"
+            << " ---------" << std::setw(2 * cw + 2) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " -----------"
             << std::setw(cw + 1) << " --------" << std::setw(cw + 1) << " -------";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
             fiter << std::endl;
         }
         else if (measurewhat == "G") {
-            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " Converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(20) << " Var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " #spectra"
+            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
+            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " #spectra"
             << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
             fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
-            << " ---------" << std::setw(20) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " --------"
+            << " ---------" << std::setw(2 * cw + 2) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " --------"
             << std::setw(cw + 1) << " -------";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
             fiter << std::endl;
@@ -563,14 +563,14 @@ int main(int argc, char * argv[]) {
         if (prank == 0) {
             if (measurewhat == "S") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
-                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
-                << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
+                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(cw)
+                << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
                 << std::setw(cw) << interr;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
-                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
-                << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
+                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(cw)
+                << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (!computecondonce || (computecondonce && converg.first)) {
                 fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
