@@ -208,7 +208,7 @@ int main(int argc, char * argv[]) {
     
     bool analcontrun = false;
     bool computesigmaxy = true;
-    bool computesigmaxxonce = true;
+    bool computecondonce = true;
 
 
     pugi::xml_document doc;
@@ -264,7 +264,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(lssover, docroot, "numerical/PadeInterpolation/leastSquaresSolver", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/runPadeOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
-    readxml_bcast(computesigmaxxonce, docroot, "processControl/computeLongitConducOnce", MPI_COMM_WORLD, prank);
+    readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
 
     if (prank == 0) std::cout << sep << std::endl;
 
@@ -516,7 +516,14 @@ int main(int argc, char * argv[]) {
         
         dmft.approxSelfEnergy();
         
-        if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) {
+        dmft.updateLatticeGF();
+        
+        dmft.updateBathGF();
+        
+        converg = dmft.checkConvergence();
+        
+        // Calculate conductivities
+        if (!computecondonce || (computecondonce && converg.first)) {
             if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
@@ -546,18 +553,12 @@ int main(int argc, char * argv[]) {
             printData("Gmatsubara.txt", G->fourierCoeffs());
             printData("selfenergy.txt", dmft.selfEnergy(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
-            if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) {
+            if (!computecondonce || (computecondonce && converg.first)) {
                 printData("selfenergy_retarded.txt", pade.retardedSelfEn());
                 printData("spectramatrix.txt", pade.spectraMatrix());
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
-        
-        dmft.updateLatticeGF();
-        
-        dmft.updateBathGF();
-        
-        converg = dmft.checkConvergence();
         
         if (prank == 0) {
             if (measurewhat == "S") {
@@ -565,20 +566,21 @@ int main(int argc, char * argv[]) {
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
                 << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
                 << std::setw(cw) << interr;
-                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
-                else fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
-                if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
-                fiter << std::endl;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(9)
                 << G->elecDensVars()(0, 0) << "/" << std::setw(9) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
-                if (!computesigmaxxonce || (computesigmaxxonce && converg.first)) fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
-                else fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
-                if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
-                fiter << std::endl;
             }
+            if (!computecondonce || (computecondonce && converg.first)) {
+                fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
+                if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
+            }
+            else {
+                fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
+                if (computesigmaxy) fiter << " " << std::setw(cw) << "--";
+            }
+            fiter << std::endl;
         }
     }
     while (!converg.first && dmft.numIterations() < nitmax);
