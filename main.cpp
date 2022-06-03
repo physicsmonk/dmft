@@ -472,6 +472,7 @@ int main(int argc, char * argv[]) {
 //    }
     
     const int cw = 12;
+    std::string dash(cw, '-');
     std::ofstream fiter;
     if (prank == 0) {
         fiter.open("iterations.txt", std::fstream::out | std::fstream::trunc);
@@ -482,10 +483,10 @@ int main(int argc, char * argv[]) {
             << std::setw(cw + 1) << " #spectra" << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
-            fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
-            << " ---------" << std::setw(2 * cw + 2) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " -----------"
-            << std::setw(cw + 1) << " --------" << std::setw(cw + 1) << " -------";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
+            fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
+            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash
+            << " "               << dash        << " "               << dash;
+            if (computesigmaxy) fiter << " "               << dash;
             fiter << std::endl;
         }
         else if (measurewhat == "G") {
@@ -494,10 +495,10 @@ int main(int argc, char * argv[]) {
             << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
-            fiter << std::setw(cw / 2 + 1) << " ----" << std::setw(cw + 1) << " -------" << std::setw(cw + 1) << " -------" << std::setw(cw + 1)
-            << " ---------" << std::setw(2 * cw + 2) << " ------------" << std::setw(cw + 1) << " ------" << std::setw(cw + 1) << " --------"
-            << std::setw(cw + 1) << " -------";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " -------";
+            fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
+            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash
+            << " " << dash;
+            if (computesigmaxy) fiter << " "               << dash;
             fiter << std::endl;
         }
         fiter << std::fixed << std::setprecision(6);
