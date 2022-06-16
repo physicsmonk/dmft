@@ -471,7 +471,7 @@ int main(int argc, char * argv[]) {
 //        }
 //    }
     
-    const int cw = 12;
+    const int cw = 13;
     std::string dash(cw, '-');
     std::ofstream fiter;
     if (prank == 0) {
@@ -501,7 +501,7 @@ int main(int argc, char * argv[]) {
             if (computesigmaxy) fiter << " "               << dash;
             fiter << std::endl;
         }
-        fiter << std::fixed << std::setprecision(6);
+        fiter << std::scientific << std::setprecision(5);
     }
     do {
         dmft.incrementIter();
