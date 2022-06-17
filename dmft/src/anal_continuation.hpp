@@ -142,7 +142,7 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
                  itN < Nend && *itN <= *itM;
                  ++itN) {
                 // Test
-                // std::cout << "Rank " << _prank << ": N = " << *itN << std::endl;
+                //std::cout << "Rank " << prank << ": N = " << *itN << std::endl;
                 if (*itN % 2 != 0) throw std::invalid_argument("The number of Pade coefficients must be even!");
                 r0 = A.cols() / 2;
                 r = *itN / 2;
