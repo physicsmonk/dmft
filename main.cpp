@@ -572,8 +572,8 @@ int main(int argc, char * argv[]) {
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             if (usemp) {
-//                sigmaxx = longitConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//                if (computesigmaxy) sigmaxy = hallConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+                sigmaxx = longitConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+                if (computesigmaxy) sigmaxy = hallConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
             }
             else {
                 sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
@@ -595,8 +595,8 @@ int main(int argc, char * argv[]) {
             printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
             if (!computecondonce || (computecondonce && converg.first)) {
                 if (usemp) {
-//                    printData("selfenergy_retarded.txt", pademp.retardedSelfEn());
-//                    printData("spectramatrix.txt", pademp.spectraMatrix());
+                    printData("selfenergy_retarded.txt", pademp.retardedSelfEn());
+                    printData("spectramatrix.txt", pademp.spectraMatrix());
                 }
                 else {
                     printData("selfenergy_retarded.txt", pade.retardedSelfEn());
@@ -619,8 +619,8 @@ int main(int argc, char * argv[]) {
                 << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (!computecondonce || (computecondonce && converg.first)) {
-//                if (usemp) fiter << " " << std::setw(cw) << pademp.nPhysSpectra().sum();
-//                else fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum();
+                if (usemp) fiter << " " << std::setw(cw) << pademp.nPhysSpectra().sum();
+                else fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum();
                 fiter << " " << std::setw(cw) << sigmaxx;
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
             }
