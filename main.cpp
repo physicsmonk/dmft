@@ -327,7 +327,7 @@ int main(int argc, char * argv[]) {
     // return 0;
     
     
-    mpfr::mpreal::set_default_prec(mpprec);  // Set default precision for Pade interpolation
+    mpfr::mpreal::set_default_prec(256);  // Set default precision for Pade interpolation
     PadeApproximant2XXmpreal pademp;
     PadeApproximant2XXld pade;
     LSsolver lss = BDCSVD;
