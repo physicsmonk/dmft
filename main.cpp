@@ -560,10 +560,10 @@ int main(int argc, char * argv[]) {
                 pademp.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             }
             else {
-                pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-                pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+//                pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+//                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+//                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
+//                pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             }
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
