@@ -554,10 +554,10 @@ int main(int argc, char * argv[]) {
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
             if (usemp) {
-//                pademp.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-//                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-//                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-//                pademp.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+                pademp.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
+                pademp.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             }
             else {
                 pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
