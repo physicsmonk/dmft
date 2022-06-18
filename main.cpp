@@ -329,7 +329,7 @@ int main(int argc, char * argv[]) {
     
     mpfr::mpreal::set_default_prec(mpprec);  // Set default precision for Pade interpolation
     PadeApproximant2XXmpreal pademp;
-    PadeApproximant2XXld pade;
+//    PadeApproximant2XXld pade;
     LSsolver lss = BDCSVD;
     if (lssolver == "CompleteOrthogonalDecomposition") lss = CompleteOrthogonalDecomposition;
     else if (lssolver == "ColPivHouseholderQR") lss = ColPivHouseholderQR;
@@ -375,22 +375,22 @@ int main(int argc, char * argv[]) {
 //            }
         }
         else {
-            pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-            
-            pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
-            
-            sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-            if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-            
-            if (prank == 0) {
-                std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
-                std::cout << "sigmaxx = " << sigmaxx << std::endl;
-                if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
-                printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-                printData("spectramatrix.txt", pade.spectraMatrix());
-            }
+//            pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+//                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+//                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
+//
+//            pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+//
+//            sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+//            if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+//
+//            if (prank == 0) {
+//                std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
+//                std::cout << "sigmaxx = " << sigmaxx << std::endl;
+//                if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
+//                printData("selfenergy_retarded.txt", pade.retardedSelfEn());
+//                printData("spectramatrix.txt", pade.spectraMatrix());
+//            }
         }
         
         MPI_Finalize();
@@ -576,8 +576,8 @@ int main(int argc, char * argv[]) {
                 if (computesigmaxy) sigmaxy = hallConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
             }
             else {
-                sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-                if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+//                sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+//                if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
             }
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
@@ -599,8 +599,8 @@ int main(int argc, char * argv[]) {
                     printData("spectramatrix.txt", pademp.spectraMatrix());
                 }
                 else {
-                    printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-                    printData("spectramatrix.txt", pade.spectraMatrix());
+//                    printData("selfenergy_retarded.txt", pade.retardedSelfEn());
+//                    printData("spectramatrix.txt", pade.spectraMatrix());
                 }
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
@@ -620,7 +620,7 @@ int main(int argc, char * argv[]) {
             }
             if (!computecondonce || (computecondonce && converg.first)) {
                 if (usemp) fiter << " " << std::setw(cw) << pademp.nPhysSpectra().sum();
-                else fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum();
+//                else fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum();
                 fiter << " " << std::setw(cw) << sigmaxx;
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
             }
