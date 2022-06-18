@@ -326,10 +326,12 @@ int main(int argc, char * argv[]) {
     // MPI_Finalize();
     // return 0;
     
-    
+#ifdef PADE_NOT_USE_MPFR
+    PadeApproximant2XXld pade;
+#else
     mpfr::mpreal::set_default_prec(mpprec);  // Set default precision for Pade interpolation
-    PadeApproximant2XXmpreal pademp;
-//    PadeApproximant2XXld pade;
+    PadeApproximant2XXmpreal pade;
+#endif
     LSsolver lss = BDCSVD;
     if (lssolver == "CompleteOrthogonalDecomposition") lss = CompleteOrthogonalDecomposition;
     else if (lssolver == "ColPivHouseholderQR") lss = ColPivHouseholderQR;
@@ -356,41 +358,21 @@ int main(int argc, char * argv[]) {
         selfen.broadcast(0);
         selfenstatic.broadcast(0);
         
-        if (usemp) {
-//            pademp.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-//                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-//                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-//
-//            pademp.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
-//
-//            sigmaxx = longitConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//            if (computesigmaxy) sigmaxy = hallConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//
-//            if (prank == 0) {
-//                std::cout << "#spectra: " << pademp.nPhysSpectra().sum() << std::endl;
-//                std::cout << "sigmaxx = " << sigmaxx << std::endl;
-//                if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
-//                printData("selfenergy_retarded.txt", pademp.retardedSelfEn());
-//                printData("spectramatrix.txt", pademp.spectraMatrix());
-//            }
-        }
-        else {
-//            pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-//                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-//                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-//
-//            pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
-//
-//            sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//            if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//
-//            if (prank == 0) {
-//                std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
-//                std::cout << "sigmaxx = " << sigmaxx << std::endl;
-//                if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
-//                printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-//                printData("spectramatrix.txt", pade.spectraMatrix());
-//            }
+        pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+                   Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
+        
+        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+        
+        sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+        
+        if (prank == 0) {
+            std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
+            std::cout << "sigmaxx = " << sigmaxx << std::endl;
+            if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
+            printData("selfenergy_retarded.txt", pade.retardedSelfEn());
+            printData("spectramatrix.txt", pade.spectraMatrix());
         }
         
         MPI_Finalize();
@@ -496,6 +478,8 @@ int main(int argc, char * argv[]) {
 //        }
 //    }
     
+    bool computesigma;
+    
     const int cw = 13;
     std::string dash(cw, '-');
     std::ofstream fiter;
@@ -547,38 +531,25 @@ int main(int argc, char * argv[]) {
         dmft.updateBathGF();
         
         converg = dmft.checkConvergence();
+        computesigma = !computecondonce || (computecondonce && converg.first);
         
         // Calculate conductivities
-        if (!computecondonce || (computecondonce && converg.first)) {
+        if (computesigma) {
             if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
-            if (usemp) {
-                pademp.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-                pademp.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
-            }
-            else {
-//                pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-//                           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-//                           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
-//                pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
-            }
+            pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), lss, MPI_COMM_WORLD);
+            pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
             
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
-            if (usemp) {
-                sigmaxx = longitConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-                if (computesigmaxy) sigmaxy = hallConduc(*H0, pademp.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-            }
-            else {
-//                sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-//                if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-            }
+            sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+            if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
@@ -593,15 +564,9 @@ int main(int argc, char * argv[]) {
             printData("Gmatsubara.txt", G->fourierCoeffs());
             printData("selfenergy.txt", dmft.selfEnergy(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
-            if (!computecondonce || (computecondonce && converg.first)) {
-                if (usemp) {
-                    printData("selfenergy_retarded.txt", pademp.retardedSelfEn());
-                    printData("spectramatrix.txt", pademp.spectraMatrix());
-                }
-                else {
-//                    printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-//                    printData("spectramatrix.txt", pade.spectraMatrix());
-                }
+            if (computesigma) {
+                printData("selfenergy_retarded.txt", pade.retardedSelfEn());
+                printData("spectramatrix.txt", pade.spectraMatrix());
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
@@ -618,10 +583,8 @@ int main(int argc, char * argv[]) {
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(cw)
                 << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
-            if (!computecondonce || (computecondonce && converg.first)) {
-                if (usemp) fiter << " " << std::setw(cw) << pademp.nPhysSpectra().sum();
-//                else fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum();
-                fiter << " " << std::setw(cw) << sigmaxx;
+            if (computesigma) {
+                fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
             }
             else {
