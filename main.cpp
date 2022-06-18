@@ -205,7 +205,6 @@ int main(int argc, char * argv[]) {
     double maxenergy = 10.0;
     double delenergy = 0.01;
     std::string lssolver("BDCSVD");
-    bool usemp = false;
     int mpprec = 256;
     
     bool analcontrun = false;
@@ -264,7 +263,6 @@ int main(int argc, char * argv[]) {
     readxml_bcast(maxenergy, docroot, "numerical/PadeInterpolation/energyGridSize.max", MPI_COMM_WORLD, prank);
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(lssolver, docroot, "numerical/PadeInterpolation/leastSquaresSolver", MPI_COMM_WORLD, prank);
-    readxml_bcast(usemp, docroot, "numerical/PadeInterpolation/useMultiprecision", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/runPadeOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
