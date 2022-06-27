@@ -482,24 +482,22 @@ int main(int argc, char * argv[]) {
         if (measurewhat == "S") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
             << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " <n> int err"
-            << std::setw(cw + 1) << " #spectra" << std::setw(cw + 1) << " sigmaxx";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
-            fiter << std::endl;
-            fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
-            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash
-            << " "               << dash        << " "               << dash;
-            if (computesigmaxy) fiter << " "               << dash;
-            fiter << std::endl;
-        }
-        else if (measurewhat == "G") {
-            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " #spectra"
             << std::setw(cw + 1) << " sigmaxx";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
             << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash
-            << " " << dash;
+            << " "               << dash;
+            if (computesigmaxy) fiter << " "               << dash;
+            fiter << std::endl;
+        }
+        else if (measurewhat == "G") {
+            fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
+            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " sigmaxx";
+            if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
+            fiter << std::endl;
+            fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
+            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash;
             if (computesigmaxy) fiter << " "               << dash;
             fiter << std::endl;
         }
@@ -537,7 +535,10 @@ int main(int argc, char * argv[]) {
             pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
-            if (prank == 0) std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
+            if (prank == 0) {
+                std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
+                std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
+            }
             
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
