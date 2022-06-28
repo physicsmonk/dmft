@@ -578,11 +578,11 @@ int main(int argc, char * argv[]) {
                 << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
-                fiter << " " << std::setw(cw) << pade.nPhysSpectra().sum() << " " << std::setw(cw) << sigmaxx;
+                fiter << " " << std::setw(cw) << sigmaxx;
                 if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
             }
             else {
-                fiter << " " << std::setw(cw) << "--" << " " << std::setw(cw) << "--";
+                fiter << " " << std::setw(cw) << "--";
                 if (computesigmaxy) fiter << " " << std::setw(cw) << "--";
             }
             fiter << std::endl;
