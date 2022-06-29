@@ -94,7 +94,7 @@ double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<dou
             }
         }
         integrand *= -beta * ebws * (1.0 + ebws).square().inverse();
-        sigmaxx = simpsonIntegrate(integrand, dw) / H0.hamDimerMag2d().size() * M_PI;
+        sigmaxx = simpsonIntegrate(integrand, dw) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;   // In units of e^2 / (2 * pi * hbar)
         MPI_Allreduce(MPI_IN_PLACE, &sigmaxx, 1, MPI_DOUBLE, MPI_SUM, selfen.mpiCommunicator());
     }
     
