@@ -482,8 +482,8 @@ int main(int argc, char * argv[]) {
         if (measurewhat == "S") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
             << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " <n> int err"
-            << std::setw(cw + 1) << " sigmaxx";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
+            << std::setw(cw + 1) << " sxx (e^2/h)";
+            if (computesigmaxy) fiter << std::setw(cw + 1) << " sxy (e^2/h)";
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
             << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash
@@ -493,8 +493,8 @@ int main(int argc, char * argv[]) {
         }
         else if (measurewhat == "G") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " sigmaxx";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " sigmaxy";
+            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " sxx (e^2/h)";
+            if (computesigmaxy) fiter << std::setw(cw + 1) << " sxy (e^2/h)";
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
             << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash;
