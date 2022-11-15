@@ -58,15 +58,16 @@ void BareHamiltonian::computeDOS(const std::size_t nbins) {
     std::size_t ie, ib, ik;
     const double binsize = (m_erange[1] - m_erange[0]) / nbins;
     
-    m_dos = Eigen::ArrayXd::Zero(nbins);
+    m_dos = Eigen::ArrayX2d::Zero(nbins, 2);
+    m_dos.col(0).setLinSpaced(nbins, m_erange[0] + binsize * 0.5, m_erange[1] - binsize * 0.5);   // Record energies
     
     for (ik = 0; ik < m_klocalsize; ++ik) {
-        for (ib = 0; ib < m_bands.rows(); ++ib) {
+        for (ib = m_a.rows(); ib < m_bands.rows(); ++ib) {
             ie = std::min(static_cast<std::size_t>((m_bands(ib, ik) - m_erange[0]) / binsize), nbins - 1);
-            m_dos[ie] += 1.0;
+            m_dos(ie, 1) += 1.0;
         }
     }
     
-    MPI_Allreduce(MPI_IN_PLACE, m_dos.data(), static_cast<int>(nbins), MPI_DOUBLE, MPI_SUM, m_comm);  // Complete DOS is needed by every process
-    m_dos /= m_nk.prod() * binsize;   // DOS is per unit cell per energy, for its use in k-space Fourier inversion of the lattice Green's function
+    MPI_Allreduce(MPI_IN_PLACE, m_dos.col(1).data(), static_cast<int>(nbins), MPI_DOUBLE, MPI_SUM, m_comm);  // Complete DOS is needed by every process
+    m_dos.col(1) /= m_nk.prod() * binsize;   // DOS is per unit cell per energy, for its use in k-space Fourier inversion of the lattice Green's function
 }

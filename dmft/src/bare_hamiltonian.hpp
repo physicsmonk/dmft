@@ -36,7 +36,7 @@ private:
     // Local-size: first index is just x or y, second index runs over local k-vectors (ky major)
     SqMatArray2XXcd m_vdimerMag2d;
     std::string m_type;
-    Eigen::ArrayXd m_dos;   // Stores density of states
+    Eigen::ArrayX2d m_dos;   // Stores density of states
     double m_mu;  // Chemical potential. Note band structure and DOS are independent of it.
     SqMatArray22Xcd m_moments;  // First and second moments
     
@@ -79,7 +79,7 @@ public:
     
     template <typename Derived>
     void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
-    const Eigen::ArrayXd& dos() const {return m_dos;}   // Return DOS
+    const Eigen::ArrayX2d& dos() const {return m_dos;}   // Return DOS
     
     const Eigen::ArrayXXd& bands() const {return m_bands;}
     
@@ -161,17 +161,18 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     // Calculate bands
     const std::size_t nkt = m_nk.prod();
     mostEvenPart(nkt, m_psize, m_prank, m_klocalsize, m_klocalstart);
-    m_bands.resize(nbands, m_klocalsize);   // Allocate local-sized _bands because it is not directly used in the program
+    m_bands.resize(nbands + k.size(), m_klocalsize);   // Allocate local-sized m_bands because it is not directly used in the program; first several rows is k-vector
     for (ik = 0; ik < m_klocalsize; ++ik) {
         kVecAtIndex(ik + m_klocalstart, k);
         constructHamiltonian(k, H);  // Call the implemented method in derived classes
         es0.compute(H, Eigen::EigenvaluesOnly);  // Only the lower triangular part is used
-        m_bands.col(ik) = es0.eigenvalues();
+        m_bands.block(0, ik, k.size(), 1) = k;   // Record k-vectors
+        m_bands.block(k.size(), ik, nbands, 1) = es0.eigenvalues();   // Record bands
     }
     
     // Record info because finding max or min is a little bit costly
-    m_erange[0] = m_bands.minCoeff();
-    m_erange[1] = m_bands.maxCoeff();
+    m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
+    m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
     
@@ -244,11 +245,10 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
     std::complex<double> wu;
     
     if (nc == 1) {  // Single site case, where we can utilize the noninteracting density of states
-        const std::size_t nbins = H0.dos().size();
+        const std::size_t nbins = H0.dos().rows();
         if (nbins == 0) throw std::range_error("DOS has not been computed or set!");
         std::size_t ie;
         const double binsize = (H0.energyRange()[1] - H0.energyRange()[0]) / nbins;
-        double e;
         Eigen::ArrayXcd integrand(nbins);
         
         for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
@@ -261,8 +261,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             // Glat.masteredPart(i).setZero();
             // Update the lattice Green's function
             for (ie = 0; ie < nbins; ++ie) {
-                e = (ie + 0.5) * binsize + H0.energyRange()[0];
-                integrand(ie) = -H0.dos()(ie) / (wu - e - selfenmastpart(i, 0, 0));
+                integrand(ie) = -H0.dos()(ie, 1) / (wu - H0.dos()(ie, 0) - selfenmastpart(i, 0, 0));
                 // Glat.masteredPart(i).noalias() -= binsize * _H0->dos()(ie) * ((1i * w + _H0->mu - e) * Eigen::MatrixXcd::Identity(nc, nc) - selfenergy.masteredPart(i)).inverse();
             }
             Gwmastpart(i, 0, 0) = simpsonIntegrate(integrand, binsize);

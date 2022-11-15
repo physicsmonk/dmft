@@ -209,6 +209,8 @@ int main(int argc, char * argv[]) {
     bool analcontrun = false;
     bool computesigmaxy = true;
     bool computecondonce = true;
+    
+    bool loc_corr = false;   // Whether to use local correlation approximation (off-diagonal elements of self-energy are zero)
 
 
     pugi::xml_document doc;
@@ -265,6 +267,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(analcontrun, docroot, "processControl/runPadeOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
+    readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD, prank);
 
     if (prank == 0) std::cout << sep << std::endl;
 
@@ -288,7 +291,7 @@ int main(int argc, char * argv[]) {
                      0.0,                   4.0 * t * t + tz * tz;  // Set second moment
     moments(1, 0) = moments(0, 0);
     moments(1, 1) = moments(0, 1);
-    H0->moments(std::move(moments));
+    H0->moments(moments);
 //    H0->firstMoment[0] = Eigen::MatrixXcd::Zero(1, 1);
 //    H0->secondMoment[0] = Eigen::MatrixXcd::Ones(1, 1);
 //    H0->secondMoment[0] << t * t + tz * tz, 0.0,
@@ -321,6 +324,33 @@ int main(int argc, char * argv[]) {
     // Test
     // MPI_Finalize();
     // return 0;
+    
+    // Set up decoupled Hamiltonian for the local correlation approximation
+    auto H0dec = std::make_shared<Dimer2DinMag>();
+    if (loc_corr) {
+        H0dec->setMPIcomm(MPI_COMM_WORLD);
+        
+        H0dec->hopMatElem(Eigen::Array2cd(t, 0.0));
+        H0dec->q = q;
+        H0dec->p = p;
+        
+        H0dec->chemPot(mu_eff);   // Chemical potential of the noninterating system (in comparison with the interacting system) is formally the effective one.
+        
+        moments(0, 0) << 0.0, 0.0,
+        0.0, 0.0;  // Set first moment
+        moments(0, 1) << 4.0 * t * t, 0.0,
+        0.0,                   4.0 * t * t;  // Set second moment
+        moments(1, 0) = moments(0, 0);
+        moments(1, 1) = moments(0, 1);
+        H0dec->moments(std::move(moments));
+        
+        H0dec->primVecs((Eigen::Matrix2d() << q, 0, 0, 1).finished());
+        
+        H0dec->type("dimer_mag_2d");   // general, bethe, bethe_dimer, dimer_mag_2d
+        H0dec->computeBands((ArrayXsizet(2) << nkx, nky).finished());
+        H0dec->computeDOS(nbins4dos);
+    }
+    
     
 #ifdef PADE_NOT_USE_MPFR
     PadeApproximant2XXld pade;
@@ -401,7 +431,9 @@ int main(int argc, char * argv[]) {
     std::this_thread::sleep_for(std::chrono::seconds(1));
     if (prank == 0) std::cout << sep << std::endl;
 
-    auto impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
+    std::shared_ptr<ImpurityProblem> impproblem;
+    if (loc_corr) impproblem = std::make_shared<ImpurityProblem>(H0dec, G0, U, K, G);
+    else impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
 
     CTAUXImpuritySolver impsolver(impproblem);
     impsolver.parameters.at("markov chain length") = markovchainlength;
@@ -436,11 +468,18 @@ int main(int argc, char * argv[]) {
     if (ansatz == "insulator") {
         auto G0wmastpart = G0->fourierCoeffs().mastFlatPart();
         std::array<std::size_t, 2> so;
-        for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
-            so = G0wmastpart.global2dIndex(i);
-            // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
-            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->moments()(so[0], 0)).inverse();
-        }
+        if (loc_corr)
+            for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
+                so = G0wmastpart.global2dIndex(i);
+                // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
+                G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0dec->moments()(so[0], 0)).inverse();
+            }
+        else
+            for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
+                so = G0wmastpart.global2dIndex(i);
+                // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
+                G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->moments()(so[0], 0)).inverse();
+            }
         G0wmastpart.allGather();
         G0->invFourierTrans();
     }
@@ -515,7 +554,7 @@ int main(int argc, char * argv[]) {
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
         
-        dmft.approxSelfEnergy();
+        dmft.approxSelfEnergy(loc_corr);
         
         dmft.updateLatticeGF();
         

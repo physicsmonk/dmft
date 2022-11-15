@@ -40,7 +40,7 @@ public:
     
     void updateBathGF();
     
-    void approxSelfEnergy();
+    void approxSelfEnergy(const bool loc_corr);
     
     void updateLatticeGF();
     
