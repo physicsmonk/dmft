@@ -89,31 +89,40 @@ void DMFTIterator::updateBathGF() {
 }
 
 // Approximate self-energy from the solved impurity problem
-void DMFTIterator::approxSelfEnergy(const bool loc_corr) {
+void DMFTIterator::approxSelfEnergy() {
     auto selfenmastpart = m_selfen.mastFlatPart();
     const auto Gimpmastpart = m_ptr2Gimp->fourierCoeffs().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
     for (int s = 0; s < 2; ++s) m_selfenstatic[s] = m_ptr2Gbath->highFreqCoeffs()(s, 0) - m_ptr2Gimp->highFreqCoeffs()(s, 0);
-    if (loc_corr) {  // Set block off-diagonal parts of self-energy to zero if adopting local correlation approximation
-        if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
-        const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
-        for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-            selfenmastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            selfenmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-        }
-        for (int s = 0; s < 2; ++s) {
-            m_selfenstatic[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            m_selfenstatic[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-        }
-    }
+    //if (loc_corr) {  // Set block off-diagonal parts of self-energy to zero if adopting local correlation approximation
+    //    if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
+    //    const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
+    //    for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
+    //        selfenmastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+    //       selfenmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+    //    }
+    //    for (int s = 0; s < 2; ++s) {
+    //        m_selfenstatic[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+    //    m_selfenstatic[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+    //    }
+    //}
     selfenmastpart.allGather();  // For Pade interpolation after calling this method
 }
 
 // Update the lattice Green's function using the current self-energy
-void DMFTIterator::updateLatticeGF() {
+void DMFTIterator::updateLatticeGF(const bool loc_corr) {
     if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 0) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
     else computeLattGFfCoeffs(*m_ptr2H0, m_selfen, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
+    if (loc_corr) {  // Set block off-diagonal parts of lattice Green's function to zero if adopting local correlation approximation
+        if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
+        const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
+        auto Glatmastpart = m_Glat.mastFlatPart();
+        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+            Glatmastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            Glatmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+        }
+    }
 }
 
 std::pair<bool, double> DMFTIterator::checkConvergence() const {

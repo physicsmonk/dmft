@@ -337,9 +337,9 @@ int main(int argc, char * argv[]) {
         H0dec->chemPot(mu_eff);   // Chemical potential of the noninterating system (in comparison with the interacting system) is formally the effective one.
         
         moments(0, 0) << 0.0, 0.0,
-        0.0, 0.0;  // Set first moment
+                         0.0, 0.0;  // Set first moment
         moments(0, 1) << 4.0 * t * t, 0.0,
-        0.0,                   4.0 * t * t;  // Set second moment
+                         0.0,         4.0 * t * t;  // Set second moment
         moments(1, 0) = moments(0, 0);
         moments(1, 1) = moments(0, 1);
         H0dec->moments(std::move(moments));
@@ -485,7 +485,7 @@ int main(int argc, char * argv[]) {
     }
     else if (ansatz == "metal") {  // Initialization for metallic solution (zero-U limit)
         dmft.selfEnergy().mastFlatPart()().setZero();
-        dmft.updateLatticeGF();
+        dmft.updateLatticeGF(loc_corr);
         dmft.updateBathGF();
     }
     else {  // Read in initial G0 from file, can be used to do continuation calculations
@@ -554,9 +554,9 @@ int main(int argc, char * argv[]) {
         tdur = tend - tstart;
         if (prank == 0) std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
         
-        dmft.approxSelfEnergy(loc_corr);
+        dmft.approxSelfEnergy();
         
-        dmft.updateLatticeGF();
+        dmft.updateLatticeGF(loc_corr);
         
         dmft.updateBathGF();
         

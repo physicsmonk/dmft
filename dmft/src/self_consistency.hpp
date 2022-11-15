@@ -40,9 +40,9 @@ public:
     
     void updateBathGF();
     
-    void approxSelfEnergy(const bool loc_corr);
+    void approxSelfEnergy();
     
-    void updateLatticeGF();
+    void updateLatticeGF(const bool loc_corr = true);
     
     std::pair<bool, double> checkConvergence() const;
     
