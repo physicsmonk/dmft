@@ -450,7 +450,7 @@ int main(int argc, char * argv[]) {
     dmft.parameters.at("G0 update step size") = G0stepsize;
     dmft.parameters.at("convergence type") = converge_type;
     dmft.parameters.at("convergence criterion") = converge_criterion;
-    
+    dmft.parameters.at("local correlation") = loc_corr;
     
     
     
@@ -485,7 +485,7 @@ int main(int argc, char * argv[]) {
     }
     else if (ansatz == "metal") {  // Initialization for metallic solution (zero-U limit)
         dmft.selfEnergy().mastFlatPart()().setZero();
-        dmft.updateLatticeGF(loc_corr);
+        dmft.updateLatticeGF();
         dmft.updateBathGF();
     }
     else {  // Read in initial G0 from file, can be used to do continuation calculations
@@ -556,7 +556,7 @@ int main(int argc, char * argv[]) {
         
         dmft.approxSelfEnergy();
         
-        dmft.updateLatticeGF(loc_corr);
+        dmft.updateLatticeGF();
         
         dmft.updateBathGF();
         
