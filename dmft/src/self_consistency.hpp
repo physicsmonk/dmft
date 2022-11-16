@@ -42,7 +42,7 @@ public:
     
     void approxSelfEnergy();
     
-    void updateLatticeGF(const bool loc_corr = true);
+    void updateLatticeGF();
     
     std::pair<bool, double> checkConvergence() const;
     
