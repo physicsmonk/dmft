@@ -81,7 +81,12 @@ public:
     void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
     const Eigen::ArrayX2d& dos() const {return m_dos;}   // Return DOS
     
-    const Eigen::ArrayXXd& bands() const {return m_bands;}
+    const Eigen::ArrayXXd& bands(Eigen::ArrayXXd& fullbands) const {
+        fullbands.resize(m_bands.rows(), m_nk.prod());
+        const auto gathersize = static_cast<int>(m_bands.size());
+        MPI_Allgather(m_bands.data(), gathersize, MPI_DOUBLE, fullbands.data(), gathersize, MPI_DOUBLE, m_comm);
+        return m_bands;
+    }
     
     const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return m_HdimerMag2d;}
     const SqMatArray2XXcd& fermiVdimerMag2d() const {return m_vdimerMag2d;}

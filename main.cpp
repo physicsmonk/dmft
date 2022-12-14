@@ -314,10 +314,10 @@ int main(int argc, char * argv[]) {
     // H0->setDOS(erange, semicircle);
 //    H0->setDOS(erange, semicircle);
     
+    Eigen::ArrayXXd bds;
+    H0->bands(bds);
     if (prank == 0) {
-        //std::ofstream filebands("bands.txt");
-        //filebands << H0->bands();
-        //filebands.close();
+        printData("bands.txt", bds.transpose());
         printData("dos.txt", H0->dos());
     }
     
