@@ -29,7 +29,7 @@ void BareHamiltonian::kVecAtIndex(std::size_t ik, Eigen::VectorXd& k) const {
     std::size_t nkv = m_nk.prod();
     for (std::size_t n = 0; n < m_K.cols(); ++n) {
         nkv /= m_nk(n);
-        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n);
+        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n) - 0.5;
         ik %= nkv;
     }
     k = (m_K * kfrac.asDiagonal()).rowwise().sum();
