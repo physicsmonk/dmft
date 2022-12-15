@@ -82,13 +82,13 @@ public:
     const Eigen::ArrayX2d& dos() const {return m_dos;}   // Return DOS
     
     const Eigen::ArrayXXd& bands(Eigen::ArrayXXd& fullbands) const {
-        fullbands.resize(m_bands.rows(), m_nk.prod());
         const auto count = static_cast<int>(m_bands.size());
         const auto displ = static_cast<int>(m_bands.rows() * m_klocalstart);
         Eigen::ArrayXi counts, displs;
         if (m_prank == 0) {
             counts.resize(m_psize);
             displs.resize(m_psize);
+            fullbands.resize(m_bands.rows(), m_nk.prod());
         }
         MPI_Gather(&count, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, m_comm);
         MPI_Gather(&displ, 1, MPI_INT, displs.data(), 1, MPI_INT, 0, m_comm);
