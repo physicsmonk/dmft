@@ -14,7 +14,8 @@
 #include "input.hpp"
 #include "ct_aux_imp_solver.hpp"
 #include "self_consistency.hpp"
-#include "anal_continuation.hpp"
+//#include "pade.hpp"
+#include "mqem.hpp"
 
 //#ifdef _WIN32
 //#include <Windows.h>
@@ -149,6 +150,70 @@ int main(int argc, char * argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &psize);
     MPI_Comm_rank(MPI_COMM_WORLD, &prank);
     
+    /*
+    // For test
+    //Eigen::RowVector4i aa;
+    //aa << 3, 0, 1, 2;
+    //Eigen::PermutationMatrix<4> perm;
+    //perm.indices() = {1, 2, 3, 0};
+    //std::cout << aa * perm << std::endl;
+    
+    std::size_t Nul = 5, Nur = 5, Nw = 51, Niw = 71;
+    double omegal = -3.0, omegar = 3.0, invT = 10.0;
+    Eigen::ArrayXd iomegas = Eigen::ArrayXd::LinSpaced(Niw, M_PI / invT, (2 * Niw - 1) * M_PI / invT);
+    MQEMContinuator<1, Eigen::Dynamic, 2> testmqem;
+    //mqem.parameters.at("Gaussian_sigma") = 4.0;
+    testmqem.assembleKernelMatrix(iomegas, Nul, omegal, Nw, omegar, Nur);
+    
+    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, 2> spec(1, testmqem.realFreqGrid().size(), 2), func_mats(1, Niw, 2, MPI_COMM_WORLD);
+    Eigen::Matrix2cd rot;
+    double theta;
+    // Assign model spectral function
+    for (std::size_t i = 0; i < testmqem.realFreqGrid().size(); ++i) {
+        theta = 2.0 * M_PI * testmqem.realFreqGrid()(i) * 0.05; theta *= theta;
+        rot << std::cos(theta), 1i * std::sin(theta),
+               1i * std::sin(theta), std::cos(theta);
+        spec[i] << 0.5 * M_2_SQRTPI * M_SQRT1_2 * (std::exp(-0.5 * (testmqem.realFreqGrid()(i) + 1.5) * (testmqem.realFreqGrid()(i) + 1.5))
+        + std::exp(-0.5 * (testmqem.realFreqGrid()(i) - 1.5) * (testmqem.realFreqGrid()(i) - 1.5))), 0.0, 0.0, 0.0;
+        //std::cout << spec[i] << std::endl;
+        spec[i] = rot.adjoint() * spec[i] * rot;
+    }
+    SqMatArray<std::complex<double>, 1, 1, 2> mom;
+    mom.dim1RowVecsAtDim0(0).noalias() = spec.dim1RowVecsAtDim0(0) * testmqem.realFreqIntVector();
+    
+    // Recover Matsubara function
+    func_mats.dim1RowVecsAtDim0(0).transpose().noalias() = testmqem.kernelMatrix() * spec.dim1RowVecsAtDim0(0).transpose();
+    // Add noise to Matsubara function
+    std::default_random_engine gen;
+    double sig = 1e-3;
+    SqMatArray<double, 1, Eigen::Dynamic, 2> vars(1, Niw, 2, MPI_COMM_WORLD);
+    vars().setConstant(sig * sig * 2.0);
+    
+    std::normal_distribution<double> nrd(0.0, sig);
+    for (std::size_t i = 0; i < Niw; ++i) {
+        rot << nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen);
+        func_mats[i] += rot;
+    }
+    
+    bool cvg;
+    cvg = testmqem.computeSpectra(iomegas, func_mats, vars, mom);
+    testmqem.computeRetardedFunc();
+    
+    if (prank == 0) {
+        printData("real_freqs.txt", testmqem.realFreqGrid());
+        printData("model_spec_func.txt", spec);
+        printData("model_mats_func.txt", func_mats);
+        std::cout << cvg << std::endl;
+        printData("default_model.txt", testmqem.defaultModel());
+        printData("spec_func.txt", testmqem.spectra());
+        printData("log10chi2_log10alpha.txt", testmqem.log10chi2Log10alpha(0));
+        printData("retarded_func.txt", testmqem.retardedFunc());
+    }
+    
+    MPI_Finalize();
+    return 0;
+    */
+    
     std::string sep("----------------------------------------------------------------------");
     
     // std::random_device rd;
@@ -190,6 +255,8 @@ int main(int argc, char * argv[]) {
     std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
     
+    /*
+    // For Pade interpolation
     bool physonly = true;
     int ndatalens = 13;
     int mindatalen = 50;
@@ -205,6 +272,19 @@ int main(int argc, char * argv[]) {
     double maxenergy = 10.0;
     double delenergy = 0.01;
     int mpprec = 256;
+     */
+    
+    // For MQEM analytic continuation
+    std::size_t n_lrealfreq = 10;
+    double lrealfreq = -5.0;
+    std::size_t n_mrealfreq = 51;
+    double rrealfreq = 5.0;
+    std::size_t n_rrealfreq = 10;
+    double pulay_mix = 0.01;
+    std::size_t pulay_histsize = 5;
+    std::size_t pulay_period = 3;
+    double gaussian_sig = 1.5;
+    double alpha_minfac = 0.01;
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -249,6 +329,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD, prank);
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD, prank);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD, prank);
+    /*
     readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
     readxml_bcast(mindatalen, docroot, "numerical/PadeInterpolation/numDataLengths.min", MPI_COMM_WORLD, prank);
@@ -264,6 +345,17 @@ int main(int argc, char * argv[]) {
     readxml_bcast(maxenergy, docroot, "numerical/PadeInterpolation/energyGridSize.max", MPI_COMM_WORLD, prank);
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
+    */
+    readxml_bcast(n_lrealfreq, docroot, "numerical/MQEM/numLeftRealFreqencies", MPI_COMM_WORLD, prank);
+    readxml_bcast(lrealfreq, docroot, "numerical/MQEM/leftRealFreqencyAnchor", MPI_COMM_WORLD, prank);
+    readxml_bcast(n_mrealfreq, docroot, "numerical/MQEM/numMidRealFreqencies", MPI_COMM_WORLD, prank);
+    readxml_bcast(rrealfreq, docroot, "numerical/MQEM/rightRealFreqencyAnchor", MPI_COMM_WORLD, prank);
+    readxml_bcast(n_rrealfreq, docroot, "numerical/MQEM/numRightRealFreqencies", MPI_COMM_WORLD, prank);
+    readxml_bcast(pulay_mix, docroot, "numerical/MQEM/PulayMixingParameter", MPI_COMM_WORLD, prank);
+    readxml_bcast(pulay_histsize, docroot, "numerical/MQEM/PulayHistorySize", MPI_COMM_WORLD, prank);
+    readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD, prank);
+    readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/runPadeOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -352,50 +444,87 @@ int main(int argc, char * argv[]) {
     }
     
     
-#ifdef PADE_NOT_USE_MPFR
-    PadeApproximant2XXld pade;
-#else
-    mpfr::mpreal::set_default_prec(mpprec);  // Set default precision for Pade interpolation
-    PadeApproximant2XXmpreal pade;
-#endif
+//#ifdef PADE_NOT_USE_MPFR
+//    PadeApproximant2XXld pade;
+//#else
+//    mpfr::mpreal::set_default_prec(mpprec);  // Set default precision for Pade interpolation
+//    PadeApproximant2XXmpreal pade;
+//#endif
+    MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> mqem;
+    mqem.parameters.at("Pulay_mixing_param") = pulay_mix;
+    mqem.parameters.at("Pulay_history_size") = pulay_histsize;
+    mqem.parameters.at("Pulay_period") = pulay_period;
+    mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
+    mqem.parameters.at("alpha_min_fac") = alpha_minfac;
+    
     double sigmaxx = 0.0, sigmaxy = 0.0;
+    SqMatArray2XXcd spectra;
+    auto spectramastpart = spectra.mastFlatPart();
+    //Eigen::ArrayXcd en_idel;
     
     if (analcontrun) {
-        SqMatArray2XXcd selfen(2, nfcut + 1, nc, MPI_COMM_WORLD);
+        SqMatArray2XXcd selfendyn(2, nfcut + 1, nc, MPI_COMM_WORLD);
+        SqMatArray2XXd selfenvar(2, nfcut + 1, nc, MPI_COMM_WORLD);
         SqMatArray21Xcd selfenstatic(2, 1, nc, MPI_COMM_WORLD);
+        SqMatArray23Xcd selfenmom(2, 3, nc, MPI_COMM_WORLD);
         if (prank == 0) {
-            std::ifstream fin("selfenergy.txt");
+            std::ifstream fin("selfenergy_dyn.txt");
             if (fin.is_open()) {
-                fin >> selfen;
+                fin >> selfendyn;
                 fin.close();
             }
             else std::cout << "Unable to open file" << std::endl;
             fin.clear();  // Clear flags
-            fin.open("selfenergy_staticpart.txt");
+            fin.open("selfenergy_var.txt");
+            if (fin.is_open()) {
+                fin >> selfenvar;
+                fin.close();
+            }
+            else std::cout << "Unable to open file" << std::endl;
+            fin.clear();  // Clear flags
+            fin.open("selfenergy_static.txt");
             if (fin.is_open()) {
                 fin >> selfenstatic;
                 fin.close();
             }
             else std::cout << "Unable to open file" << std::endl;
+            fin.clear();  // Clear flags
+            fin.open("selfenergy_moms.txt");
+            if (fin.is_open()) {
+                fin >> selfenmom;
+                fin.close();
+            }
+            else std::cout << "Unable to open file" << std::endl;
         }
-        selfen.broadcast(0);
+        selfendyn.broadcast(0);
+        selfenvar.broadcast(0);
         selfenstatic.broadcast(0);
+        selfenmom.broadcast(0);
         
-        pade.build(selfen, &selfenstatic, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-                   Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                   Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
+        //pade.build(selfendyn, beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+        //           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+        //           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
+        Eigen::ArrayXd mats_freq = Eigen::ArrayXd::LinSpaced(selfendyn.dim1(), M_PI / beta, (2 * selfendyn.dim1() - 1) * M_PI / beta);
+        mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, lrealfreq, n_mrealfreq, rrealfreq, n_rrealfreq);
+        mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         
-        pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+        //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+        mqem.computeRetardedFunc(selfenstatic);
         
-        sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+        //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
+        sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
+        
+        computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
+        for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
+        spectramastpart.allGather();
         
         if (prank == 0) {
-            std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
+            //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
-            printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-            printData("spectramatrix.txt", pade.spectraMatrix());
+            printData("selfenergy_retarded.txt", mqem.retardedFunc());
+            printData("spectramatrix.txt", spectra);
         }
         
         MPI_Finalize();
@@ -421,15 +550,15 @@ int main(int argc, char * argv[]) {
 
     auto G = std::make_shared<GreenFunction>(beta, nc, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
     
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
     //usleep(1000 * prank);
-    std::this_thread::sleep_for(std::chrono::milliseconds(prank));
-    std::cout << "rank " << prank << " of " << psize << ": mastered size = " << G->fourierCoeffs().mastFlatPart().size() << ", mastered start = "
-    << G->fourierCoeffs().mastFlatPart().start() << std::endl;
-    MPI_Barrier(MPI_COMM_WORLD);
+    //std::this_thread::sleep_for(std::chrono::milliseconds(prank));
+    //std::cout << "rank " << prank << " of " << psize << ": mastered size = " << G->fourierCoeffs().mastFlatPart().size() << ", mastered start = "
+    //<< G->fourierCoeffs().mastFlatPart().start() << std::endl;
+    //MPI_Barrier(MPI_COMM_WORLD);
     //sleep(1);   // Wait 1 s
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    if (prank == 0) std::cout << sep << std::endl;
+    //std::this_thread::sleep_for(std::chrono::seconds(1));
+    //if (prank == 0) std::cout << sep << std::endl;
 
     std::shared_ptr<ImpurityProblem> impproblem;
     if (loc_corr) impproblem = std::make_shared<ImpurityProblem>(H0dec, G0, U, K, G);
@@ -484,7 +613,8 @@ int main(int argc, char * argv[]) {
         G0->invFourierTrans();
     }
     else if (ansatz == "metal") {  // Initialization for metallic solution (zero-U limit)
-        dmft.selfEnergy().mastFlatPart()().setZero();
+        dmft.dynSelfEnergy().mastFlatPart()().setZero();
+        dmft.staticSelfEnergy()().setZero();
         dmft.updateLatticeGF();
         dmft.updateBathGF();
     }
@@ -509,6 +639,8 @@ int main(int argc, char * argv[]) {
 //            G->fourierCoeffs().masteredPart(i)(0, 0) = -0.5 * (zeta - sgn * std::sqrt(zetasq - 4.0));
 //        }
 //    }
+    
+    mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, lrealfreq, n_mrealfreq, rrealfreq, n_rrealfreq);
     
     bool computesigma;
     
@@ -568,21 +700,26 @@ int main(int argc, char * argv[]) {
             if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
-            pade.build(dmft.selfEnergy(), &dmft.selfEnStaticPart(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
-                       Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
-                       Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
-            pade.computeSpectra(*H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+            //pade.build(dmft.dynSelfEnergy(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
+            //           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
+            //           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
+            //pade.computeSpectra(dmft.staticSelfEnergy(), *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
+            mqem.computeSpectra(G->matsubFreqs(), dmft.dynSelfEnergy(), dmft.selfEnergyVar(), dmft.selfEnergyMoms());
+            mqem.computeRetardedFunc(dmft.staticSelfEnergy());
+            computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
+            for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
+            spectramastpart.allGather();
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) {
-                std::cout << "    Pade interpolation completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
-                std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
+                std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
+                //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
             }
             
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
-            sigmaxx = longitConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
-            if (computesigmaxy) sigmaxy = hallConduc(*H0, pade.retardedSelfEn(), beta, minenergy, maxenergy, delenergy);
+            sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
+            if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
@@ -595,11 +732,13 @@ int main(int argc, char * argv[]) {
             printData("G0matsubara.txt", G0->fourierCoeffs());
             printData("G.txt", G->valsOnTauGrid());
             printData("Gmatsubara.txt", G->fourierCoeffs());
-            printData("selfenergy.txt", dmft.selfEnergy(), std::numeric_limits<double>::max_digits10);
-            printData("selfenergy_staticpart.txt", dmft.selfEnStaticPart(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
             if (computesigma) {
-                printData("selfenergy_retarded.txt", pade.retardedSelfEn());
-                printData("spectramatrix.txt", pade.spectraMatrix());
+                printData("selfenergy_retarded.txt", mqem.retardedFunc());
+                printData("spectramatrix.txt", spectra);
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
@@ -607,14 +746,14 @@ int main(int argc, char * argv[]) {
         if (prank == 0) {
             if (measurewhat == "S") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
-                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(cw)
-                << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign() << " "
-                << std::setw(cw) << interr;
+                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
+                << " " << std::setw(cw) << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign()
+                << " " << std::setw(cw) << interr;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
-                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.selfEnergy()(0, 0)(0, 0)) / (M_PI / beta) << " " << std::setw(cw)
-                << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
+                << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
+                << " " << std::setw(cw) << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
                 fiter << " " << std::setw(cw) << sigmaxx;

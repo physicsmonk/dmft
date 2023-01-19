@@ -247,12 +247,15 @@ typename Derived::Scalar simpsonIntegrate(const Eigen::DenseBase<Derived>& integ
     return result;
 }
 
-// Requires that Gw has been properly allocated, i.e., has the same shape and mpi partition as selfen
-template <int n0, int n1, int nm, typename Derived, int othern0, int othern1, int othernm>
-void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, othern0, othern1, othernm>& Gw) {
-    const std::size_t nc = selfen.dimm();
-    assert(selfen.dim0() == Gw.dim0() && selfen.dim1() == energies.size() && selfen.dim1() == Gw.dim1() && nc == Gw.dimm());
-    const auto selfenmastpart = selfen.mastFlatPart();
+template <int n0, int n1, int nm, typename Derived>
+void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen_dyn,
+                          const SqMatArray<std::complex<double>, n0, 1, nm>& selfen_static, const Eigen::DenseBase<Derived>& energies,
+                          SqMatArray<std::complex<double>, n0, n1, nm>& Gw) {
+    const std::size_t nc = selfen_dyn.dimm();
+    Gw.mpiCommunicator(selfen_dyn.mpiCommunicator());
+    Gw.resize(selfen_dyn.dim0(), selfen_dyn.dim1(), nc);
+    assert(selfen_dyn.dim1() == energies.size());
+    const auto selfen_dyn_mastpart = selfen_dyn.mastFlatPart();
     auto Gwmastpart = Gw.mastFlatPart();
     std::array<std::size_t, 2> so;
     std::complex<double> wu;
@@ -264,8 +267,8 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
         const double binsize = (H0.energyRange()[1] - H0.energyRange()[0]) / nbins;
         Eigen::ArrayXcd integrand(nbins);
         
-        for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-            so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
+        for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+            so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
                 wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
                 wu.imag(energies(so[1]).imag().toDouble());
@@ -274,7 +277,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             // Glat.masteredPart(i).setZero();
             // Update the lattice Green's function
             for (ie = 0; ie < nbins; ++ie) {
-                integrand(ie) = -H0.dos()(ie, 1) / (wu - H0.dos()(ie, 0) - selfenmastpart(i, 0, 0));
+                integrand(ie) = -H0.dos()(ie, 1) / (wu - H0.dos()(ie, 0) - selfen_dyn_mastpart(i, 0, 0) - selfen_static(so[0], 0, 0, 0));
                 // Glat.masteredPart(i).noalias() -= binsize * _H0->dos()(ie) * ((1i * w + _H0->mu - e) * Eigen::MatrixXcd::Identity(nc, nc) - selfenergy.masteredPart(i)).inverse();
             }
             Gwmastpart(i, 0, 0) = simpsonIntegrate(integrand, binsize);
@@ -292,14 +295,14 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             if (H0.hamDimerMag2d().size() == 0) throw std::range_error("Block Hamiltonian of the 2D dimer Hubbard model in magnetic fields has not been computed!");
             std::size_t ist;
             Gwmastpart().setZero();
-            for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-                so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
+            for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+                so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
                 if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
                     wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
                     wu.imag(energies(so[1]).imag().toDouble());
                 }
                 else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
-                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfenmastpart[i]).inverse();
+                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfen_dyn_mastpart[i] - selfen_static[so[0]]).inverse();
                 Gwmastpart[i] /= static_cast<double>(H0.hamDimerMag2d().size());
             }
         }
@@ -310,8 +313,8 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             Eigen::VectorXd k;
             Eigen::MatrixXcd H;
             Gwmastpart().setZero();
-            for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-                so = selfenmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
+            for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+                so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
                 if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
                     wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
                     wu.imag(energies(so[1]).imag().toDouble());
@@ -320,12 +323,20 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
                 for (ik = 0; ik < nk; ++ik) {
                     H0.kVecAtIndex(ik, k);
                     H0.constructHamiltonian(k, H);
-                    Gwmastpart[i] += -(wu * Eigen::MatrixXcd::Identity(nc, nc) - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(nc, nc) - selfenmastpart[i]).inverse();
+                    Gwmastpart[i] += -(wu * Eigen::MatrixXcd::Identity(nc, nc) - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(nc, nc) - selfen_dyn_mastpart[i] - selfen_static[so[0]]).inverse();
                 }
                 Gwmastpart[i] /= static_cast<double>(nk);
             }
         }
     }
+}
+
+template <int n0, int n1, int nm, typename Derived>
+void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen,
+                          const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, n0, n1, nm>& Gw) {
+    SqMatArray<std::complex<double>, n0, 1, nm> selfenstatic(selfen.dim0(), 1, selfen.dimm());
+    selfenstatic().setZero();
+    computeLattGFfCoeffs(H0, selfen, selfenstatic, energies, Gw);
 }
 
 

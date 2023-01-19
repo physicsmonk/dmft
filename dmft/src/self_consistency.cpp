@@ -13,16 +13,19 @@
 using namespace std::complex_literals;
 
 
-DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) : m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfenstatic(2, 1, Gimp->nSites()), m_iter(0) {
+DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) :
+m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()),
+m_selfen_dyn(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen_static(2, 1, Gimp->nSites()),
+m_selfen_moms(2, 3, Gimp->nSites()), m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
     parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     parameters["local correlation"] = false;
     
-    // Compute high-frequency expansion coefficients of bath Green's function, which only depend on bare Hamiltonian
+    // Compute moments of bath Green's function, which only depend on bare Hamiltonian
     // and thus only need to be calculated once when bare Hamiltonian passed in.
-    m_ptr2Gbath->computeHighFreqCoeffs(*m_ptr2H0);
+    m_ptr2Gbath->computeMoments(*m_ptr2H0);
 }
 
 // Update the bath Green's function using the current lattice Green's function and self-energy
@@ -38,6 +41,7 @@ void DMFTIterator::updateBathGF() {
     
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = m_Glat.mastFlatPart();
+    std::array<std::size_t, 2> so;
     
     if (m_iter == 0) {
         stepsize = 1.0;  // This means that at zero step (initialization), directly initialize bath Green's function
@@ -48,7 +52,6 @@ void DMFTIterator::updateBathGF() {
         if (m_ptr2Gimp->nSites() != 1) throw std::range_error("Number of sites must be 1 for Bethe lattice (with semicircular DOS)!");
         const std::complex<double> t = m_ptr2H0->hopMatElem(0);
         std::complex<double> iwu(m_ptr2H0->chemPot(), 0.0);
-        std::array<std::size_t, 2> so;
         
         for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
@@ -60,8 +63,6 @@ void DMFTIterator::updateBathGF() {
         if (m_ptr2Gimp->nSites() != 2) throw std::range_error("Number of sites must be 2 for dimer Hubbard model with semicircular density of states!");
         const std::complex<double> t = m_ptr2H0->hopMatElem(0);
         const std::complex<double> tz = m_ptr2H0->hopMatElem(1);
-        std::array<std::size_t, 2> so;
-        
         Eigen::Matrix2cd zeta;
         
         zeta << m_ptr2H0->chemPot(), tz,
@@ -75,9 +76,11 @@ void DMFTIterator::updateBathGF() {
         }
     }
     else {
-        auto selfemastpart = m_selfen.mastFlatPart();
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i)
-            Gbathmastpart[i] = (1.0 - stepsize) * Gbathmastpart[i] + stepsize * (Glatmastpart[i].inverse() - selfemastpart[i]).inverse();
+        auto selfen_dyn_mastpart = m_selfen_dyn.mastFlatPart();
+        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+            so = selfen_dyn_mastpart.global2dIndex(i);
+            Gbathmastpart[i] = (1.0 - stepsize) * Gbathmastpart[i] + stepsize * (Glatmastpart[i].inverse() - selfen_dyn_mastpart[i] - m_selfen_static[so[0]]).inverse();
+        }
     }
     
     // Do all-gather because every process needs full access to the Fourier coefficients of the Bath Green's function
@@ -88,33 +91,60 @@ void DMFTIterator::updateBathGF() {
     m_ptr2Gbath->invFourierTrans();   // Spline built using already-calculated high-frequency expansion
 }
 
+// Calculate static part and moments of self-energy, remember the used nonstandard definition of Green's function
+void DMFTIterator::computeSelfEnStatMoms() {
+    for (int s = 0; s < 2; ++s) {
+        m_selfen_static[s] = m_ptr2Gbath->moments()(s, 1) - m_ptr2Gimp->moments()(s, 1);  // This is the static part
+        m_selfen_moms(s, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
+        + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
+        // Second and third coefficients to be implemented
+    }
+}
+
 // Approximate self-energy from the solved impurity problem
 void DMFTIterator::approxSelfEnergy() {
-    auto selfenmastpart = m_selfen.mastFlatPart();
+    auto selfen_dyn_mastpart = m_selfen_dyn.mastFlatPart();
+    auto selfen_var_mastpart = m_selfen_var.mastFlatPart();
     const auto Gimpmastpart = m_ptr2Gimp->fourierCoeffs().mastFlatPart();
+    const auto Gimpvarmastpart = m_ptr2Gimp->fCoeffsVar().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
-    for (std::size_t i = 0; i < selfenmastpart.size(); ++i) selfenmastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse();
-    for (int s = 0; s < 2; ++s) m_selfenstatic[s] = m_ptr2Gbath->highFreqCoeffs()(s, 0) - m_ptr2Gimp->highFreqCoeffs()(s, 0);
+    std::array<std::size_t, 2> so;
+    Eigen::MatrixXd tmp;
+    computeSelfEnStatMoms();
+    for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+        so = selfen_dyn_mastpart.global2dIndex(i);
+        selfen_dyn_mastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse() - m_selfen_static[so[0]];
+        tmp = Gimpmastpart[i].inverse().cwiseAbs2();
+        selfen_var_mastpart[i].noalias() = tmp * Gimpvarmastpart[i] * tmp;
+    }
+    
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
     if (loc_corr) {  // Set block off-diagonal parts of self-energy to zero if adopting local correlation approximation
         if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
         const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
-        for (std::size_t i = 0; i < selfenmastpart.size(); ++i) {
-            selfenmastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            selfenmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+        for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+            selfen_dyn_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            selfen_dyn_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            selfen_var_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
+            selfen_var_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
         }
         for (int s = 0; s < 2; ++s) {
-            m_selfenstatic[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            m_selfenstatic[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            m_selfen_static[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            m_selfen_static[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            for (int n = 0; n < m_selfen_moms.dim1(); ++n) {
+                m_selfen_moms(s, n).bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+                m_selfen_moms(s, n).topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            }
         }
     }
-    selfenmastpart.allGather();  // For Pade interpolation after calling this method
+    selfen_dyn_mastpart.allGather();  // For analytic continuation after calling this method
+    selfen_var_mastpart.allGather();
 }
 
 // Update the lattice Green's function using the current self-energy
 void DMFTIterator::updateLatticeGF() {
     if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 0) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
-    else computeLattGFfCoeffs(*m_ptr2H0, m_selfen, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
+    else computeLattGFfCoeffs(*m_ptr2H0, m_selfen_dyn, m_selfen_static, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
     if (loc_corr) {  // Set block off-diagonal parts of lattice Green's function to zero if adopting local correlation approximation
         if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");

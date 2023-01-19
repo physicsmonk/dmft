@@ -18,7 +18,7 @@ GenericGreenFunction::GenericGreenFunction(const double beta, const std::size_t 
 m_beta(beta),
 m_matsfs(Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta)),
 m_imagts(Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta)),
-m_Gw(2, nfcut + 1, nc, comm), m_Gt(2, ntau, nc, comm), m_Ghfc(2, 2, nc) {
+m_Gw(2, nfcut + 1, nc, comm), m_Gt(2, ntau, nc, comm), m_moms(2, 2, nc) {
     if (ntau < 2) throw std::invalid_argument( "Tau grid size of GenericGreenFunction cannot be less than 2!" );
 }
 
@@ -27,7 +27,7 @@ void GenericGreenFunction::fourierTransform() {
     auto Gwmastpart = m_Gw.mastFlatPart();
     std::array<std::size_t, 2> so;
     
-    m_Gspl.build(&m_imagts, &m_Gt, m_Ghfc);
+    m_Gspl.build(&m_imagts, &m_Gt, m_moms);
     
     for (std::size_t i = 0; i < Gwmastpart.size(); ++i) {
         so = Gwmastpart.global2dIndex(i);
@@ -134,12 +134,12 @@ void GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, double
 }
 
 void GenericGreenFunction::symmetrizeSpins() {
-    m_Gw(0) = (m_Gw(0) + m_Gw(1)) / 2.0;
-    m_Gw(1) = m_Gw(0);
-    m_Gt(0) = (m_Gt(0) + m_Gt(1)) / 2.0;
-    m_Gt(1) = m_Gt(0);
-    m_Ghfc(0) = (m_Ghfc(0) + m_Ghfc(1)) / 2.0;
-    m_Ghfc(1) = m_Ghfc(0);
+    m_Gw.atDim0(0) = (m_Gw.atDim0(0) + m_Gw.atDim0(1)) / 2.0;
+    m_Gw.atDim0(1) = m_Gw.atDim0(0);
+    m_Gt.atDim0(0) = (m_Gt.atDim0(0) + m_Gt.atDim0(1)) / 2.0;
+    m_Gt.atDim0(1) = m_Gt.atDim0(0);
+    m_moms.atDim0(0) = (m_moms.atDim0(0) + m_moms.atDim0(1)) / 2.0;
+    m_moms.atDim0(1) = m_moms.atDim0(0);
     m_Gspl.symmetrizeDim0();
 }
 
@@ -151,7 +151,7 @@ void GenericGreenFunction::setParams(const double beta, const std::size_t nc, co
     m_imagts = Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta);
     m_Gw.resize(2, nfcut + 1, nc);  // No-op if sizes match; adapts to both MPI and non-MPI versions
     m_Gt.resize(2, ntau, nc);
-    m_Ghfc.resize(2, 2, nc);
+    m_moms.resize(2, 3, nc);
 }
 
 
@@ -192,18 +192,19 @@ BareGreenFunction::BareGreenFunction(const double beta, const std::size_t nc, co
    Weiss field) does not simply correspond to K with U switched to zero, but to K0, i.e., the chemical potential of the bare Green's function is
    the effective chemical potential mu - U / 2 used in the impurity solver. On the other hand, the chemical potential of the interacting Green's
    function that will be used in the high-frequency expansion is just the true chemical potential mu. */
-void BareGreenFunction::computeHighFreqCoeffs(const BareHamiltonian& H0) {
+void BareGreenFunction::computeMoments(const BareHamiltonian& H0) {
     // H0.mu is the effective chemical potential
     for (int s = 0; s < 2; ++s) {
-        m_Ghfc(s, 0) = -(H0.moments()(s, 0) - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
-        m_Ghfc(s, 1) = H0.moments()(s, 1) - 2.0 * H0.chemPot() * H0.moments()(s, 0) + H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
+        m_moms(s, 0) = -Eigen::MatrixXcd::Identity(nSites(), nSites());
+        m_moms(s, 1) = -(H0.moments()(s, 0) - H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites()));
+        m_moms(s, 2) = -H0.moments()(s, 1) + 2.0 * H0.chemPot() * H0.moments()(s, 0) - H0.chemPot() * H0.chemPot() * Eigen::MatrixXcd::Identity(nSites(), nSites());
     }
 }
 
 // Do Fourier inversion into discretized tau grid and create cubic spline with correct boundary conditions
 void BareGreenFunction::invFourierTrans() {
     GenericGreenFunction::invFourierTrans();
-    m_Gspl.build(&m_imagts, &m_Gt, m_Ghfc);
+    m_Gspl.build(&m_imagts, &m_Gt, m_moms);
 }
 
 void BareGreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nt4eiwt) {
@@ -229,17 +230,18 @@ void BareGreenFunction::setParams(const double beta, const std::size_t nc, const
 // Sw0 and Sw0var use MPI only to sum measurements on all processes
 GreenFunction::GreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau,
                              const std::size_t nbins4S, const MPI_Comm& comm) : GenericGreenFunction(beta, nc, nfcut, ntau, comm),
-                                                          //Gwvar(2, nfcut + 1, nc, comm_),
-                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densvar(nc, 2) { }
+                                                          m_Gwvar(2, nfcut + 1, nc, comm),
+                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densvar(nc, 2) {}
 
-void GreenFunction::computeHighFreqCoeffs(const BareHamiltonian& H0, const double U) {
+void GreenFunction::computeMoments(const BareHamiltonian& H0, const double U) {
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
     const double mu = H0.chemPot() + U / 2;   // This is the true chemical potential; H0.mu is the effective chemical potential.
     for (int s = 0; s < 2; ++s) {
-        m_Ghfc(s, 0) = -(H0.moments()(s, 0) - mu * I + U * m_dens.col(1 - s).asDiagonal() * I);
-        m_Ghfc(s, 1) = H0.moments()(s, 1) - 2.0 * mu * H0.moments()(s, 0) + mu * mu * I
-            + U * m_dens.col(1 - s).asDiagonal() * (H0.moments()(s, 0) - mu * I) + U * (H0.moments()(s, 0) - mu * I) * m_dens.col(1 - s).asDiagonal()
-            + U * U * m_dens.col(1 - s).asDiagonal() * I;
+        m_moms(s, 0) = -I;
+        m_moms(s, 1) = -(H0.moments()(s, 0) - mu * I + U * m_dens.col(1 - s).asDiagonal() * I);
+        m_moms(s, 2) = -H0.moments()(s, 1) + 2.0 * mu * H0.moments()(s, 0) - mu * mu * I
+            - U * m_dens.col(1 - s).asDiagonal() * (H0.moments()(s, 0) - mu * I) - U * (H0.moments()(s, 0) - mu * I) * m_dens.col(1 - s).asDiagonal()
+            - U * U * m_dens.col(1 - s).asDiagonal() * I;
     }
 }
 
@@ -291,8 +293,8 @@ double GreenFunction::evalFromSelfEnGF(const BareGreenFunction& G0) {
 
 void GreenFunction::symmetrizeSpins() {
     GenericGreenFunction::symmetrizeSpins();
-    m_S(0) = (m_S(0) + m_S(1)) / 2.0;
-    m_S(1) = m_S(0);
+    m_S.atDim0(0) = (m_S.atDim0(0) + m_S.atDim0(1)) / 2.0;
+    m_S.atDim0(1) = m_S.atDim0(0);
     m_dens.col(0) = (m_dens.col(0) + m_dens.col(1)) / 2.0;
     m_dens.col(1) = m_dens.col(0);
     m_densvar.col(0) = (m_densvar.col(0) + m_densvar.col(1)) / 2.0;
@@ -302,7 +304,7 @@ void GreenFunction::symmetrizeSpins() {
 void GreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S) {
     GenericGreenFunction::setParams(beta, nc, nfcut, ntau);   // Set member variables inherited from GenericGreenFunction
     
-    //Gwvar.resize(2, nfcut + 1, nc);  // No-op if sizes match
+    m_Gwvar.resize(2, nfcut + 1, nc);  // No-op if sizes match
     m_S.resize(2, nbins4S, nc);
     m_dens.resize(nc, 2);
     m_densvar.resize(nc, 2);

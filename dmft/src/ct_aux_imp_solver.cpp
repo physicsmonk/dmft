@@ -354,7 +354,7 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
     if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error( "Temperatures of G and G0 do not match!" );
     
     Eigen::VectorXd eV_1(m_vertices.size());
-    Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc);
+    Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc), gc(nc, nc);
     int s;
     std::size_t o, p;
     
@@ -406,10 +406,10 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
                     G0r(p, x) = m_ptr2problem->G0->fourierCoeffs()(s, o, m_vertices[p].site, x) / m_ptr2problem->G0->expiwt(tau_ind4eiwt(p), o);
             }
             MG.noalias() = M * G0r;
-            // gc.noalias() = (G0l * MG) / beta;
+            gc.noalias() = (G0l * MG) / beta;
             // _problem->G->fourierCoeffs()(s, o) += fermi_sign * gc;
-            m_ptr2problem->G->fourierCoeffs()(s, o).noalias() += (m_fermisign / beta) * (G0l * MG);
-            // _problem->G->fCoeffsVar()(s, o) += fermi_sign * gc.cwiseAbs2();  // Accumulate squared norm of sample
+            m_ptr2problem->G->fourierCoeffs()(s, o).noalias() += m_fermisign * gc;
+            m_ptr2problem->G->fCoeffsVar()(s, o) += m_fermisign * gc.cwiseAbs2();  // Accumulate squared norm of sample for calculating variance later
         }
         
         // Measure electron density, using time translational invariance
@@ -659,12 +659,9 @@ double CTAUXImpuritySolver::solve() {
     if (does_measure) {
         m_ptr2problem->G->elecDensities().setZero();
         m_ptr2problem->G->elecDensVars().setZero();
+        m_ptr2problem->G->fCoeffsVar()().setZero();
         if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
-        else if (measure_what == "G") {
-            // To directly measure G's correction in frequency space, which is more costly than measuring S
-            m_ptr2problem->G->fourierCoeffs()().setZero();
-            //_problem->G->fCoeffsVar()().setZero();
-        }
+        else if (measure_what == "G") m_ptr2problem->G->fourierCoeffs()().setZero();
         else throw std::invalid_argument("There are only two options for what to measure (S or G)!");
     }
     
@@ -745,7 +742,7 @@ double CTAUXImpuritySolver::solve() {
         for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
-        m_ptr2problem->G->computeHighFreqCoeffs(*(m_ptr2problem->H0), m_ptr2problem->U);
+        m_ptr2problem->G->computeMoments(*(m_ptr2problem->H0), m_ptr2problem->U);
         
         if (measure_what == "S") {
             // Combine accumulated measurements of S on all processes and process them
@@ -758,12 +755,13 @@ double CTAUXImpuritySolver::solve() {
         }
         else if (measure_what == "G") {
             auto Gwmastpart = m_ptr2problem->G->fourierCoeffs().mastFlatPart();
+            auto Gwvarmastpart = m_ptr2problem->G->fCoeffsVar().mastFlatPart();
             // Combine measurements on every processes. Each process only holds valid data on its mastered imaginary partition.
             Gwmastpart.sum2mastPart();
-            //_problem->G->fCoeffsVar().sumLocals2mastPart();
+            Gwvarmastpart.sum2mastPart();
             
             Gwmastpart() = Gwmastpart() / (m_nmeasure * m_measuredfermisign) + m_ptr2problem->G0->fourierCoeffs().mastFlatPart()();
-            //_problem->G->fCoeffsVar().masteredPart(i) = ((_problem->G->fCoeffsVar().masteredPart(i) / (nmeasure * measured_fermi_sign) - _problem->G->fourierCoeffs().masteredPart(i).cwiseAbs2()) / (nmeasure - 1)).cwiseSqrt();
+            Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
             
             m_ptr2problem->G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
         }

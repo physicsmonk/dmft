@@ -46,10 +46,11 @@
 		442FCD0E28132E3400C4993D /* green_function.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = green_function.cpp; sourceTree = "<group>"; };
 		442FCD0F28132E3400C4993D /* green_function.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = green_function.hpp; sourceTree = "<group>"; };
 		442FCD1228132E4B00C4993D /* input.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = input.hpp; sourceTree = "<group>"; };
-		442FCD1528132EA500C4993D /* anal_continuation.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = anal_continuation.hpp; sourceTree = "<group>"; };
+		442FCD1528132EA500C4993D /* pade.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = pade.hpp; sourceTree = "<group>"; };
 		442FCD172813349F00C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		442FCD18281337F200C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		442FCD19281340B300C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
+		445038C029662C2C002185B4 /* mqem.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = mqem.hpp; sourceTree = "<group>"; };
 		44934F132830AC8900620D90 /* block_progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = block_progress_bar.hpp; sourceTree = "<group>"; };
 		44934F142830AC8900620D90 /* display_width.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = display_width.hpp; sourceTree = "<group>"; };
 		44934F152830AC8900620D90 /* termcolor.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = termcolor.hpp; sourceTree = "<group>"; };
@@ -135,7 +136,8 @@
 				442FCD0E28132E3400C4993D /* green_function.cpp */,
 				442FCD0F28132E3400C4993D /* green_function.hpp */,
 				442FCD1228132E4B00C4993D /* input.hpp */,
-				442FCD1528132EA500C4993D /* anal_continuation.hpp */,
+				442FCD1528132EA500C4993D /* pade.hpp */,
+				445038C029662C2C002185B4 /* mqem.hpp */,
 			);
 			path = src;
 			sourceTree = "<group>";

@@ -26,10 +26,11 @@ protected:
     // G is Hermitian in site space so essentially we can just store its upper triangular part, nontheless we store the
     // whole matrix because this is natural when calculated by Fourier inversion and this can also facilitate some calculations.
     SqMatArray2XXcd m_Gw, m_Gt;
-    // Coefficient matrices of first- and second-order high-frequency expansion of Green's function:
-    // G(iw) = -I / iw + G1 / (iw)^2 - G2 / (iw)^3 + ...
-    // G1 = G'(0+) - G'(0-) = G'(0+) + G'(beta-), G2 = G"(0+) - G"(0-) = G"(0+) + G"(beta-).
-    SqMatArray22Xcd m_Ghfc;
+    // Moments of high-frequency expansion of Green's function:
+    // G(iw) = G0 / iw + G1 / (iw)^2 + G2 / (iw)^3 + ...
+    // G0 = -[G(0+) - G(0-)] = -[G(0+) + G(beta-)] = -I, G1 = G'(0+) - G'(0-) = G'(0+) + G'(beta-), G2 = -[G"(0+) - G"(0-)] = -[G"(0+) + G"(beta-)].
+    // Remember the nonstandard definition of Green's function here (negative of the standard definition, so G0 = -I instead of I here).
+    SqMatArray23Xcd m_moms;
     CubicSplineMat2XXcd m_Gspl;  // Cubic spline for G(tau)
     
 public:
@@ -61,19 +62,18 @@ public:
     const SqMatArray2XXcd &valsOnTauGrid() const {return m_Gt;}
     SqMatArray2XXcd &valsOnTauGrid() {return m_Gt;}
     
-    const SqMatArray22Xcd& highFreqCoeffs() const {return m_Ghfc;}
+    const SqMatArray23Xcd& moments() const {return m_moms;}
     // Return a const Eigen cwise-operation expression, whose type is too complicated to write
     const auto fCoeffHighFreq(const int spin, const std::complex<double> z) const {
-        // We can safely return this Eigen expression because G1 and G2 are members of this class, not temporary objects within this function.
-        // The first-order coefficient is -(G(0+) + G(beta-)) = -I.
+        // We can safely return this Eigen expression because the moments are members of this class, not temporary objects within this function.
         const std::complex<double> zsq = z * z;
-        return -Eigen::MatrixXcd::Identity(nSites(), nSites()) / z + m_Ghfc(spin, 0) / zsq - m_Ghfc(spin, 1) / (zsq * z);
+        return m_moms(spin, 0) / z + m_moms(spin, 1) / zsq + m_moms(spin, 2) / (zsq * z);
     }
     // Return a const Eigen cwise-operation expression, whose type is too complicated to write
     const auto valAtTauHighFreq(const int spin, const double tau) const {
         assert(tau >=0 && tau <= m_beta);
         // We can safely return this Eigen expression because G1 and G2 are members of this class, not temporary objects within this function
-        return 0.5 * Eigen::MatrixXcd::Identity(nSites(), nSites()) + ((2.0 * tau - m_beta) / 4.0) * m_Ghfc(spin, 0) - ((m_beta - tau) * tau / 4.0) * m_Ghfc(spin, 1);
+        return -0.5 * m_moms(spin, 0) + ((2.0 * tau - m_beta) / 4.0) * m_moms(spin, 1) + ((m_beta - tau) * tau / 4.0) * m_moms(spin, 2);
     }
     
     void fourierTransform();
@@ -118,7 +118,7 @@ public:
     
     std::complex<double> expiwt(const std::size_t t, const std::size_t o) const {return m_eiwt(t, o);}
     
-    void computeHighFreqCoeffs(const BareHamiltonian& H0);
+    void computeMoments(const BareHamiltonian& H0);
     
     void invFourierTrans();
     
@@ -132,7 +132,7 @@ public:
 
 class GreenFunction : public GenericGreenFunction {
 protected:
-    // SqMatArray2XXd Gwvar;
+    SqMatArray2XXd m_Gwvar;
     SqMatArray2XXcd m_S;
     Eigen::MatrixX2d m_dens;  // Accurate measure of spin- and site-resolved electron densities; dens = diag(G(beta-))
     Eigen::MatrixX2d m_densvar;  // Variance of measured densities
@@ -146,8 +146,8 @@ public:
     GreenFunction& operator=(GreenFunction&&) = default;
     ~GreenFunction() = default;
     
-    // const SqMatArray2XXd& fCoeffsVar() const {return Gwvar;}
-    // SqMatArray2XXd& fCoeffsVar() {return Gwvar;}
+    const SqMatArray2XXd& fCoeffsVar() const {return m_Gwvar;}
+    SqMatArray2XXd& fCoeffsVar() {return m_Gwvar;}
     
     const SqMatArray2XXcd& selfEnGF() const {return m_S;}
     SqMatArray2XXcd& selfEnGF() {return m_S;}
@@ -160,7 +160,7 @@ public:
     const Eigen::MatrixX2d& elecDensVars() const {return m_densvar;}
     Eigen::MatrixX2d& elecDensVars() {return m_densvar;}
     
-    void computeHighFreqCoeffs(const BareHamiltonian& H0, const double U);
+    void computeMoments(const BareHamiltonian& H0, const double U);
     
     double evalFromSelfEnGF(const BareGreenFunction& G0);
     

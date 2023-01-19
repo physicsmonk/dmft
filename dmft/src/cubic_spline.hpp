@@ -18,7 +18,7 @@
 using namespace std::complex_literals;
 
 
-// We choose to link to external x and y data, not copy them, because we have them stored them in other places anyway
+// We choose to link to external x and y data, not copy them, because we have them stored in other places anyway
 template <typename _ScalarT, int _n0, int _n1, int _nm>
 class CubicSplineMat {
 private:
@@ -37,11 +37,11 @@ private:
 public:
     // Special boundary conditions are y'(x_min) + y'(x_max) = G1 and y"(x_min) + y"(x_max) = G2; assumes x is already sorted in ascending order.
     // Pass pointers to x and y not const references because x and y will be accessed later on so we want passing const temporaries trigger compliation error
-    void build(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 2, _nm>& Ghfc);
+    void build(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 3, _nm>& Gmoms);
     
     CubicSplineMat() : m_ptr2x(nullptr), m_ptr2y(nullptr), m_dx(0.0) {}
     // Build spline on construction
-    CubicSplineMat(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 2, _nm>& Ghfc) {build(x, y, Ghfc);}
+    CubicSplineMat(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 3, _nm>& Gmoms) {build(x, y, Gmoms);}
     CubicSplineMat(const CubicSplineMat&) = default;
     CubicSplineMat(CubicSplineMat&&) = default;
     CubicSplineMat& operator=(const CubicSplineMat&) = default;
@@ -61,7 +61,7 @@ public:
 
 // This building algorithm is in terms of the second derivative. See in this link en.wikiversity.org/wiki/Cubic_Spline_Interpolation
 template <typename _ScalarT, int _n0, int _n1, int _nm>
-void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 2, _nm>& Ghfc) {
+void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _n1, 1> *x, const SqMatArray<_ScalarT, _n0, _n1, _nm> *y, const SqMatArray<_ScalarT, _n0, 3, _nm>& Gmoms) {
     static_assert(std::is_same<_ScalarT, double>::value || std::is_same<_ScalarT, std::complex<double> >::value);
     assert(x->size() == y->dim1() && x->size() > 1);
     
@@ -99,11 +99,11 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _
     for (i0 = 0; i0 < y->dim0(); ++i0) {
         for (im1 = 0; im1 < y->dimm(); ++im1) {
             for (im0 = 0; im0 < y->dimm(); ++im0) {
-                B(0, flatIndex(i0, im0, im1)) = Ghfc(i0, 1, im0, im1);
+                B(0, flatIndex(i0, im0, im1)) = -Gmoms(i0, 2, im0, im1);
                 for (ix = 1; ix < np - 1; ++ix) {
                     B(ix, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(ix + 1) - (*x)(ix - 1)) * (((*y)(i0, ix + 1, im0, im1) - (*y)(i0, ix, im0, im1)) / ((*x)(ix + 1) - (*x)(ix)) - ((*y)(i0, ix, im0, im1) - (*y)(i0, ix - 1, im0, im1)) / ((*x)(ix) - (*x)(ix - 1)));
                 }
-                B(np - 1, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(1) - (*x)(0)) * (Ghfc(i0, 0, im0, im1) - ((*y)(i0, 1, im0, im1) - (*y)(i0, 0, im0, im1)) / ((*x)(1) - (*x)(0)) - ((*y)(i0, np - 1, im0, im1) - (*y)(i0, np - 2, im0, im1)) / ((*x)(np - 1) - (*x)(np - 2)));
+                B(np - 1, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(1) - (*x)(0)) * (Gmoms(i0, 1, im0, im1) - ((*y)(i0, 1, im0, im1) - (*y)(i0, 0, im0, im1)) / ((*x)(1) - (*x)(0)) - ((*y)(i0, np - 1, im0, im1) - (*y)(i0, np - 2, im0, im1)) / ((*x)(np - 1) - (*x)(np - 2)));
             }
         }
     }
@@ -171,7 +171,9 @@ std::complex<double> CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(c
     integral -= eiwtend * deriv3end - eiwtbegin * deriv3begin;   // Add boundary term of the 4th integration by parts
     integral /= omega * omega * omega * omega;
     // Add the boundary terms from 1st to 3rd integration by parts
-    integral += (eiwtend * (*m_ptr2y)(i0, dim1 - 1, im0, im1) - eiwtbegin * (*m_ptr2y)(i0, 0, im0, im1)) / (1i * omega) - (eiwtend * deriv1end - eiwtbegin * deriv1begin) / (-omega * omega) + (eiwtend * m_deriv2(dim1 - 1, j0) - eiwtbegin * m_deriv2(0, j0)) / (-1i * omega * omega * omega);
+    integral += (eiwtend * (*m_ptr2y)(i0, dim1 - 1, im0, im1) - eiwtbegin * (*m_ptr2y)(i0, 0, im0, im1)) / (1i * omega)
+    - (eiwtend * deriv1end - eiwtbegin * deriv1begin) / (-omega * omega)
+    + (eiwtend * m_deriv2(dim1 - 1, j0) - eiwtbegin * m_deriv2(0, j0)) / (-1i * omega * omega * omega);
 
     return integral;
 }
