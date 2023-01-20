@@ -221,7 +221,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             m_misfit_curve[s].conservativeResize(m_misfit_curve[s].rows() + 1, Eigen::NoChange);
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 0) = loga;
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 1) = logchi2;
-            std::cout << loga << " " << logchi2 << std::endl;
+            //std::cout << loga << " " << logchi2 << std::endl;
             slope = (logchi2_old - logchi2) / dloga;
             
             loga -= dloga;
