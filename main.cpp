@@ -523,6 +523,7 @@ int main(int argc, char * argv[]) {
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
+            printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
         }
@@ -641,6 +642,7 @@ int main(int argc, char * argv[]) {
 //    }
     
     mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, lrealfreq, n_mrealfreq, rrealfreq, n_rrealfreq);
+    if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
     
     bool computesigma;
     
