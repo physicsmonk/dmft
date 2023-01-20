@@ -190,11 +190,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     Apart() = Dpart();  // Initialize m_A
     if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
-        if (verbose)
-            if (Gw.processRank() == 0) {
-                std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl;
-                std::cout << "log10alpha log10chi^2" << std::endl;
-        }
         trial = 0;
         dloga = 0.1;
         varmin = Gwvarpart.atDim0(s).minCoeff();
@@ -210,6 +205,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         m_misfit_curve[s].resize(1, Eigen::NoChange);
         m_misfit_curve[s](0, 0) = loga;
         m_misfit_curve[s](0, 1) = logchi2;
+        if (verbose)
+            if (Gw.processRank() == 0) {
+                std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl;
+                std::cout << "log10alpha log10chi^2 dlog10alpha" << std::endl;
+                std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " "
+                    << std::setw(11) << "--" << std::endl;
+        }
         do {
             if (trial > amaxtrial) {
                 converged = false;
@@ -230,7 +232,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             m_misfit_curve[s].conservativeResize(m_misfit_curve[s].rows() + 1, Eigen::NoChange);
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 0) = loga;
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 1) = logchi2;
-            if (verbose) if (Gw.processRank() == 0) std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << std::endl;
+            if (verbose) if (Gw.processRank() == 0) std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " "
+                << std::setw(11) << dloga << std::endl;
             slope = (logchi2_old - logchi2) / dloga;
             
             loga -= dloga;

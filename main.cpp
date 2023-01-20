@@ -529,7 +529,7 @@ int main(int argc, char * argv[]) {
             printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
-            printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0));
+            printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
         }
         
         MPI_Finalize();
@@ -745,7 +745,7 @@ int main(int argc, char * argv[]) {
             if (computesigma) {
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
-                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0));
+                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
