@@ -424,7 +424,7 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
         }
         denssample /= nrandmeasure;
         m_ptr2problem->G->elecDensities().col(s) += m_fermisign * denssample;
-        m_ptr2problem->G->elecDensVars().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
     }
     
     m_measuredfermisign += m_fermisign;
@@ -504,7 +504,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
         }
         denssample /= nrandmeasure;
         m_ptr2problem->G->elecDensities().col(s) += m_fermisign * denssample;
-        m_ptr2problem->G->elecDensVars().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
     }
     
     m_measuredfermisign += m_fermisign;
@@ -658,7 +658,7 @@ double CTAUXImpuritySolver::solve() {
     const auto measure_what = std::any_cast<std::string>(parameters.at("measure what"));
     if (does_measure) {
         m_ptr2problem->G->elecDensities().setZero();
-        m_ptr2problem->G->elecDensVars().setZero();
+        m_ptr2problem->G->elecDensStdDev().setZero();
         m_ptr2problem->G->fCoeffsVar()().setZero();
         if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
         else if (measure_what == "G") m_ptr2problem->G->fourierCoeffs()().setZero();
@@ -736,9 +736,9 @@ double CTAUXImpuritySolver::solve() {
     if (does_measure) {
         // Finalize the measurement of electron density
         MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensities().data(), static_cast<int>(m_ptr2problem->G->elecDensities().size()), MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensVars().data(), static_cast<int>(m_ptr2problem->G->elecDensVars().size()), MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensStdDev().data(), static_cast<int>(m_ptr2problem->G->elecDensStdDev().size()), MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         m_ptr2problem->G->elecDensities() /= m_nmeasure * m_measuredfermisign;
-        m_ptr2problem->G->elecDensVars() = ((m_ptr2problem->G->elecDensVars() / (m_nmeasure * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
+        m_ptr2problem->G->elecDensStdDev() = ((m_ptr2problem->G->elecDensStdDev() / (m_nmeasure * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
         for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
@@ -760,16 +760,14 @@ double CTAUXImpuritySolver::solve() {
             Gwmastpart.sum2mastPart();
             Gwvarmastpart.sum2mastPart();
             
-            Gwmastpart() = Gwmastpart() / (m_nmeasure * m_measuredfermisign) + m_ptr2problem->G0->fourierCoeffs().mastFlatPart()();
+            Gwmastpart() /= m_nmeasure * m_measuredfermisign;  // This is G's correction to G0
             Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
+            Gwmastpart() += m_ptr2problem->G0->fourierCoeffs().mastFlatPart()();  // Add G0 to obtain G
             
             m_ptr2problem->G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
         }
         const auto magneticorder = std::any_cast<std::string>(parameters.at("magnetic order"));
-        if (magneticorder == "paramagnetic") {
-            m_ptr2problem->G->fourierCoeffs().mastFlatPart().allGather();   // For symmetrization
-            m_ptr2problem->G->symmetrizeSpins();
-        }
+        if (magneticorder == "paramagnetic") m_ptr2problem->G->symmetrizeSpins(true);  // All data gathered first
     }
     return simpinterror;  // -1 means not used Simpson integration and thus not estimate the error
 }

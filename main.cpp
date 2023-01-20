@@ -739,6 +739,7 @@ int main(int argc, char * argv[]) {
             if (computesigma) {
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
+                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0));
             }
             printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
@@ -747,13 +748,13 @@ int main(int argc, char * argv[]) {
             if (measurewhat == "S") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign()
+                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign()
                 << " " << std::setw(cw) << interr;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->elecDensVars()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
+                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
                 fiter << " " << std::setw(cw) << sigmaxx;

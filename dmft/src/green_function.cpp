@@ -133,7 +133,11 @@ void GenericGreenFunction::interpValAtExtendedTau(const std::size_t spin, double
     result.triangularView<Eigen::Upper>() = result.adjoint();  // No aliasing issue
 }
 
-void GenericGreenFunction::symmetrizeSpins() {
+void GenericGreenFunction::symmetrizeSpins(const bool gatherdatafirst) {
+    if (gatherdatafirst) {
+        m_Gw.mastFlatPart().allGather();
+        m_Gt.mastFlatPart().allGather();
+    }
     m_Gw.atDim0(0) = (m_Gw.atDim0(0) + m_Gw.atDim0(1)) / 2.0;
     m_Gw.atDim0(1) = m_Gw.atDim0(0);
     m_Gt.atDim0(0) = (m_Gt.atDim0(0) + m_Gt.atDim0(1)) / 2.0;
@@ -231,7 +235,7 @@ void BareGreenFunction::setParams(const double beta, const std::size_t nc, const
 GreenFunction::GreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau,
                              const std::size_t nbins4S, const MPI_Comm& comm) : GenericGreenFunction(beta, nc, nfcut, ntau, comm),
                                                           m_Gwvar(2, nfcut + 1, nc, comm),
-                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densvar(nc, 2) {}
+                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densstddev(nc, 2) {}
 
 void GreenFunction::computeMoments(const BareHamiltonian& H0, const double U) {
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
@@ -291,23 +295,28 @@ double GreenFunction::evalFromSelfEnGF(const BareGreenFunction& G0) {
     return interr;
 }
 
-void GreenFunction::symmetrizeSpins() {
-    GenericGreenFunction::symmetrizeSpins();
+void GreenFunction::symmetrizeSpins(const bool gatherdatafirst) {
+    GenericGreenFunction::symmetrizeSpins(gatherdatafirst);
+    if (gatherdatafirst) {
+        m_Gwvar.mastFlatPart().allGather();
+        m_S.mastFlatPart().allGather();
+    }
+    m_Gwvar.atDim0(0) = (m_Gwvar.atDim0(0) + m_Gwvar.atDim0(1)) / 2.0;
+    m_Gwvar.atDim0(1) = m_Gwvar.atDim0(0);
     m_S.atDim0(0) = (m_S.atDim0(0) + m_S.atDim0(1)) / 2.0;
     m_S.atDim0(1) = m_S.atDim0(0);
     m_dens.col(0) = (m_dens.col(0) + m_dens.col(1)) / 2.0;
     m_dens.col(1) = m_dens.col(0);
-    m_densvar.col(0) = (m_densvar.col(0) + m_densvar.col(1)) / 2.0;
-    m_densvar.col(1) = m_densvar.col(0);
+    m_densstddev.col(0) = (m_densstddev.col(0) + m_densstddev.col(1)) / 2.0;
+    m_densstddev.col(1) = m_densstddev.col(0);
 }
 
 void GreenFunction::setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S) {
     GenericGreenFunction::setParams(beta, nc, nfcut, ntau);   // Set member variables inherited from GenericGreenFunction
-    
     m_Gwvar.resize(2, nfcut + 1, nc);  // No-op if sizes match
     m_S.resize(2, nbins4S, nc);
     m_dens.resize(nc, 2);
-    m_densvar.resize(nc, 2);
+    m_densstddev.resize(nc, 2);
 }
 
 

@@ -88,7 +88,7 @@ public:
     
     void interpValAtExtendedTau(const std::size_t spin, double tau, Eigen::Ref<Eigen::MatrixXcd> result) const;
     
-    virtual void symmetrizeSpins();
+    virtual void symmetrizeSpins(const bool gatherdatafirst = false);
     
     virtual void setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau);
 };
@@ -135,7 +135,7 @@ protected:
     SqMatArray2XXd m_Gwvar;
     SqMatArray2XXcd m_S;
     Eigen::MatrixX2d m_dens;  // Accurate measure of spin- and site-resolved electron densities; dens = diag(G(beta-))
-    Eigen::MatrixX2d m_densvar;  // Variance of measured densities
+    Eigen::MatrixX2d m_densstddev;  // Variance of measured densities
     
 public:
     GreenFunction() {}
@@ -157,14 +157,14 @@ public:
     const Eigen::MatrixX2d& elecDensities() const {return m_dens;}
     Eigen::MatrixX2d& elecDensities() {return m_dens;}
     
-    const Eigen::MatrixX2d& elecDensVars() const {return m_densvar;}
-    Eigen::MatrixX2d& elecDensVars() {return m_densvar;}
+    const Eigen::MatrixX2d& elecDensStdDev() const {return m_densstddev;}
+    Eigen::MatrixX2d& elecDensStdDev() {return m_densstddev;}
     
     void computeMoments(const BareHamiltonian& H0, const double U);
     
     double evalFromSelfEnGF(const BareGreenFunction& G0);
     
-    void symmetrizeSpins();
+    void symmetrizeSpins(const bool gatherdatafirst = false);
     
     void setParams(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S);
 };
