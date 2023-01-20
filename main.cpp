@@ -285,6 +285,7 @@ int main(int argc, char * argv[]) {
     std::size_t pulay_period = 3;
     double gaussian_sig = 1.5;
     double alpha_minfac = 0.01;
+    double alpha_stop = 0.001;
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -356,6 +357,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD, prank);
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_stop, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/analyticContinuationOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -456,6 +458,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_period") = pulay_period;
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
+    mqem.parameters.at("alpha_stop_slope") = alpha_stop;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
