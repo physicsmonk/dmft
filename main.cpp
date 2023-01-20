@@ -526,6 +526,7 @@ int main(int argc, char * argv[]) {
             printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
+            printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0));
         }
         
         MPI_Finalize();
@@ -725,7 +726,7 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
-        }
+        }  // Main iteration stops here
         
         // Output results
         //G->fourierCoeffs().mastFlatPart().allGather();

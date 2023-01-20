@@ -130,6 +130,7 @@ private:
         parameters["alpha_min_fac"] = 0.01;
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_criterion"] = 0.01;
+        parameters["verbose"] = true;
     }
     template <int n_mom>
     void computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom);
@@ -157,6 +158,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto aminfac = std::any_cast<double>(parameters.at("alpha_min_fac"));
     const auto amaxtrial = std::any_cast<std::size_t>(parameters.at("alpha_max_trial"));
     const auto stop_alpha = std::any_cast<double>(parameters.at("alpha_stop_criterion"));
+    const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
+    // Could further add these to parameters
     const double dAtol = 0.1;
     const double rmin = 0.5;
     const double rmax = 2.0;
@@ -185,7 +188,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     bool converged = true;
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
+    if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
+        if (verbose)
+            if (Gw.processRank() == 0) {
+                std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl;
+                std::cout << "log10alpha log10chi^2" << std::endl;
+        }
         trial = 0;
         dloga = 0.1;
         varmin = Gwvarpart.atDim0(s).minCoeff();
@@ -221,7 +230,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             m_misfit_curve[s].conservativeResize(m_misfit_curve[s].rows() + 1, Eigen::NoChange);
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 0) = loga;
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 1) = logchi2;
-            //std::cout << loga << " " << logchi2 << std::endl;
+            if (verbose) if (Gw.processRank() == 0) std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << std::endl;
             slope = (logchi2_old - logchi2) / dloga;
             
             loga -= dloga;
@@ -232,6 +241,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         }
         while (slope >= stop_alpha && loga > logamin);
     }
+    if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: end decreasing alpha in process 0 ======" << std::endl;
     Apart.allGather();
     return converged;
 }
