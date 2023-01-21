@@ -240,7 +240,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             
             loga -= dloga;
             dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
-            if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, 2);
+            if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
             dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
             dloga *= dloga_fac;
             parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
