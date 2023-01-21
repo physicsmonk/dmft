@@ -122,7 +122,7 @@ private:
         parameters["Pulay_mixing_param"] = 0.005;
         parameters["Pulay_history_size"] = std::size_t(5);
         parameters["Pulay_period"] = std::size_t(3);   // Larger period typically leads to more stable but slowly converging iteractions
-        parameters["Pulay_tolerance"] = 1e-4;
+        parameters["Pulay_tolerance"] = 1e-5;
         parameters["Pulay_max_iteration"] = std::size_t(500);
         parameters["Pulay_exp_limit"] = 300.0;
         parameters["Gaussian_sigma"] = 1.5;

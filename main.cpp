@@ -283,6 +283,7 @@ int main(int argc, char * argv[]) {
     double pulay_mix = 0.01;
     std::size_t pulay_histsize = 5;
     std::size_t pulay_period = 3;
+    double pulay_tol = 1e-5;
     double gaussian_sig = 1.5;
     double alpha_minfac = 0.01;
     double alpha_stop = 0.001;
@@ -355,6 +356,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_mix, docroot, "numerical/MQEM/PulayMixingParameter", MPI_COMM_WORLD, prank);
     readxml_bcast(pulay_histsize, docroot, "numerical/MQEM/PulayHistorySize", MPI_COMM_WORLD, prank);
     readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD, prank);
+    readxml_bcast(pulay_tol, docroot, "numerical/MQEM/PulayTolerance", MPI_COMM_WORLD, prank);
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stop, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
@@ -459,6 +461,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
     mqem.parameters.at("alpha_stop_slope") = alpha_stop;
+    mqem.parameters.at("pulay_tolerance") = pulay_tol;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
