@@ -218,10 +218,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) at dim0 " << s + Gwpart.start() << std::endl;
                 break;
             }
-            A_old() = Apart.atDim0(s);
+            if (cvg.first) A_old() = Apart.atDim0(s);
             cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
             if (!cvg.first) {  // Solve diverged
                 Apart.atDim0(s) = A_old();  // Restore initial guess
+                parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
+                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
                 dloga *= rmin;
                 ++trial;
                 continue;
@@ -238,8 +240,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             
             loga -= dloga;
             dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
+            if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, 2);
             dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
             dloga *= dloga_fac;
+            parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
             trial = 0;
         }
         while (slope >= stop_alpha && loga > logamin);
