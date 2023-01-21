@@ -461,7 +461,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
     mqem.parameters.at("alpha_stop_slope") = alpha_stop;
-    mqem.parameters.at("pulay_tolerance") = pulay_tol;
+    mqem.parameters.at("Pulay_tolerance") = pulay_tol;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
