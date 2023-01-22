@@ -124,7 +124,7 @@ private:
         parameters["Pulay_period"] = std::size_t(3);   // Larger period typically leads to more stable but slowly converging iteractions
         parameters["Pulay_tolerance"] = 1e-5;
         parameters["Pulay_max_iteration"] = std::size_t(500);
-        parameters["Pulay_exp_limit"] = 300.0;
+        //parameters["Pulay_exp_limit"] = 300.0;
         parameters["Gaussian_sigma"] = 1.5;
         parameters["alpha_max_fac"] = 10.0;
         parameters["alpha_min_fac"] = 0.01;
@@ -509,7 +509,7 @@ void MQEMContinuator<_n0, _n1, _nm>::fixedPointRelation(const Eigen::Array<doubl
     chi() = Gw.atDim0(s);
     chi.dim1RowVecsAtDim0(0).transpose().noalias() -= m_K * m_A.dim1RowVecsAtDim0(s).transpose();
     
-    Eigen::Matrix<double, _nm, Eigen::Dynamic> eigvals(nm, n_omega);
+    //Eigen::Matrix<double, _nm, Eigen::Dynamic> eigvals(nm, n_omega);
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > es(nm);
     Eigen::VectorXd gtr(n_omega);
     //Eigen::Array<double, _nm, 1> H1(nm);
@@ -519,28 +519,21 @@ void MQEMContinuator<_n0, _n1, _nm>::fixedPointRelation(const Eigen::Array<doubl
     for (std::size_t i = 0; i < n_omega; ++i) {
         for (std::size_t n = 0; n < n_iomega; ++n) g[i].noalias() += (m0trace * chi[n].array() / (2.0 * (1i * mats_freq(n) + m_omega(i)) * Gwvar(s, n).array() * alpha)).matrix();
         g[i] += g[i].adjoint().eval() - m_log_normD(s, i);  // Used eval() to explicitly evaluate to temporary so no aliasing issue
-        //std::cout << H << std::endl;
         es.compute(g[i]);
-        eigvals.col(i) = -es.eigenvalues();
-        g[i] = es.eigenvectors();
-        //for (std::size_t l = 0; l < nm; ++l) {
-        //    H1(l) = -es.eigenvalues()(l) < eff0exp ? eff0exp : -es.eigenvalues()(l);
-        //    else if (Ha(l) > -eff0exp) Ha(l) = -eff0exp;
-        //}
-        //g[i].noalias() = es.eigenvectors() * (-es.eigenvalues().array()).exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
-        //gtr(i) = g[i].trace().real();  // Trace must be real
-        //g[i].noalias() = m0trace * es.eigenvectors() * H1.exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
-    }
-    
-    const auto limexp = std::any_cast<double>(parameters.at("Pulay_exp_limit"));
-    double maxexp, offset;
-    maxexp = eigvals.maxCoeff();
-    //std::cout << maxexp << std::endl;
-    offset = maxexp > limexp ? maxexp - limexp : 0.0;
-    for (std::size_t i = 0; i < n_omega; ++i) {
-        g[i] = g[i] * (eigvals.col(i).array() - offset).exp().matrix().asDiagonal() * g[i].adjoint();
+        //eigvals.col(i) = -es.eigenvalues();
+        //g[i] = es.eigenvectors();
+        g[i].noalias() = es.eigenvectors() * (-es.eigenvalues().array()).exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
         gtr(i) = g[i].trace().real();  // Trace must be real
     }
+    
+    //const auto limexp = std::any_cast<double>(parameters.at("Pulay_exp_limit"));
+    //double maxexp, offset;
+    //maxexp = eigvals.maxCoeff();
+    //offset = maxexp > limexp ? maxexp - limexp : 0.0;
+    //for (std::size_t i = 0; i < n_omega; ++i) {
+    //    g[i] = g[i] * (eigvals.col(i).array() - offset).exp().matrix().asDiagonal() * g[i].adjoint();
+    //    gtr(i) = g[i].trace().real();  // Trace must be real
+    //}
     double Z = m_intA.dot(gtr);  // Normalization factor
     g() *= m0trace / Z;
 }
