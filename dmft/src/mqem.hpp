@@ -185,7 +185,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto Gwvarpart = Gwvar.mastDim0Part();
     auto Apart = m_A.mastDim0Part();
     auto Dpart = m_D.mastDim0Part();
-    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm()), Adiff(1, m_A.dim1(), m_A.dimm());
+    SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm());
     bool converged = true;
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
@@ -240,9 +240,9 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             slope = (logchi2_old - logchi2) / dloga;
             
             loga -= dloga;
-            //dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
-            Adiff() = Apart.atDim0(s) - A_old();
-            dA = normInt(Adiff);
+            dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
+            //Adiff() = Apart.atDim0(s) - A_old();
+            //dA = normInt(Adiff);
             //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
             dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
             dloga *= dloga_fac;
