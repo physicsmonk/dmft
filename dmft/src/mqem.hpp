@@ -130,6 +130,7 @@ private:
         parameters["alpha_min_fac"] = 0.01;
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_slope"] = 0.01;
+        parameters["alpha_spec_rel_err"] = 0.1;
         parameters["verbose"] = true;
     }
     template <int n_mom>
@@ -159,8 +160,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto amaxtrial = std::any_cast<std::size_t>(parameters.at("alpha_max_trial"));
     const auto stop_alpha = std::any_cast<double>(parameters.at("alpha_stop_slope"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
+    const auto dAtol = std::any_cast<double>(parameters.at("alpha_spec_rel_err"));
     // Could further add these to parameters
-    const double dAtol = 0.1;
     const double rmin = 0.5;
     const double rmax = 2.0;
     const double sa = 0.8;

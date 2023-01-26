@@ -287,6 +287,7 @@ int main(int argc, char * argv[]) {
     double gaussian_sig = 1.5;
     double alpha_minfac = 0.01;
     double alpha_stop = 0.001;
+    double alpha_dAtol = 0.1;
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -360,6 +361,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stop, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/analyticContinuationOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -462,6 +464,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
     mqem.parameters.at("alpha_stop_slope") = alpha_stop;
     mqem.parameters.at("Pulay_tolerance") = pulay_tol;
+    mqem.parameters.at("alpha_spec_rel_err") = alpha_dAtol;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
