@@ -287,7 +287,8 @@ int main(int argc, char * argv[]) {
     std::size_t pulay_maxiter = 500;
     double gaussian_sig = 1.5;
     double alpha_minfac = 0.01;
-    double alpha_stop = 0.001;
+    double alpha_stopslope = 0.001;
+    double alpha_stopstep = 1e-5;
     double alpha_dAtol = 0.1;
     double alpha_rmin = 0.5;
     double alpha_rmax = 2.0;
@@ -365,7 +366,8 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD, prank);
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_stop, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_stopslope, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_stopstep, docroot, "numerical/MQEM/alphaStopStep", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
@@ -470,7 +472,8 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_period") = pulay_period;
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
-    mqem.parameters.at("alpha_stop_slope") = alpha_stop;
+    mqem.parameters.at("alpha_stop_slope") = alpha_stopslope;
+    mqem.parameters.at("alpha_stop_step") = alpha_stopstep;
     mqem.parameters.at("Pulay_tolerance") = pulay_tol;
     mqem.parameters.at("Pulay_max_iteration") = pulay_maxiter;
     mqem.parameters.at("alpha_spec_rel_err") = alpha_dAtol;
@@ -542,6 +545,7 @@ int main(int argc, char * argv[]) {
         
         if (prank == 0) {
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
+            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha()(0)) << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
             printData("real_freqs.txt", mqem.realFreqGrid());
@@ -737,6 +741,7 @@ int main(int argc, char * argv[]) {
             tdur = tend - tstart;
             if (prank == 0) {
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
+                std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha()(0)) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
             }
             

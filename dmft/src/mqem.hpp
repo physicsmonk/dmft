@@ -46,7 +46,7 @@ public:
                         const SqMatArray<double, _n0, _n1, _nm>& Gwvar, const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom);
     void computeRetardedFunc();
     void computeRetardedFunc(const SqMatArray<std::complex<double>, _n0, 1, _nm>& static_part);
-    double optimalAlpha() const {return m_alpha;}
+    Eigen::ArrayXd optimalLog10alpha() const {return m_log10alpha;}
     const Eigen::ArrayXd& realFreqGrid() const {return m_omega;}
     const SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm>& spectra() const {return m_A;}
     const SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm>& retardedFunc() const {return m_G_retarded;}
@@ -59,7 +59,7 @@ public:
     const Eigen::ArrayX2d& log10chi2Log10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal];}
     
 private:
-    double m_alpha;
+    Eigen::ArrayXd m_log10alpha;
     Eigen::ArrayXd m_omega;
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_A;
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_D;
@@ -130,6 +130,7 @@ private:
         parameters["alpha_min_fac"] = 0.01;
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_slope"] = 0.01;
+        parameters["alpha_stop_step"] = 1e-5;
         parameters["alpha_spec_rel_err"] = 0.1;
         parameters["alpha_step_min_ratio"] = 0.5;
         parameters["alpha_step_max_ratio"] = 2.0;
@@ -161,7 +162,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto amaxfac = std::any_cast<double>(parameters.at("alpha_max_fac"));
     const auto aminfac = std::any_cast<double>(parameters.at("alpha_min_fac"));
     const auto amaxtrial = std::any_cast<std::size_t>(parameters.at("alpha_max_trial"));
-    const auto stop_alpha = std::any_cast<double>(parameters.at("alpha_stop_slope"));
+    const auto astopslope = std::any_cast<double>(parameters.at("alpha_stop_slope"));
+    const auto astopstep = std::any_cast<double>(parameters.at("alpha_stop_step"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     const auto dAtol = std::any_cast<double>(parameters.at("alpha_spec_rel_err"));
     const auto rmin = std::any_cast<double>(parameters.at("alpha_step_min_ratio"));
@@ -182,23 +184,24 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     m_A.mpiCommunicator(Gw.mpiCommunicator());
     m_A.resize(Gw.dim0(), m_omega.size(), Gw.dimm());
     
-    
     const auto Gwpart = Gw.mastDim0Part();
     const auto Gwvarpart = Gwvar.mastDim0Part();
     auto Apart = m_A.mastDim0Part();
     auto Dpart = m_D.mastDim0Part();
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm());
     bool converged = true;
+    m_log10alpha.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
     if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
         trial = 0;
         dloga = 0.1;
-        slope = 10.0 * std::abs(stop_alpha);
+        slope = 10.0 * std::abs(astopslope);
         varmin = Gwvarpart.atDim0(s).minCoeff();
         loga = std::log10(amaxfac / varmin);
         logamin = std::log10(aminfac / varmin);
+        m_log10alpha(s) = loga;
         cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga), s + Gwpart.start());
         if (!cvg.first) {
             converged = false;
@@ -216,7 +219,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " " << std::setw(11) << "--"
                 << " " << std::setw(10) << cvg.second << " " << std::setw(10) << 0 << std::endl;
         }
-        do {
+        while (slope > astopslope && dloga > astopstep && loga > logamin) {
             if (trial > amaxtrial) {
                 converged = false;
                 std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) at dim0 " << s + Gwpart.start() << std::endl;
@@ -252,7 +255,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
             trial = 0;
         }
-        while (slope >= stop_alpha && loga > logamin);
+        m_log10alpha(s) = loga;
     }
     if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: end decreasing alpha in process 0 ======" << std::endl;
     Apart.allGather();
