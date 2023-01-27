@@ -193,6 +193,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
         trial = 0;
         dloga = 0.1;
+        slope = 10.0 * std::abs(stop_alpha);
         varmin = Gwvarpart.atDim0(s).minCoeff();
         loga = std::log10(amaxfac / varmin);
         logamin = std::log10(aminfac / varmin);
