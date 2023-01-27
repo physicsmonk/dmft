@@ -289,6 +289,9 @@ int main(int argc, char * argv[]) {
     double alpha_minfac = 0.01;
     double alpha_stop = 0.001;
     double alpha_dAtol = 0.1;
+    double alpha_rmin = 0.5;
+    double alpha_rmax = 2.0;
+    double alpha_rscale = 0.8;
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -364,6 +367,9 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stop, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/analyticContinuationOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -468,6 +474,9 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_tolerance") = pulay_tol;
     mqem.parameters.at("Pulay_max_iteration") = pulay_maxiter;
     mqem.parameters.at("alpha_spec_rel_err") = alpha_dAtol;
+    mqem.parameters.at("alpha_step_min_ratio") = alpha_rmin;
+    mqem.parameters.at("alpha_step_max_ratio") = alpha_rmax;
+    mqem.parameters.at("alpha_step_scale") = alpha_rscale;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;

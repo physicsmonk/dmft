@@ -131,6 +131,9 @@ private:
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_slope"] = 0.01;
         parameters["alpha_spec_rel_err"] = 0.1;
+        parameters["alpha_step_min_ratio"] = 0.5;
+        parameters["alpha_step_max_ratio"] = 2.0;
+        parameters["alpha_step_scale"] = 0.8;
         parameters["verbose"] = true;
     }
     template <int n_mom>
@@ -161,10 +164,9 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto stop_alpha = std::any_cast<double>(parameters.at("alpha_stop_slope"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     const auto dAtol = std::any_cast<double>(parameters.at("alpha_spec_rel_err"));
-    // Could further add these to parameters
-    const double rmin = 0.5;
-    const double rmax = 2.0;
-    const double sa = 0.8;
+    const auto rmin = std::any_cast<double>(parameters.at("alpha_step_min_ratio"));
+    const auto rmax = std::any_cast<double>(parameters.at("alpha_step_max_ratio"));
+    const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
     const double eps = 1e-10;
     if (amaxfac < aminfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_min_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
