@@ -210,9 +210,9 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         if (verbose)
             if (Gw.processRank() == 0) {
                 std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl;
-                std::cout << "log10alpha log10chi^2 dlog10alpha Pulay#iter" << std::endl;
-                std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " "
-                    << std::setw(11) << "--" << " " << std::setw(10) << cvg.second << std::endl;
+                std::cout << "log10alpha log10chi^2 dlog10alpha #PulayIter #PulayFail" << std::endl;
+                std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " " << std::setw(11) << "--"
+                << " " << std::setw(10) << cvg.second << " " << std::setw(10) << 0 << std::endl;
         }
         do {
             if (trial > amaxtrial) {
@@ -238,7 +238,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 0) = loga;
             m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 1) = logchi2;
             if (verbose) if (Gw.processRank() == 0) std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " "
-                << std::setw(11) << dloga << " " << std::setw(10) << cvg.second << std::endl;
+                << std::setw(11) << dloga << " " << std::setw(10) << cvg.second << " " << std::setw(10) << trial << std::endl;
             slope = (logchi2_old - logchi2) / dloga;
             
             dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
