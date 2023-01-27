@@ -257,7 +257,14 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         }
         m_log10alpha(s) = loga;
     }
-    if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: end decreasing alpha in process 0 ======" << std::endl;
+    if (verbose) if (Gw.processRank() == 0) {
+        std::cout << "====== MQEM: end decreasing alpha in process 0: ";
+        if (slope <= astopslope) std::cout << "stopped due to small slope ";
+        else if (dloga <= astopstep) std::cout << "stopped due to small step ";
+        else if (loga <= logamin) std::cout << "stopped due to small alpha ";
+        else std::cout << "stopped due to divergence ";
+        std::cout << "======" << std::endl;
+    }
     Apart.allGather();
     return converged;
 }
