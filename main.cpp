@@ -728,7 +728,7 @@ int main(int argc, char * argv[]) {
         
         // Calculate conductivities
         if (computesigma) {
-            if (prank == 0) std::cout << "    Pade interpolation starts building..." << std::endl;
+            if (prank == 0) std::cout << "    MQEM starts analytic continuation of self-energy..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             //dmft.selfEnergy().mastFlatPart().allGather();
             //pade.build(dmft.dynSelfEnergy(), beta, Eigen::ArrayXi::LinSpaced(ndatalens, mindatalen, maxdatalen),
