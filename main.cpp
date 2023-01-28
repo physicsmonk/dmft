@@ -288,7 +288,7 @@ int main(int argc, char * argv[]) {
     double gaussian_sig = 1.0;
     double alpha_maxfac = 100.0;
     double alpha_minfac = 1e-5;
-    double alpha_stopslope = 0.01;
+    double alpha_stopslope = -0.01;  // Negative to actually not use this criterion
     double alpha_stopstep = 1e-5;
     double alpha_dAtol = 0.1;
     double alpha_rmin = 0.7;
