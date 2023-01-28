@@ -283,14 +283,15 @@ int main(int argc, char * argv[]) {
     double pulay_mix = 0.01;
     std::size_t pulay_histsize = 5;
     std::size_t pulay_period = 3;
-    double pulay_tol = 1e-5;
+    double pulay_tol = 1e-6;
     std::size_t pulay_maxiter = 500;
-    double gaussian_sig = 1.5;
-    double alpha_minfac = 0.01;
-    double alpha_stopslope = 0.001;
+    double gaussian_sig = 1.0;
+    double alpha_maxfac = 100.0;
+    double alpha_minfac = 1e-5;
+    double alpha_stopslope = 0.01;
     double alpha_stopstep = 1e-5;
     double alpha_dAtol = 0.1;
-    double alpha_rmin = 0.5;
+    double alpha_rmin = 0.7;
     double alpha_rmax = 2.0;
     double alpha_rscale = 0.8;
     
@@ -365,6 +366,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_tol, docroot, "numerical/MQEM/PulayTolerance", MPI_COMM_WORLD, prank);
     readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD, prank);
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_maxfac, docroot, "numerical/MQEM/alphaMaxFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stopslope, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stopstep, docroot, "numerical/MQEM/alphaStopStep", MPI_COMM_WORLD, prank);
@@ -471,6 +473,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_history_size") = pulay_histsize;
     mqem.parameters.at("Pulay_period") = pulay_period;
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
+    mqem.parameters.at("alpha_max_fac") = alpha_maxfac;
     mqem.parameters.at("alpha_min_fac") = alpha_minfac;
     mqem.parameters.at("alpha_stop_slope") = alpha_stopslope;
     mqem.parameters.at("alpha_stop_step") = alpha_stopstep;
