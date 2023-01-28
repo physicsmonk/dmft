@@ -755,7 +755,7 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
-        }  // Main iteration stops here
+        }
         
         // Output results
         //G->fourierCoeffs().mastFlatPart().allGather();
@@ -799,7 +799,7 @@ int main(int argc, char * argv[]) {
             fiter << std::endl;
         }
     }
-    while (!converg.first && dmft.numIterations() < nitmax);
+    while (!converg.first && dmft.numIterations() < nitmax);  // Main iteration stops here
     if (!converg.first && prank == 0) {
         fiter << sep << std::endl;
         fiter << ">>>>>> DMFT self-consistency iteration did not converge! <<<<<<" << std::endl;
