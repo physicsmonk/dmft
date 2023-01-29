@@ -287,8 +287,8 @@ int main(int argc, char * argv[]) {
     std::size_t pulay_maxiter = 500;
     double gaussian_sig = 1.0;
     double alpha_maxfac = 100.0;
-    double alpha_minfac = 1e-5;
-    double alpha_stopslope = -0.01;  // Negative to actually not use this criterion
+    double alpha_infofitfac = 0.05;
+    double alpha_stopslope = 0.01;  // Negative to actually not use this criterion
     double alpha_stopstep = 1e-5;
     double alpha_dAtol = 0.1;
     double alpha_rmin = 0.7;
@@ -367,7 +367,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD, prank);
     readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/GaussianSigma", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_maxfac, docroot, "numerical/MQEM/alphaMaxFactor", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_minfac, docroot, "numerical/MQEM/alphaMinFactor", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_infofitfac, docroot, "numerical/MQEM/alphaInfoFitFactor", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stopslope, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_stopstep, docroot, "numerical/MQEM/alphaStopStep", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD, prank);
@@ -474,7 +474,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_period") = pulay_period;
     mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_max_fac") = alpha_maxfac;
-    mqem.parameters.at("alpha_min_fac") = alpha_minfac;
+    mqem.parameters.at("alpha_info_fit_fac") = alpha_infofitfac;
     mqem.parameters.at("alpha_stop_slope") = alpha_stopslope;
     mqem.parameters.at("alpha_stop_step") = alpha_stopstep;
     mqem.parameters.at("Pulay_tolerance") = pulay_tol;

@@ -56,7 +56,7 @@ public:
     // Useful for calculating principle integral from spectral function at outside
     const Eigen::MatrixXd& prinIntKerMat() const {return m_Kp;}
     const Eigen::VectorXd& realFreqIntVector() const {return m_intA;}
-    const Eigen::ArrayX2d& log10chi2Log10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal];}
+    const Eigen::ArrayX3d& log10chi2Log10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal];}
     
 private:
     Eigen::ArrayXd m_log10alpha;
@@ -68,7 +68,7 @@ private:
     Eigen::Matrix<std::complex<double>, _n1, Eigen::Dynamic> m_K;
     Eigen::MatrixXd m_Kp;
     Eigen::VectorXd m_intA;
-    std::vector<Eigen::ArrayX2d> m_misfit_curve;  // Use std::vector because each Eigen::ArrayX2d could have different length
+    std::vector<Eigen::ArrayX3d> m_misfit_curve;  // Use std::vector because each Eigen::ArrayX2d could have different length
     
     template <typename T>
     static T a_side_coeff(const double ub, const double ue, const T x, const double omega0) {
@@ -127,7 +127,7 @@ private:
         //parameters["Pulay_exp_limit"] = 300.0;
         parameters["Gaussian_sigma"] = 1.5;
         parameters["alpha_max_fac"] = 10.0;
-        parameters["alpha_min_fac"] = 0.01;
+        parameters["alpha_info_fit_fac"] = 0.05;
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_slope"] = 0.01;
         parameters["alpha_stop_step"] = 1e-5;
@@ -135,6 +135,7 @@ private:
         parameters["alpha_step_min_ratio"] = 0.5;
         parameters["alpha_step_max_ratio"] = 2.0;
         parameters["alpha_step_scale"] = 0.8;
+        parameters["alpha_capacity"] = std::size_t(1000);
         parameters["verbose"] = true;
     }
     template <int n_mom>
@@ -160,7 +161,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                                                     const SqMatArray<double, _n0, _n1, _nm>& Gwvar,
                                                     const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom) {
     const auto amaxfac = std::any_cast<double>(parameters.at("alpha_max_fac"));
-    const auto aminfac = std::any_cast<double>(parameters.at("alpha_min_fac"));
+    const auto ainfofitfac = std::any_cast<double>(parameters.at("alpha_info_fit_fac"));
     const auto amaxtrial = std::any_cast<std::size_t>(parameters.at("alpha_max_trial"));
     const auto astopslope = std::any_cast<double>(parameters.at("alpha_stop_slope"));
     const auto astopstep = std::any_cast<double>(parameters.at("alpha_stop_step"));
@@ -169,12 +170,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto rmin = std::any_cast<double>(parameters.at("alpha_step_min_ratio"));
     const auto rmax = std::any_cast<double>(parameters.at("alpha_step_max_ratio"));
     const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
+    const auto acapacity = std::any_cast<std::size_t>(parameters.at("alpha_capacity"));
     const double eps = 1e-10;
-    if (amaxfac < aminfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_min_fac");
+    if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
     
-    double varmin, logamin, loga, logchi2, logchi2_old, dloga, dloga_fac, dA, slope;
-    std::size_t trial;
+    double varmin, logainfofit, loga, logchi2, logchi2_old, dloga, dloga_fac, dA, slope;
+    std::size_t na, trial;
     std::pair<bool, std::size_t> cvg;
     
     m_D.mpiCommunicator(Gw.mpiCommunicator());
@@ -188,38 +190,31 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto Gwvarpart = Gwvar.mastDim0Part();
     auto Apart = m_A.mastDim0Part();
     auto Dpart = m_D.mastDim0Part();
+    std::vector<SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> > As(acapacity);
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm());
+    Eigen::ArrayXd curvature, deriv, ainterval;
+    std::size_t imaxcurv;
     bool converged = true;
     m_log10alpha.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
-    if (verbose) if (Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
+    if (verbose && Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
+        // Initialize quantities
+        na = 0;
         trial = 0;
-        dloga = 0.1;
+        dloga = 0.0;  // Set zero for initial calculation
         slope = 10.0 * std::abs(astopslope);
         varmin = Gwvarpart.atDim0(s).minCoeff();
         loga = std::log10(amaxfac / varmin);
-        logamin = std::log10(aminfac / varmin);
+        logainfofit = std::log10(ainfofitfac / varmin);
+        cvg.first = true;
         m_log10alpha(s) = loga;
-        cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga), s + Gwpart.start());
-        if (!cvg.first) {
-            converged = false;
-            std::cout << "MQEM computeSpectra: solving for initial alpha diverged at dim0 " << s + Gwpart.start() << std::endl;
-            continue;
-        }
         logchi2 = std::log10(misfit(Gw, Gwvar, s + Gwpart.start()));
-        m_misfit_curve[s].resize(1, Eigen::NoChange);
-        m_misfit_curve[s](0, 0) = loga;
-        m_misfit_curve[s](0, 1) = logchi2;
-        if (verbose)
-            if (Gw.processRank() == 0) {
-                std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl;
-                std::cout << "log10alpha log10chi^2 dlog10alpha #PulayIter #PulayFail" << std::endl;
-                std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " " << std::setw(11) << "--"
-                << " " << std::setw(10) << cvg.second << " " << std::setw(10) << 0 << std::endl;
-        }
-        while (slope > astopslope && dloga > astopstep && loga > logamin) {
+        m_misfit_curve[s].resize(acapacity, Eigen::NoChange);
+        if (verbose && Gw.processRank() == 0) std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl
+            << "    stepID log10alpha log10chi^2   stepSize      slope #PulayIter #PulayFail" << std::endl;
+        do {
             if (trial > amaxtrial) {
                 converged = false;
                 std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) at dim0 " << s + Gwpart.start() << std::endl;
@@ -228,10 +223,15 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             if (cvg.first) A_old() = Apart.atDim0(s);
             cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
             if (!cvg.first) {  // Solve diverged
+                if (na == 0) {  // Initial solve
+                    converged = false;
+                    std::cout << "MQEM computeSpectra: solving for initial alpha diverged at dim0 " << s + Gwpart.start() << std::endl;
+                    break;
+                }
                 Apart.atDim0(s) = A_old();  // Restore initial guess
+                dloga *= rmin;
                 //parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
                 parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
-                dloga *= rmin;
                 ++trial;
                 continue;
             }
@@ -239,34 +239,59 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             loga -= dloga;
             logchi2_old = logchi2;
             logchi2 = std::log10(misfit(Gw, Gwvar, s + Gwpart.start()));
-            m_misfit_curve[s].conservativeResize(m_misfit_curve[s].rows() + 1, Eigen::NoChange);
-            m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 0) = loga;
-            m_misfit_curve[s](m_misfit_curve[s].rows() - 1, 1) = logchi2;
-            if (verbose) if (Gw.processRank() == 0) std::cout << std::setw(10) << loga << " " << std::setw(10) << logchi2 << " "
-                << std::setw(11) << dloga << " " << std::setw(10) << cvg.second << " " << std::setw(10) << trial << std::endl;
-            slope = (logchi2_old - logchi2) / dloga;
+            // Initial slope set to zero to pretend that initial alpha is large enough for spectrum to be close enough to default model
+            slope = na == 0 ? 0.0 : (logchi2_old - logchi2) / dloga;
             
-            dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
-            //Adiff() = Apart.atDim0(s) - A_old();
-            //dA = normInt(Adiff);
-            //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
-            dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
-            dloga *= dloga_fac;
-            parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
+            As[na].resize(1, m_A.dim1(), m_A.dimm());
+            As[na]() = Apart.atDim0(s);
+            m_misfit_curve[s](na, 0) = loga;
+            m_misfit_curve[s](na, 1) = logchi2;
+            
+            if (verbose && Gw.processRank() == 0) std::cout << std::setw(10) << na << " " << std::setw(10) << loga << " " << std::setw(10) << logchi2
+                << " " << std::setw(10) << dloga << " " << std::setw(10) << slope << " " << std::setw(10) << cvg.second
+                << " " << std::setw(10) << trial << std::endl;
+            
+            // Update step size
+            if (na == 0) dloga = (loga - logainfofit) * 0.01;  // Really initialize step size here
+            else {
+                dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
+                //Adiff() = Apart.atDim0(s) - A_old();
+                //dA = normInt(Adiff);
+                //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
+                dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
+                dloga *= dloga_fac;
+                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
+            }
+            
+            ++na;
             trial = 0;
+        } while ((slope > astopslope || loga > logainfofit) && dloga > astopstep && na < acapacity);
+        if (verbose && Gw.processRank() == 0) {
+            std::cout << "------ Spin " << s + Gwpart.start() << ": stopped due to ";
+            if (slope <= astopslope) std::cout << "small slope ";
+            else if (dloga <= astopstep) std::cout << "small step ";
+            else if (na >= acapacity) std::cout << "full reservoir ";
+            else std::cout << "divergence ";
+            std::cout << "------" << std::endl;
         }
-        m_log10alpha(s) = loga;
+        m_misfit_curve[s].conservativeResize(na, Eigen::NoChange);
+        if (na > 2) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
+            m_misfit_curve[s](0, 2) = std::nan("initial");
+            m_misfit_curve[s](1, 2) = std::nan("initial");
+            ainterval = m_misfit_curve[s](Eigen::seq(0, na - 2), 0) - m_misfit_curve[s](Eigen::seq(1, na - 1), 0);
+            deriv = (m_misfit_curve[s](Eigen::seq(0, na - 2), 1) - m_misfit_curve[s](Eigen::seq(1, na - 1), 1)) / ainterval;  // Forward first-order derivative
+            m_misfit_curve[s](Eigen::seq(2, na - 1), 2) = (deriv.head(na - 2) - deriv.tail(na - 2)) / ainterval.tail(na - 2);  // Forward second-order derivative
+            m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
+            m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&imaxcurv);
+            imaxcurv += 2;
+            m_log10alpha(s) = m_misfit_curve[s](imaxcurv, 0);
+            Apart.atDim0(s) = As[imaxcurv]();
+        }
+        else std::cout << "MQEM computeSpectra: cannot determine optimal alpha because misfit curve has less than 3 points" << std::endl;
     }
-    if (verbose) if (Gw.processRank() == 0) {
-        std::cout << "====== MQEM: end decreasing alpha in process 0: ";
-        if (slope <= astopslope) std::cout << "stopped due to small slope ";
-        else if (dloga <= astopstep) std::cout << "stopped due to small step ";
-        else if (loga <= logamin) std::cout << "stopped due to small alpha ";
-        else std::cout << "stopped due to divergence ";
-        std::cout << "======" << std::endl;
-    }
+    if (verbose && Gw.processRank() == 0) std::cout << "====== MQEM: end decreasing alpha in process 0 ======" << std::endl;
     Apart.allGather();
-    return converged;
+    return converged;  // Each process return its own convergence status
 }
 
 template <int _n0, int _n1, int _nm>
