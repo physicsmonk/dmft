@@ -196,7 +196,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     auto Dpart = m_D.mastDim0Part();
     std::vector<SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> > As(acapacity);
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm());
-    Eigen::ArrayXd curvature, deriv, ainterval;
+    //Eigen::ArrayXd curvature, deriv, ainterval;
     bool converged = true;
     m_opt_alpha_id.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
