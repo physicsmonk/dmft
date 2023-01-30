@@ -117,15 +117,15 @@ std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const doub
     
     assert(p < m_vertices.size());
     
-    int s;
-    
     acceptance.first = std::real((m_vertices.size() / m_K) * m_N[0](p, p) * m_N[1](p, p));
     // Test
     // std::cout << "Check if real: " << N[0](p, p) * N[1](p, p) << std::endl;
     
     if ((barrier < 0 || barrier <= std::fabs(acceptance.first)) && barrier <= 1) {
         // Removal is accepted
+        int s;
         if (m_vertices.size() > 1) {
+            /*
             if (p == 0) {
                 for (s = 0; s < 2; ++s) {
                     // bmat = N1.bottomRightCorner(vertex_order - 1, vertex_order - 1);
@@ -169,6 +169,12 @@ std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const doub
                     m_N[s].topLeftCorner(m_vertices.size() - 1, m_vertices.size() - 1).noalias() -= (m_N[s].topRightCorner(m_vertices.size() - 1, 1) * m_N[s].bottomLeftCorner(1, m_vertices.size() - 1)) / m_N[s](p, p);
                     m_N[s].conservativeResize(m_vertices.size() - 1, m_vertices.size() - 1);  // conservativeResize just removes the right-most column and bottom-most row
                 }
+            }
+            */
+            for (s = 0; s < 2; ++s) {
+                m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).noalias() -= (m_N[s](cut{m_vertices.size() - 1, p}, p) *
+                                                                                                   m_N[s](p, cut{m_vertices.size() - 1, p})) / m_N[s](p, p);
+                m_N[s] = m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).eval();  // Call eval() to avoid aliasing issue
             }
         }
         else if (m_vertices.size() == 1) {

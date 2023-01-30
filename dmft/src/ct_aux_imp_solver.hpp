@@ -29,6 +29,12 @@ private:
     double m_expg;
     double m_K;
     
+    struct cut {
+        std::size_t size() const {return shrunk_size;}
+        std::size_t operator[](std::size_t i) const {return i < cut_ind ? i : i + 1;}
+        std::size_t shrunk_size, cut_ind;
+    };
+    
 protected:
     std::vector<vertex> m_vertices;
     // This is good because the size of Eigen::MatrixXcd is known at compile time and its dynamic memory is allocated on heap
