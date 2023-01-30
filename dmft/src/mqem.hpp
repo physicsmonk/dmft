@@ -137,6 +137,7 @@ private:
         parameters["alpha_step_max_ratio"] = 2.0;
         parameters["alpha_step_scale"] = 0.8;
         parameters["alpha_capacity"] = std::size_t(1000);
+        parameters["alpha_curvature_fit_size"] = std::size_t(5);
         parameters["verbose"] = true;
     }
     template <int n_mom>
@@ -175,6 +176,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto rmax = std::any_cast<double>(parameters.at("alpha_step_max_ratio"));
     const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
     const auto acapacity = std::any_cast<std::size_t>(parameters.at("alpha_capacity"));
+    const auto afitsize = std::any_cast<std::size_t>(parameters.at("alpha_curvature_fit_size"));
     const double eps = 1e-10;
     if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
@@ -288,7 +290,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
             //m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&(m_opt_alpha_id(s)));
             //m_opt_alpha_id(s) += 2;
-            fitCurvature(m_misfit_curve[s].template leftCols<2>(), m_misfit_curve[s].col(2));
+            fitCurvature(m_misfit_curve[s].template leftCols<2>(), m_misfit_curve[s].col(2), afitsize);
             m_misfit_curve[s].col(2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(s)));
             Apart.atDim0(s) = As[m_opt_alpha_id(s)]();
         }

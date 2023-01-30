@@ -294,6 +294,7 @@ int main(int argc, char * argv[]) {
     double alpha_rmin = 0.7;
     double alpha_rmax = 2.0;
     double alpha_rscale = 0.8;
+    std::size_t alpha_fitsize = 9;
     
     bool analcontrun = false;
     bool computesigmaxy = true;
@@ -374,6 +375,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD, prank);
     readxml_bcast(analcontrun, docroot, "processControl/analyticContinuationOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -483,6 +485,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_step_min_ratio") = alpha_rmin;
     mqem.parameters.at("alpha_step_max_ratio") = alpha_rmax;
     mqem.parameters.at("alpha_step_scale") = alpha_rscale;
+    mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
