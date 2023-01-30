@@ -548,7 +548,7 @@ int main(int argc, char * argv[]) {
         
         if (prank == 0) {
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
-            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha()(0)) << std::endl;
+            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
             printData("real_freqs.txt", mqem.realFreqGrid());
@@ -744,7 +744,7 @@ int main(int argc, char * argv[]) {
             tdur = tend - tstart;
             if (prank == 0) {
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
-                std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha()(0)) << std::endl;
+                std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
             }
             

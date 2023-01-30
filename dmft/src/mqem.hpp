@@ -46,7 +46,6 @@ public:
                         const SqMatArray<double, _n0, _n1, _nm>& Gwvar, const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom);
     void computeRetardedFunc();
     void computeRetardedFunc(const SqMatArray<std::complex<double>, _n0, 1, _nm>& static_part);
-    Eigen::ArrayXd optimalLog10alpha() const {return m_log10alpha;}
     const Eigen::ArrayXd& realFreqGrid() const {return m_omega;}
     const SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm>& spectra() const {return m_A;}
     const SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm>& retardedFunc() const {return m_G_retarded;}
@@ -56,10 +55,12 @@ public:
     // Useful for calculating principle integral from spectral function at outside
     const Eigen::MatrixXd& prinIntKerMat() const {return m_Kp;}
     const Eigen::VectorXd& realFreqIntVector() const {return m_intA;}
+    std::size_t optimalAlphaIndex(const std::size_t slocal) const {return m_opt_alpha_id(slocal);}
+    double optimalLog10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal](m_opt_alpha_id(slocal), 0);}
     const Eigen::ArrayX3d& log10chi2Log10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal];}
     
 private:
-    Eigen::ArrayXd m_log10alpha;
+    Eigen::Array<std::size_t, Eigen::Dynamic, 1> m_opt_alpha_id;
     Eigen::ArrayXd m_omega;
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_A;
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_D;
@@ -151,6 +152,9 @@ private:
     double normInt(const SqMatArray<Scalar, n0, n1, nm>& integrand) const;
     // Calculate chi^2
     double misfit(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& Gw, const SqMatArray<double, _n0, _n1, _nm>& Gwvar, const std::size_t s) const;
+    // Argument curvature will be filled with solution after execution; its const-ness will be cast away inside the function; see Eigen library manual
+    template <typename Derived, typename OtherDerived>
+    static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const std::size_t n_fitpts = 5);
 };
 
 // Must call assembleKernelMatrix first
@@ -193,12 +197,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     std::vector<SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> > As(acapacity);
     SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm> A_old(1, m_A.dim1(), m_A.dimm());
     Eigen::ArrayXd curvature, deriv, ainterval;
-    std::size_t imaxcurv;
     bool converged = true;
-    m_log10alpha.resize(Gwpart.dim0());
+    m_opt_alpha_id.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
-    if (verbose && Gw.processRank() == 0) std::cout << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
+    if (verbose && Gw.processRank() == 0) std::cout << std::scientific << std::setprecision(3)
+        << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t s = 0; s < Gwpart.dim0(); ++s) {
         // Initialize quantities
         na = 0;
@@ -209,7 +213,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         loga = std::log10(amaxfac / varmin);
         logainfofit = std::log10(ainfofitfac / varmin);
         cvg.first = true;
-        m_log10alpha(s) = loga;
+        m_opt_alpha_id(s) = 0;
         logchi2 = std::log10(misfit(Gw, Gwvar, s + Gwpart.start()));
         m_misfit_curve[s].resize(acapacity, Eigen::NoChange);
         if (verbose && Gw.processRank() == 0) std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl
@@ -274,18 +278,19 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             else std::cout << "divergence ";
             std::cout << "------" << std::endl;
         }
-        m_misfit_curve[s].conservativeResize(na, Eigen::NoChange);
+        m_misfit_curve[s].conservativeResize(na, Eigen::NoChange);  // Get size right
         if (na > 2) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
-            m_misfit_curve[s](0, 2) = std::nan("initial");
-            m_misfit_curve[s](1, 2) = std::nan("initial");
-            ainterval = m_misfit_curve[s](Eigen::seq(0, na - 2), 0) - m_misfit_curve[s](Eigen::seq(1, na - 1), 0);
-            deriv = (m_misfit_curve[s](Eigen::seq(0, na - 2), 1) - m_misfit_curve[s](Eigen::seq(1, na - 1), 1)) / ainterval;  // Forward first-order derivative
-            m_misfit_curve[s](Eigen::seq(2, na - 1), 2) = (deriv.head(na - 2) - deriv.tail(na - 2)) / ainterval.tail(na - 2);  // Forward second-order derivative
-            m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
-            m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&imaxcurv);
-            imaxcurv += 2;
-            m_log10alpha(s) = m_misfit_curve[s](imaxcurv, 0);
-            Apart.atDim0(s) = As[imaxcurv]();
+            //m_misfit_curve[s](0, 2) = std::nan("initial");
+            //m_misfit_curve[s](1, 2) = std::nan("initial");
+            //ainterval = m_misfit_curve[s](Eigen::seq(0, na - 2), 0) - m_misfit_curve[s](Eigen::seq(1, na - 1), 0);
+            //deriv = (m_misfit_curve[s](Eigen::seq(0, na - 2), 1) - m_misfit_curve[s](Eigen::seq(1, na - 1), 1)) / ainterval;  // Forward first-order derivative
+            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) = (deriv.head(na - 2) - deriv.tail(na - 2)) / ainterval.tail(na - 2);  // Forward second-order derivative
+            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
+            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&(m_opt_alpha_id(s)));
+            //m_opt_alpha_id(s) += 2;
+            fitCurvature(m_misfit_curve[s].template leftCols<2>(), m_misfit_curve[s].col(2));
+            m_misfit_curve[s].col(2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(s)));
+            Apart.atDim0(s) = As[m_opt_alpha_id(s)]();
         }
         else std::cout << "MQEM computeSpectra: cannot determine optimal alpha because misfit curve has less than 3 points" << std::endl;
     }
@@ -667,6 +672,53 @@ double MQEMContinuator<_n0, _n1, _nm>::misfit(const SqMatArray<std::complex<doub
     dG.dim1RowVecsAtDim0(0).transpose().noalias() -= m_K * m_A.dim1RowVecsAtDim0(s).transpose();
     for (std::size_t n = 0; n < Gw.dim1(); ++n) chi2 += (dG[n].array() / Gwvar(s, n).array().sqrt()).abs2().sum();
     return chi2;
+}
+
+template <int _n0, int _n1, int _nm>
+template <typename Derived, typename OtherDerived>
+void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived> &curvature,
+                                                    const std::size_t n_fitpts) {
+    if (curve.rows() < n_fitpts) throw std::range_error("MQEMContinuator::fitCurvature: #points of input curve cannot be less than #local points to fit");
+    if (n_fitpts < 3) throw std::range_error("MQEMContinuator::fitCurvature: #local points to fit cannot be less than 3");
+    
+    typedef typename Derived::Scalar Scalar;
+    typedef typename Eigen::internal::plain_col_type<Derived>::type VectorType;
+    
+    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> param_mat(3, curve.rows());  // A general circle has 3 parameters; 3 for #row for contiguous memory for local param matrix
+    Eigen::Vector<Scalar, Eigen::Dynamic> param_vec(curve.rows());
+    // Assemble the full param matrix and vector
+    for (std::size_t i = 0; i < curve.rows(); ++i) {
+        param_mat(0, i) = curve(i, 0);
+        param_mat(1, i) = curve(i, 1);
+        param_mat(2, i) = 1.0;
+        param_vec(i) = -(curve(i, 0) * curve(i, 0) + curve(i, 1) * curve(i, 1));
+    }
+    
+    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<Scalar, Eigen::Dynamic, 3> > decomp(n_fitpts, 3);
+    Eigen::Vector<Scalar, 3> circ_coeffs;
+    Scalar dx, dy;
+    const std::size_t ifitbegin = n_fitpts / 2;
+    const std::size_t ifitend = curve.rows() - (n_fitpts + 1) / 2;
+    
+    Eigen::DenseBase<OtherDerived>& curvature_ = const_cast<Eigen::DenseBase<OtherDerived>&>(curvature);  // Make curvature writable by casting away its const-ness
+    curvature_.derived().resize(curve.rows());  // Resize the derived object
+    
+    // Calculate curvature by least square fitting (solving)
+    for (std::size_t i = 0; i < curve.rows(); ++i) {
+        if (i < ifitbegin) curvature_(i) = std::nan("initial");
+        else if (i > ifitend) curvature_(i) = std::nan("last");
+        else {
+            decomp.compute(param_mat.middleCols(i - ifitbegin, n_fitpts).transpose());
+            circ_coeffs = decomp.solve(param_vec.segment(i - ifitbegin, n_fitpts));
+            circ_coeffs(0) /= -2.0;  // Center coordinates of the circle
+            circ_coeffs(1) /= -2.0;
+            dx = curve(i + 1, 0) - curve(i, 0);
+            dy = (curve(i + 1, 1) - curve(i, 1)) * std::copysign(1.0, dx);
+            dx = std::abs(dx);
+            curvature_(i) = std::copysign(1.0 / std::sqrt(circ_coeffs(0) * circ_coeffs(0) + circ_coeffs(1) * circ_coeffs(1) - circ_coeffs(2)),
+                                          (curve(i, 0) - circ_coeffs(0)) * dy - (curve(i, 1) - circ_coeffs(1)) * dx);
+        }
+    }
 }
 
 typedef MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> MQEMContinuator2XX;
