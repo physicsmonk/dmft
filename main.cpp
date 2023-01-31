@@ -449,6 +449,7 @@ int main(int argc, char * argv[]) {
     // MPI_Finalize();
     // return 0;
     
+    /*
     // Set up decoupled Hamiltonian for the local correlation approximation
     auto H0dec = std::make_shared<Dimer2DinMag>();
     if (loc_corr) {
@@ -474,6 +475,7 @@ int main(int argc, char * argv[]) {
         H0dec->computeBands((ArrayXsizet(2) << nkx, nky).finished());
         H0dec->computeDOS(nbins4dos);
     }
+    */
     
     
 //#ifdef PADE_NOT_USE_MPFR
@@ -605,9 +607,9 @@ int main(int argc, char * argv[]) {
     //std::this_thread::sleep_for(std::chrono::seconds(1));
     //if (prank == 0) std::cout << sep << std::endl;
 
-    std::shared_ptr<ImpurityProblem> impproblem;
-    if (loc_corr) impproblem = std::make_shared<ImpurityProblem>(H0dec, G0, U, K, G);
-    else impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
+    auto impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
+    //if (loc_corr) impproblem = std::make_shared<ImpurityProblem>(H0dec, G0, U, K, G);
+    //else impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
 
     CTAUXImpuritySolver impsolver(impproblem);
     impsolver.parameters.at("markov chain length") = markovchainlength;
@@ -730,13 +732,24 @@ int main(int argc, char * argv[]) {
         interr = impsolver.solve();
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
-        if (prank == 0) std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
+        if (prank == 0) {  // Output obtained result ASAP
+            printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
+            printData("G.txt", G->valsOnTauGrid());
+            printData("Gmatsubara.txt", G->fourierCoeffs());
+            std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
+        }
         
         dmft.approxSelfEnergy();
-        
         dmft.updateLatticeGF();
-        
         dmft.updateBathGF();
+        if (prank == 0) {  // Output obtained result ASAP
+            printData("G0.txt", G0->valsOnTauGrid());
+            printData("G0matsubara.txt", G0->fourierCoeffs());
+            printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
+        }
         
         converg = dmft.checkConvergence();
         computesigma = !computecondonce || (computecondonce && converg.first);
@@ -757,7 +770,10 @@ int main(int argc, char * argv[]) {
             spectramastpart.allGather();
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
-            if (prank == 0) {
+            if (prank == 0) {  // Output obtained result ASAP
+                printData("selfenergy_retarded.txt", mqem.retardedFunc());
+                printData("spectramatrix.txt", spectra);
+                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
@@ -770,25 +786,6 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
-        }
-        
-        // Output results
-        //G->fourierCoeffs().mastFlatPart().allGather();
-        if (prank == 0) {
-            printData("G0.txt", G0->valsOnTauGrid());
-            printData("G0matsubara.txt", G0->fourierCoeffs());
-            printData("G.txt", G->valsOnTauGrid());
-            printData("Gmatsubara.txt", G->fourierCoeffs());
-            printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
-            printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
-            if (computesigma) {
-                printData("selfenergy_retarded.txt", mqem.retardedFunc());
-                printData("spectramatrix.txt", spectra);
-                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
-            }
-            printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
         }
         
         if (prank == 0) {

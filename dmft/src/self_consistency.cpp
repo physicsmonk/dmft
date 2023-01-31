@@ -119,21 +119,25 @@ void DMFTIterator::approxSelfEnergy() {
     }
     
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
-    if (loc_corr) {  // Set block off-diagonal parts of self-energy to zero if adopting local correlation approximation
-        if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
-        const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
+    if (loc_corr) {  // Set off-diagonal parts of self-energy to zero if adopting local correlation approximation
+        //if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
+        //const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
         for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
-            selfen_dyn_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            selfen_dyn_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            selfen_var_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
-            selfen_var_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
+            //selfen_dyn_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            //selfen_dyn_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            //selfen_var_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
+            //selfen_var_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
+            selfen_dyn_mastpart[i] = selfen_dyn_mastpart[i].diagonal().asDiagonal();
+            selfen_var_mastpart[i] = selfen_var_mastpart[i].diagonal().asDiagonal();
         }
         for (int s = 0; s < 2; ++s) {
-            m_selfen_static[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-            m_selfen_static[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            //m_selfen_static[s].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            //m_selfen_static[s].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+            m_selfen_static[s] = m_selfen_static[s].diagonal().asDiagonal();
             for (int n = 0; n < m_selfen_moms.dim1(); ++n) {
-                m_selfen_moms(s, n).bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
-                m_selfen_moms(s, n).topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+                //m_selfen_moms(s, n).bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+                //m_selfen_moms(s, n).topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
+                m_selfen_moms(s, n) = m_selfen_moms(s, n).diagonal().asDiagonal();
             }
         }
     }
@@ -145,6 +149,7 @@ void DMFTIterator::approxSelfEnergy() {
 void DMFTIterator::updateLatticeGF() {
     if ((m_ptr2H0->type() == "bethe" || m_ptr2H0->type() == "bethe_dimer") && m_iter > 0) m_Glat.mastFlatPart()() = m_ptr2Gimp->fourierCoeffs().mastFlatPart()();
     else computeLattGFfCoeffs(*m_ptr2H0, m_selfen_dyn, m_selfen_static, 1i * m_ptr2Gimp->matsubFreqs(), m_Glat);
+    /*
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
     if (loc_corr) {  // Set block off-diagonal parts of lattice Green's function to zero if adopting local correlation approximation
         if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
@@ -155,6 +160,7 @@ void DMFTIterator::updateLatticeGF() {
             Glatmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
         }
     }
+    */
 }
 
 std::pair<bool, double> DMFTIterator::checkConvergence() const {
