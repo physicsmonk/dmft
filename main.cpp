@@ -133,7 +133,11 @@ public:
 //    }
 //};
 
-
+//struct cut {
+//    std::size_t size() const {return shrunk_size;}
+//    std::size_t operator[](std::size_t i) const {return i < cut_ind ? i : i + 1;}
+//    std::size_t shrunk_size, cut_ind;
+//};
 
 
 
@@ -150,14 +154,21 @@ int main(int argc, char * argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &psize);
     MPI_Comm_rank(MPI_COMM_WORLD, &prank);
     
-    /*
     // For test
     //Eigen::RowVector4i aa;
     //aa << 3, 0, 1, 2;
     //Eigen::PermutationMatrix<4> perm;
     //perm.indices() = {1, 2, 3, 0};
     //std::cout << aa * perm << std::endl;
+    //Eigen::MatrixXi A(3, 3);
+    //A.reshaped() = Eigen::VectorXi::LinSpaced(9, 1, 9);
+    //std::cout << A << std::endl;
+    //std::cout << A(1, cut{2, 1}) << std::endl;
+    //A(cut{2, 1}, cut{2, 1}) += Eigen::Matrix2i::Constant(10);
+    //A = A(cut{2, 1}, cut{2, 1}).eval();
+    //std::cout << A << std::endl;
     
+    /*
     std::size_t Nul = 5, Nur = 5, Nw = 51, Niw = 71;
     double omegal = -3.0, omegar = 3.0, invT = 10.0;
     Eigen::ArrayXd iomegas = Eigen::ArrayXd::LinSpaced(Niw, M_PI / invT, (2 * Niw - 1) * M_PI / invT);
@@ -209,10 +220,11 @@ int main(int argc, char * argv[]) {
         printData("log10chi2_log10alpha.txt", testmqem.log10chi2Log10alpha(0));
         printData("retarded_func.txt", testmqem.retardedFunc());
     }
-    
-    MPI_Finalize();
-    return 0;
     */
+    
+    //MPI_Finalize();
+    //return 0;
+    
     
     std::string sep("----------------------------------------------------------------------");
     

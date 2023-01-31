@@ -172,8 +172,8 @@ std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const doub
             }
             */
             for (s = 0; s < 2; ++s) {
-                m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).noalias() -= (m_N[s](cut{m_vertices.size() - 1, p}, p) *
-                                                                                                   m_N[s](p, cut{m_vertices.size() - 1, p})) / m_N[s](p, p);
+                m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).noalias() -= m_N[s](cut{m_vertices.size() - 1, p}, p) *
+                                                                                                  m_N[s](p, cut{m_vertices.size() - 1, p}) / m_N[s](p, p);
                 m_N[s] = m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).eval();  // Call eval() to avoid aliasing issue
             }
         }
