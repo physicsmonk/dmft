@@ -679,15 +679,17 @@ double MQEMContinuator<_n0, _n1, _nm>::misfit(const SqMatArray<std::complex<doub
 template <int _n0, int _n1, int _nm>
 template <typename Derived, typename OtherDerived>
 void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived> &curvature,
-                                                    const std::size_t n_fitpts) {
+                                                  const std::size_t n_fitpts) {
     if (curve.rows() < n_fitpts) throw std::range_error("MQEMContinuator::fitCurvature: #points of input curve cannot be less than #local points to fit");
     if (n_fitpts < 3) throw std::range_error("MQEMContinuator::fitCurvature: #local points to fit cannot be less than 3");
     
     typedef typename Derived::Scalar Scalar;
-    typedef typename Eigen::internal::plain_col_type<Derived>::type VectorType;
+    //typedef typename Eigen::internal::plain_col_type<Derived>::type VectorType;
     
-    Eigen::Matrix<Scalar, 3, Eigen::Dynamic> param_mat(3, curve.rows());  // A general circle has 3 parameters; 3 for #row for contiguous memory for local param matrix
-    Eigen::Vector<Scalar, Eigen::Dynamic> param_vec(curve.rows());
+    // A general circle has 3 parameters; 3 for #row for contiguous memory for local param matrix
+    Eigen::Matrix<Scalar, 3, Derived::RowsAtCompileTime> param_mat(3, curve.rows());
+    Eigen::Vector<Scalar, Derived::RowsAtCompileTime> param_vec(curve.rows());
+    
     // Assemble the full param matrix and vector
     for (std::size_t i = 0; i < curve.rows(); ++i) {
         param_mat(0, i) = curve(i, 0);
