@@ -568,7 +568,7 @@ int main(int argc, char * argv[]) {
             printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
-            printData("mqem_diagnostics.txt", mqem.diagnostics(0), std::numeric_limits<double>::max_digits10);
+            printData("mqem_diagnostics.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
         }
         
         MPI_Finalize();
@@ -580,10 +580,20 @@ int main(int argc, char * argv[]) {
     else if (proc_control == 2) {  // proc_control == 2 for only calculating curvature of misfit curve for MQEM
         if (prank == 0) {
             Eigen::ArrayX3d misfit;
+            std::size_t opt_alpha_ind;
+            double opt_alpha;
             loadData("mqem_diagnostics.txt", misfit);
-            MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2));
+            MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
             printData("mqem_diagnostics.txt", misfit, std::numeric_limits<double>::max_digits10);
+            misfit.col(2).maxCoeff<Eigen::PropagateNumbers>(&opt_alpha_ind);
+            opt_alpha = std::pow(10.0, misfit(opt_alpha_ind, 0));
+            std::cout << "Calculated curvature of misfit curve for spin up in MQEM using local fit size of " << alpha_fitsize << std::endl;
+            std::cout << "Optimal alpha for spin up: " << opt_alpha << " at " << opt_alpha_ind << std::endl;
         }
+        MPI_Finalize();
+        auto stop = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::ratio<60> > duration = stop - start;   // Unit is hours
+        if (prank == 0) std::cout << "Execution time: " << duration.count() << " minutes" << std::endl;
         return 0;
     }
     
@@ -779,7 +789,7 @@ int main(int argc, char * argv[]) {
             if (prank == 0) {  // Output obtained result ASAP
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
-                printData("mqem_diagnostics.txt", mqem.diagnostics(0), std::numeric_limits<double>::max_digits10);
+                printData("mqem_diagnostics.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
