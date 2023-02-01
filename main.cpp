@@ -568,7 +568,7 @@ int main(int argc, char * argv[]) {
             printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
-            printData("mqem_diagnostics.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
+            printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
         }
         
         MPI_Finalize();
@@ -582,9 +582,9 @@ int main(int argc, char * argv[]) {
             Eigen::ArrayX3d misfit;
             std::size_t opt_alpha_ind;
             double opt_alpha;
-            loadData("mqem_diagnostics.txt", misfit);
+            loadData("mqem_diagnosis.txt", misfit);
             MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
-            printData("mqem_diagnostics.txt", misfit, std::numeric_limits<double>::max_digits10);
+            printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
             misfit.col(2).maxCoeff<Eigen::PropagateNumbers>(&opt_alpha_ind);
             opt_alpha = std::pow(10.0, misfit(opt_alpha_ind, 0));
             std::cout << "Calculated curvature of misfit curve for spin up in MQEM using local fit size of " << alpha_fitsize << std::endl;
@@ -789,7 +789,7 @@ int main(int argc, char * argv[]) {
             if (prank == 0) {  // Output obtained result ASAP
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
-                printData("mqem_diagnostics.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
+                printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
