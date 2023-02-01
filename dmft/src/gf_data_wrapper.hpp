@@ -772,7 +772,19 @@ std::istream& operator>>(std::istream& is, const Eigen::DenseBase<Derived>& A) {
         for (std::size_t j = 0; j < A_.cols(); ++j) {
             if constexpr (std::is_same<typename Derived::Scalar, double>::value) {
                 is >> word;
-                A_(i, j) = std::stod(word);  // Should work for nan and inf
+                try {
+                    A_(i, j) = std::stod(word);  // Should work for nan and inf
+                }
+                catch (std::invalid_argument& e) {
+                    if (word == "inf" || word == "+inf") A_(i, j) = std::numeric_limits<double>::infinity();
+                    else if (word == "-inf") A_(i, j) = -std::numeric_limits<double>::infinity();
+                    else if (word == "nan" || word == "+nan") A_(i, j) = std::nan("readin");
+                    else if (word == "-nan") A_(i, j) = -std::nan("readin");
+                    else {
+                        is.setstate(std::ios::failbit);
+                        return is;
+                    }
+                }
             }
             else is >> A_(i, j);
         }
