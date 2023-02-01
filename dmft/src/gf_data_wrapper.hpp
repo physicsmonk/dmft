@@ -740,7 +740,44 @@ std::istream& operator>>(std::istream& is, SqMatArray<Scalar, n0, n1, nm>& sqmat
     return is;
 }
 
-
+// Overload extraction operator for filling Eigen objects with istream; support allocating A according to the size of
+// input stream (from current position to end) if A hasn't been allocated
+template <typename Derived>
+std::istream& operator>>(std::istream& is, const Eigen::DenseBase<Derived>& A) {
+    static_assert(!std::is_same<typename Derived::Scalar, std::complex<double> >::value,
+                  "Extraction operator from istream to Eigen objects is currently not applicable to complex scalar type");
+    
+    Eigen::DenseBase<Derived>& A_ = const_cast<Eigen::DenseBase<Derived>&>(A);
+    
+    if (A.size() == 0) {  // A hasn't been allocated, then resize A to take all numbers from the current position to end in input stream
+        auto pos_backup = is.tellg();
+        auto state_backup = is.rdstate();
+        std::string line;
+        std::istringstream line0;
+        std::getline(is, line);
+        line0.str(line);
+        std::size_t n_cols = std::distance(std::istream_iterator<std::string>(line0), std::istream_iterator<std::string>());
+        std::size_t n_rows = 0;
+        do {
+            if (!line.empty()) ++n_rows;
+        } while (std::getline(is, line));
+        is.seekg(pos_backup);
+        is.setstate(state_backup);
+        
+        A_.derived().resize(n_rows, n_cols);
+    }
+    
+    std::string word;
+    for (std::size_t i = 0; i < A_.rows(); ++i)
+        for (std::size_t j = 0; j < A_.cols(); ++j) {
+            if constexpr (std::is_same<typename Derived::Scalar, double>::value) {
+                is >> word;
+                A_(i, j) = std::stod(word);  // Should work for nan and inf
+            }
+            else is >> A_(i, j);
+        }
+    return is;
+}
 
 
 

@@ -25,25 +25,45 @@
 
 using namespace std::complex_literals;
 
-// For testing
+
 template <typename ScalarT, int n0, int n1, int nm>
 void printData(const std::string& fname, const SqMatArray<ScalarT, n0, n1, nm>& data, const int precision = 6) {
-    std::ofstream myfile(fname, std::fstream::out | std::fstream::trunc);
-    myfile << std::setprecision(precision);
-    if (myfile.is_open()) {
-        myfile << data;
-        myfile.close();
+    std::ofstream fout(fname, std::fstream::out | std::fstream::trunc);
+    fout << std::setprecision(precision);
+    if (fout.is_open()) {
+        fout << data;
+        fout.close();
+    }
+    else std::cout << "Unable to open file" << std::endl;
+}
+
+template <typename ScalarT, int n0, int n1, int nm>
+void loadData(const std::string& fname, SqMatArray<ScalarT, n0, n1, nm>& A) {
+    std::ifstream fin(fname);
+    if (fin.is_open()) {
+        fin >> A;
+        fin.close();
     }
     else std::cout << "Unable to open file" << std::endl;
 }
 
 template <typename Derived>
 void printData(const std::string& fname, const Eigen::DenseBase<Derived>& data, const int precision = 6) {
-    std::ofstream myfile(fname, std::fstream::out | std::fstream::trunc);
-    myfile << std::setprecision(precision);
-    if (myfile.is_open()) {
-        myfile << data;
-        myfile.close();
+    std::ofstream fout(fname, std::fstream::out | std::fstream::trunc);
+    fout << std::setprecision(precision);
+    if (fout.is_open()) {
+        fout << data;
+        fout.close();
+    }
+    else std::cout << "Unable to open file" << std::endl;
+}
+
+template <typename Derived>
+void loadData(const std::string& fname, const Eigen::DenseBase<Derived>& A) {
+    std::ifstream fin(fname);
+    if (fin.is_open()) {
+        fin >> A;
+        fin.close();
     }
     else std::cout << "Unable to open file" << std::endl;
 }
@@ -308,7 +328,7 @@ int main(int argc, char * argv[]) {
     double alpha_rscale = 0.8;
     std::size_t alpha_fitsize = 9;
     
-    bool analcontrun = false;
+    int proc_control = 0;
     bool computesigmaxy = true;
     bool computecondonce = true;
     
@@ -388,7 +408,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD, prank);
-    readxml_bcast(analcontrun, docroot, "processControl/analyticContinuationOnly", MPI_COMM_WORLD, prank);
+    readxml_bcast(proc_control, docroot, "processControl/whichProcess", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD, prank);
@@ -506,39 +526,16 @@ int main(int argc, char * argv[]) {
     auto spectramastpart = spectra.mastFlatPart();
     //Eigen::ArrayXcd en_idel;
     
-    if (analcontrun) {
+    if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
         SqMatArray2XXcd selfendyn(2, nfcut + 1, nc, MPI_COMM_WORLD);
         SqMatArray2XXd selfenvar(2, nfcut + 1, nc, MPI_COMM_WORLD);
         SqMatArray21Xcd selfenstatic(2, 1, nc, MPI_COMM_WORLD);
         SqMatArray23Xcd selfenmom(2, 3, nc, MPI_COMM_WORLD);
         if (prank == 0) {
-            std::ifstream fin("selfenergy_dyn.txt");
-            if (fin.is_open()) {
-                fin >> selfendyn;
-                fin.close();
-            }
-            else std::cout << "Unable to open file" << std::endl;
-            fin.clear();  // Clear flags
-            fin.open("selfenergy_var.txt");
-            if (fin.is_open()) {
-                fin >> selfenvar;
-                fin.close();
-            }
-            else std::cout << "Unable to open file" << std::endl;
-            fin.clear();  // Clear flags
-            fin.open("selfenergy_static.txt");
-            if (fin.is_open()) {
-                fin >> selfenstatic;
-                fin.close();
-            }
-            else std::cout << "Unable to open file" << std::endl;
-            fin.clear();  // Clear flags
-            fin.open("selfenergy_moms.txt");
-            if (fin.is_open()) {
-                fin >> selfenmom;
-                fin.close();
-            }
-            else std::cout << "Unable to open file" << std::endl;
+            loadData("selfenergy_dyn.txt", selfendyn);
+            loadData("selfenergy_var.txt", selfenvar);
+            loadData("selfenergy_static.txt", selfenstatic);
+            loadData("selfenergy_moms.txt", selfenmom);
         }
         selfendyn.broadcast(0);
         selfenvar.broadcast(0);
@@ -571,13 +568,22 @@ int main(int argc, char * argv[]) {
             printData("real_freqs.txt", mqem.realFreqGrid());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
-            printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
+            printData("mqem_diagnostics.txt", mqem.diagnostics(0), std::numeric_limits<double>::max_digits10);
         }
         
         MPI_Finalize();
         auto stop = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::ratio<60> > duration = stop - start;   // Unit is hours
         if (prank == 0) std::cout << "Execution time: " << duration.count() << " minutes" << std::endl;
+        return 0;
+    }
+    else if (proc_control == 2) {  // proc_control == 2 for only calculating curvature of misfit curve for MQEM
+        if (prank == 0) {
+            Eigen::ArrayX3d misfit;
+            loadData("mqem_diagnostics.txt", misfit);
+            MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2));
+            printData("mqem_diagnostics.txt", misfit, std::numeric_limits<double>::max_digits10);
+        }
         return 0;
     }
     
@@ -773,7 +779,7 @@ int main(int argc, char * argv[]) {
             if (prank == 0) {  // Output obtained result ASAP
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
-                printData("log10chi2_log10alpha.txt", mqem.log10chi2Log10alpha(0), std::numeric_limits<double>::max_digits10);
+                printData("mqem_diagnostics.txt", mqem.diagnostics(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;

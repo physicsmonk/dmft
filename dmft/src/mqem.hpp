@@ -57,7 +57,10 @@ public:
     const Eigen::VectorXd& realFreqIntVector() const {return m_intA;}
     std::size_t optimalAlphaIndex(const std::size_t slocal) const {return m_opt_alpha_id(slocal);}
     double optimalLog10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal](m_opt_alpha_id(slocal), 0);}
-    const Eigen::ArrayX3d& log10chi2Log10alpha(const std::size_t slocal) const {return m_misfit_curve[slocal];}
+    const Eigen::ArrayX3d& diagnostics(const std::size_t slocal) const {return m_misfit_curve[slocal];}
+    // Argument curvature will be filled with solution after execution; its const-ness will be cast away inside the function; see Eigen library manual
+    template <typename Derived, typename OtherDerived>
+    static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const std::size_t n_fitpts = 5);
     
 private:
     Eigen::Array<std::size_t, Eigen::Dynamic, 1> m_opt_alpha_id;
@@ -153,9 +156,6 @@ private:
     double normInt(const SqMatArray<Scalar, n0, n1, nm>& integrand) const;
     // Calculate chi^2
     double misfit(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& Gw, const SqMatArray<double, _n0, _n1, _nm>& Gwvar, const std::size_t s) const;
-    // Argument curvature will be filled with solution after execution; its const-ness will be cast away inside the function; see Eigen library manual
-    template <typename Derived, typename OtherDerived>
-    static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const std::size_t n_fitpts = 5);
 };
 
 // Must call assembleKernelMatrix first
