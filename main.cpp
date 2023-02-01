@@ -408,7 +408,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD, prank);
-    readxml_bcast(proc_control, docroot, "processControl/whichProcess", MPI_COMM_WORLD, prank);
+    readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD, prank);
