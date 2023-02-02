@@ -187,6 +187,13 @@ int main(int argc, char * argv[]) {
     //A(cut{2, 1}, cut{2, 1}) += Eigen::Matrix2i::Constant(10);
     //A = A(cut{2, 1}, cut{2, 1}).eval();
     //std::cout << A << std::endl;
+    //std::istringstream in;
+    //in.str("1.1 2.2\n3.3 4.4");
+    //std::string word;
+    //in >> word;
+    //Eigen::ArrayXXd arr;
+    //in >> arr;
+    //std::cout << arr << std::endl;
     
     /*
     std::size_t Nul = 5, Nur = 5, Nw = 51, Niw = 71;

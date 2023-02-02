@@ -17,6 +17,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <charconv>
 
 // Get underlying data type of std::size_t
 #include <cstdint>
@@ -718,6 +719,28 @@ std::ostream& operator<<(std::ostream& os, const SqMatArray<Scalar, n0, n1, nm>&
     return os;
 }
 
+/*
+// read one field of numerics including inf and nan
+template <typename Scalar>
+std::istream& read_numerics(std::istream& is, Scalar& x) {
+    std::string word;
+    is >> word;
+    auto [ptr, ec]{std::from_chars(word.data(), word.data() + word.size(), x)};
+    if (ec == std::errc::invalid_argument) {
+        if constexpr (std::is_same<Scalar, float>::value || std::is_same<Scalar, double>::value || std::is_same<Scalar, long double>::value) {
+            if (word == "inf" || word == "+inf") x = std::numeric_limits<double>::infinity();
+            else if (word == "-inf") x = -std::numeric_limits<double>::infinity();
+            else if (word == "nan" || word == "+nan") x = std::nan("readin");
+            else if (word == "-nan") x = -std::nan("readin");
+            else is.setstate(std::ios::failbit);
+        }
+        else is.setstate(std::ios::failbit);
+    }
+    else if (ec == std::errc::result_out_of_range) is.setstate(std::ios::failbit);
+    return is;
+}
+*/
+
 // Overload the extraction operator
 template<typename Scalar, int n0, int n1, int nm>
 std::istream& operator>>(std::istream& is, SqMatArray<Scalar, n0, n1, nm>& sqmats) {
@@ -750,8 +773,8 @@ std::istream& operator>>(std::istream& is, const Eigen::DenseBase<Derived>& A) {
     Eigen::DenseBase<Derived>& A_ = const_cast<Eigen::DenseBase<Derived>&>(A);
     
     if (A.size() == 0) {  // A hasn't been allocated, then resize A to take all numbers from the current position to end in input stream
-        auto pos_backup = is.tellg();
         auto state_backup = is.rdstate();
+        auto pos_backup = is.tellg();
         std::string line;
         std::istringstream line0;
         std::getline(is, line);
@@ -761,8 +784,8 @@ std::istream& operator>>(std::istream& is, const Eigen::DenseBase<Derived>& A) {
         do {
             if (!line.empty()) ++n_rows;
         } while (std::getline(is, line));
+        is.clear(state_backup);  // Method clear is to overwritten the current flags; method setstate is not to overwritten but combine
         is.seekg(pos_backup);
-        is.setstate(state_backup);
         
         A_.derived().resize(n_rows, n_cols);
     }
@@ -773,7 +796,7 @@ std::istream& operator>>(std::istream& is, const Eigen::DenseBase<Derived>& A) {
             if constexpr (std::is_same<typename Derived::Scalar, double>::value) {
                 is >> word;
                 try {
-                    A_(i, j) = std::stod(word);  // Should work for nan and inf
+                    A_(i, j) = std::stod(word);
                 }
                 catch (std::invalid_argument& e) {
                     if (word == "inf" || word == "+inf") A_(i, j) = std::numeric_limits<double>::infinity();
