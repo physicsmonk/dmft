@@ -132,6 +132,7 @@ private:
         parameters["Gaussian_sigma"] = 1.5;
         parameters["alpha_max_fac"] = 10.0;
         parameters["alpha_info_fit_fac"] = 0.05;
+        parameters["alpha_init_fraction"] = 0.01;
         parameters["alpha_max_trial"] = std::size_t(30);
         parameters["alpha_stop_slope"] = 0.01;
         parameters["alpha_stop_step"] = 1e-5;
@@ -167,6 +168,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                                                     const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom) {
     const auto amaxfac = std::any_cast<double>(parameters.at("alpha_max_fac"));
     const auto ainfofitfac = std::any_cast<double>(parameters.at("alpha_info_fit_fac"));
+    const auto ainitfrac = std::any_cast<double>(parameters.at("alpha_init_fraction"));
     const auto amaxtrial = std::any_cast<std::size_t>(parameters.at("alpha_max_trial"));
     const auto astopslope = std::any_cast<double>(parameters.at("alpha_stop_slope"));
     const auto astopstep = std::any_cast<double>(parameters.at("alpha_stop_step"));
@@ -258,7 +260,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 << " " << std::setw(10) << trial << std::endl;
             
             // Update step size
-            if (na == 0) dloga = (loga - logainfofit) * 0.01;  // Really initialize step size here
+            if (na == 0) dloga = (loga - logainfofit) * ainitfrac;  // Really initialize step size here
             else {
                 dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
                 //Adiff() = Apart.atDim0(s) - A_old();
