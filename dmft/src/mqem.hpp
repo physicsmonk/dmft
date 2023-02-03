@@ -621,12 +621,14 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
     Eigen::ColPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
     
     m0trace = mom(s, 0).trace().real();  // Trace must be a real number
-    for (iter = 0; iter <= max_iter && err >= tol && std::isfinite(err); ++iter) {
+    for (iter = 0; iter <= max_iter; ++iter) {
         // Calculate some current variables for computing new ones
         fixedPointRelation(mats_freq, Gw, Gwvar, m0trace, alpha, s, f);   // Read m_A in here
         f() -= m_A.atDim0(s);
         //err = std::sqrt(f().cwiseAbs2().sum() / n_omega);
         err = normInt(f);
+        if (!std::isfinite(err)) return std::make_pair(false, iter);
+        else if (err < tol) return std::make_pair(true, iter);
         //std::cout << "error = " << err << std::endl;
         // Record current variables into history caches, note the recording order is not proper in the caches
         if (iter > 0) {
@@ -655,7 +657,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
             m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.transpose() * f().reshaped()).reshaped(nm, nm * n_omega);
         }
     }
-    return std::make_pair(iter <= max_iter && std::isfinite(err), iter);
+    return std::make_pair(false, iter - 1);
 }
 
 template <int _n0, int _n1, int _nm>
