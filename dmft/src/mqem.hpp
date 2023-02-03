@@ -139,7 +139,7 @@ private:
         parameters["alpha_spec_rel_err"] = 0.1;
         parameters["alpha_step_min_ratio"] = 0.5;
         parameters["alpha_step_max_ratio"] = 2.0;
-        parameters["alpha_step_scale"] = 0.8;
+        parameters["alpha_step_scale"] = 0.95;
         parameters["alpha_capacity"] = std::size_t(1000);
         parameters["alpha_curvature_fit_size"] = std::size_t(5);
         parameters["verbose"] = true;
@@ -239,7 +239,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 Apart.atDim0(s) = A_old();  // Restore initial guess
                 dloga *= rmin;
                 //parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
+                //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
                 ++trial;
                 continue;
             }
@@ -268,7 +268,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
                 dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
                 dloga *= dloga_fac;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
+                //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
             }
             
             ++na;
