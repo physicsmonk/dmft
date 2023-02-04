@@ -656,7 +656,9 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
             //m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.adjoint() * f().reshaped()).reshaped(nm, nm * n_omega);
             FTF_inv.noalias() = F.transpose() * F;
             decomp.compute(FTF_inv);
-            FTF_inv = decomp.solve(Eigen::MatrixXcd::Identity(hist_size, hist_size));  // Inverse of FTF
+            //FTF_inv = decomp.solve(Eigen::MatrixXcd::Identity(hist_size, hist_size));  // Inverse of FTF
+            if (decomp.isInvertible()) FTF_inv = decomp.inverse();
+            else return std::make_pair(false, iter);
             m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.transpose() * f().reshaped()).reshaped(nm, nm * n_omega);
         }
     }
