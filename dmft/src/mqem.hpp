@@ -289,7 +289,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             std::cout << "------" << std::endl;
         }
         m_misfit_curve[s].conservativeResize(na, Eigen::NoChange);  // Get size right
-        if (na > 2) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
+        if (na >= afitsize) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
             //m_misfit_curve[s](0, 2) = std::nan("initial");
             //m_misfit_curve[s](1, 2) = std::nan("initial");
             //ainterval = m_misfit_curve[s](Eigen::seq(0, na - 2), 0) - m_misfit_curve[s](Eigen::seq(1, na - 1), 0);
@@ -302,7 +302,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             m_misfit_curve[s].col(2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(s)));
             Apart.atDim0(s) = As[m_opt_alpha_id(s)]();
         }
-        else std::cout << "MQEM computeSpectra: cannot determine optimal alpha because misfit curve has less than 3 points" << std::endl;
+        else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
     }
     if (verbose && Gw.processRank() == 0) std::cout << "====== MQEM: end decreasing alpha in process 0 ======" << std::endl;
     Apart.allGather();
