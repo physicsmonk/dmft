@@ -621,7 +621,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
     //Eigen::ColPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
     //Eigen::FullPivLU<Eigen::MatrixXcd> decomp(hist_size, hist_size);
     //Eigen::FullPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
-    Eigen::JacobiSVD<Eigen::MatrixXcd, Eigen::NoQRPreconditioner> decomp(hist_size, hist_size);
+    Eigen::JacobiSVD<Eigen::MatrixXcd, Eigen::NoQRPreconditioner | Eigen::ComputeThinU | Eigen::ComputeThinV> decomp(hist_size, hist_size);
     
     m0trace = mom(s, 0).trace().real();  // Trace must be a real number
     for (iter = 0; iter <= max_iter; ++iter) {
