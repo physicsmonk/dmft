@@ -229,7 +229,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 break;
             }
             if (cvg.first) A_old() = Apart.atDim0(s);
-            cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
+            try {
+                cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
+            }
+            catch (const std::runtime_error& e) {
+                cvg.first = false;
+                std::cout << "  Uninvertible matrix encountered in periodic Pulay solver" << std::endl;
+            }
             if (!cvg.first) {  // Solve diverged
                 if (na == 0) {  // Initial solve
                     converged = false;
@@ -658,7 +664,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
             decomp.compute(FTF_inv);
             //FTF_inv = decomp.solve(Eigen::MatrixXcd::Identity(hist_size, hist_size));  // Inverse of FTF
             if (decomp.isInvertible()) FTF_inv = decomp.inverse();
-            else return std::make_pair(false, iter);
+            else throw std::runtime_error("Periodic Pulay solver: F^T * F not invertible");
             m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.transpose() * f().reshaped()).reshaped(nm, nm * n_omega);
         }
     }
