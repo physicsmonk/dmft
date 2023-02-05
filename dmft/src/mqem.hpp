@@ -183,7 +183,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
     
-    double varmin, logainfofit, loga, logchi2, logchi2_old, dloga, dloga_fac, dA, slope;
+    double varmin, ainfofit, alpha, logchi2, logchi2_old, dalpha, dalpha_fac, dA, slope;
     std::size_t na, trial;
     std::pair<bool, std::size_t> cvg;
     
@@ -211,17 +211,17 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         // Initialize quantities
         na = 0;
         trial = 0;
-        dloga = 0.0;  // Set zero for initial calculation
+        dalpha = 0.0;  // Set zero for initial calculation
         slope = 10.0 * std::abs(astopslope);
         varmin = Gwvarpart.atDim0(s).minCoeff();
-        loga = std::log10(amaxfac / varmin);
-        logainfofit = std::log10(ainfofitfac / varmin);
+        alpha = amaxfac / varmin;
+        ainfofit = ainfofitfac / varmin;
         cvg.first = true;
         m_opt_alpha_id(s) = 0;
         logchi2 = std::log10(misfit(Gw, Gwvar, s + Gwpart.start()));
         m_misfit_curve[s].resize(acapacity, Eigen::NoChange);
         if (verbose && Gw.processRank() == 0) std::cout << "------ Spin " << s + Gwpart.start() << " ------" << std::endl
-            << "    stepID log10alpha log10chi^2   stepSize      slope #PulayIter #PulayFail" << std::endl;
+            << "    stepID log10alpha log10chi^2     dalpha      slope #PulayIter #PulayFail" << std::endl;
         do {
             if (trial > amaxtrial) {
                 converged = false;
@@ -229,7 +229,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 break;
             }
             if (cvg.first) A_old() = Apart.atDim0(s);
-            cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
+            cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, alpha - dalpha, s + Gwpart.start());  // m_A updated in here
             if (!cvg.first) {  // Solve diverged
                 if (na == 0) {  // Initial solve
                     converged = false;
@@ -237,47 +237,47 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                     break;
                 }
                 Apart.atDim0(s) = A_old();  // Restore initial guess
-                dloga *= rmin;
+                dalpha *= rmin;
                 //parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
                 //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
                 ++trial;
                 continue;
             }
             // Solve converged
-            loga -= dloga;
+            alpha -= dalpha;
             logchi2_old = logchi2;
             logchi2 = std::log10(misfit(Gw, Gwvar, s + Gwpart.start()));
             // Initial slope set to zero to pretend that initial alpha is large enough for spectrum to be close enough to default model
-            slope = na == 0 ? 0.0 : (logchi2_old - logchi2) / dloga;
+            slope = na == 0 ? 0.0 : (logchi2_old - logchi2) / std::log10(1.0 + dalpha / alpha);
             
             As[na].resize(1, m_A.dim1(), m_A.dimm());
             As[na]() = Apart.atDim0(s);
-            m_misfit_curve[s](na, 0) = loga;
+            m_misfit_curve[s](na, 0) = std::log10(alpha);
             m_misfit_curve[s](na, 1) = logchi2;
             
-            if (verbose && Gw.processRank() == 0) std::cout << std::setw(10) << na << " " << std::setw(10) << loga << " " << std::setw(10) << logchi2
-                << " " << std::setw(10) << dloga << " " << std::setw(10) << slope << " " << std::setw(10) << cvg.second
-                << " " << std::setw(10) << trial << std::endl;
+            if (verbose && Gw.processRank() == 0) std::cout << std::setw(10) << na << " " << std::setw(10) << m_misfit_curve[s](na, 0)
+                << " " << std::setw(10) << logchi2 << " " << std::setw(10) << dalpha << " " << std::setw(10) << slope
+                << " " << std::setw(10) << cvg.second << " " << std::setw(10) << trial << std::endl;
             
             // Update step size
-            if (na == 0) dloga = (loga - logainfofit) * ainitfrac;  // Really initialize step size here
+            if (na == 0) dalpha = (alpha - ainfofit) * ainitfrac;  // Really initialize step size here
             else {
                 dA = std::sqrt((Apart.atDim0(s) - A_old()).cwiseAbs2().sum() / A_old().cwiseAbs2().sum());
                 //Adiff() = Apart.atDim0(s) - A_old();
                 //dA = normInt(Adiff);
                 //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
-                dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
-                dloga *= dloga_fac;
+                dalpha_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
+                dalpha *= dalpha_fac;
                 //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
             }
             
             ++na;
             trial = 0;
-        } while ((slope > astopslope || loga > logainfofit) && dloga > astopstep && na < acapacity);
+        } while ((slope > astopslope || alpha > ainfofit) && dalpha > astopstep && na < acapacity);
         if (verbose && Gw.processRank() == 0) {
             std::cout << "------ Spin " << s + Gwpart.start() << ": stopped due to ";
             if (slope <= astopslope) std::cout << "small slope ";
-            else if (dloga <= astopstep) std::cout << "small step ";
+            else if (dalpha <= astopstep) std::cout << "small step ";
             else if (na >= acapacity) std::cout << "full reservoir ";
             else std::cout << "divergence ";
             std::cout << "------" << std::endl;
