@@ -229,13 +229,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 break;
             }
             if (cvg.first) A_old() = Apart.atDim0(s);
-            try {
-                cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
-            }
-            catch (const std::runtime_error& e) {
-                cvg.first = false;
-                std::cout << "  Uninvertible matrix encountered in periodic Pulay solver for dim0 " << s + Gwpart.start() << std::endl;
-            }
+            cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s + Gwpart.start());  // m_A updated in here
             if (!cvg.first) {  // Solve diverged
                 if (na == 0) {  // Initial solve
                     converged = false;
@@ -245,7 +239,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 Apart.atDim0(s) = A_old();  // Restore initial guess
                 dloga *= rmin;
                 //parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
+                //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
                 ++trial;
                 continue;
             }
@@ -274,7 +268,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
                 dloga_fac = std::min(std::max(sa * std::sqrt(dAtol / std::max(dA, eps)), rmin), rmax);
                 dloga *= dloga_fac;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
+                //parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
             }
             
             ++na;
@@ -621,7 +615,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
     double err = 1000.0;
     double m0trace;
     Eigen::PermutationMatrix<Eigen::Dynamic> perm(hist_size);
-    Eigen::MatrixXcd  J(hist_size, N);  // FTF_inv(hist_size, hist_size);
+    Eigen::MatrixXcd J(hist_size, N);  // FTF_inv(hist_size, hist_size);
     //Eigen::LLT<Eigen::MatrixXcd> llt(hist_size);
     //Eigen::PartialPivLU<Eigen::MatrixXcd> decomp(hist_size);
     //Eigen::ColPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
