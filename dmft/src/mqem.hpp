@@ -234,7 +234,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             }
             catch (const std::runtime_error& e) {
                 cvg.first = false;
-                std::cout << "  Uninvertible matrix encountered in periodic Pulay solver" << std::endl;
+                std::cout << "  Uninvertible matrix encountered in periodic Pulay solver for dim0 " << s + Gwpart.start() << std::endl;
             }
             if (!cvg.first) {  // Solve diverged
                 if (na == 0) {  // Initial solve
@@ -621,13 +621,14 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
     double err = 1000.0;
     double m0trace;
     Eigen::PermutationMatrix<Eigen::Dynamic> perm(hist_size);
-    Eigen::MatrixXcd FTF_inv(hist_size, hist_size);
+    Eigen::MatrixXcd  J(hist_size, N);  // FTF_inv(hist_size, hist_size);
     //Eigen::LLT<Eigen::MatrixXcd> llt(hist_size);
     //Eigen::PartialPivLU<Eigen::MatrixXcd> decomp(hist_size);
     //Eigen::ColPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
-    Eigen::FullPivLU<Eigen::MatrixXcd> decomp(hist_size, hist_size);
+    //Eigen::FullPivLU<Eigen::MatrixXcd> decomp(hist_size, hist_size);
     //Eigen::FullPivHouseholderQR<Eigen::MatrixXcd> decomp(hist_size, hist_size);
     //Eigen::JacobiSVD<Eigen::MatrixXcd, Eigen::NoQRPreconditioner | Eigen::ComputeThinU | Eigen::ComputeThinV> decomp(hist_size, hist_size);
+    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixXcd> decomp(N, hist_size);
     
     m0trace = mom(s, 0).trace().real();  // Trace must be a real number
     for (iter = 0; iter <= max_iter; ++iter) {
@@ -660,12 +661,15 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
             //llt.compute(FTF_inv);
             //FTF_inv = llt.solve(Eigen::MatrixXcd::Identity(hist_size, hist_size));  // Inverse of FTF
             //m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.adjoint() * f().reshaped()).reshaped(nm, nm * n_omega);
-            FTF_inv.noalias() = F.transpose() * F;
-            decomp.compute(FTF_inv);
+            //FTF_inv.noalias() = F.transpose() * F;
+            //decomp.compute(FTF_inv);
             //FTF_inv = decomp.solve(Eigen::MatrixXcd::Identity(hist_size, hist_size));  // Inverse of FTF
-            if (decomp.isInvertible()) FTF_inv = decomp.inverse();
-            else throw std::runtime_error("Periodic Pulay solver: F^T * F not invertible");
-            m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.transpose() * f().reshaped()).reshaped(nm, nm * n_omega);
+            //if (decomp.isInvertible()) FTF_inv = decomp.inverse();
+            //else throw std::runtime_error("Periodic Pulay solver: F^T * F not invertible");
+            //m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * FTF_inv * F.transpose() * f().reshaped()).reshaped(nm, nm * n_omega);
+            decomp.compute(F);
+            J = decomp.solve(Eigen::MatrixXcd::Identity(N, N));
+            m_A.atDim0(s).noalias() += mix_param * f() - ((R + mix_param * F) * J * f().reshaped()).reshaped(nm, nm * n_omega);
         }
     }
     return std::make_pair(false, iter - 1);
