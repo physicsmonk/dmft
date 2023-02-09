@@ -142,6 +142,7 @@ private:
         parameters["alpha_step_max_ratio"] = 2.0;
         parameters["alpha_step_scale"] = 0.95;
         parameters["alpha_capacity"] = std::size_t(1000);
+        parameters["alpha_cache_all"] = false;
         parameters["alpha_curvature_fit_size"] = std::size_t(5);
         parameters["verbose"] = true;
     }
@@ -181,6 +182,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto rmax = std::any_cast<double>(parameters.at("alpha_step_max_ratio"));
     const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
     const auto acapacity = std::any_cast<std::size_t>(parameters.at("alpha_capacity"));
+    const auto acacheall = std::any_cast<bool>(parameters.at("alpha_cache_all"));
     const auto afitsize = std::any_cast<std::size_t>(parameters.at("alpha_curvature_fit_size"));
     const double eps = 1e-10;
     if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
@@ -256,7 +258,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             // Initial slope set to zero to pretend that initial alpha is large enough for spectrum to be close enough to default model
             slope = na == 0 ? 0.0 : (logchi2_old - logchi2) / dloga;
             
-            if (loga <= logainfofit) {
+            if (acacheall || loga <= logainfofit) {
                 As[nrecord].resize(1, m_A.dim1(), m_A.dimm());
                 As[nrecord]() = Apart.atDim0(sl);
                 m_misfit_curve[sl](nrecord, 0) = loga;

@@ -336,6 +336,7 @@ int main(int argc, char * argv[]) {
     double alpha_rscale = 0.8;
     std::size_t alpha_fitsize = 9;
     std::size_t alpha_capacity = 1000;
+    bool alpha_cacheall = false;
     
     int proc_control = 0;
     bool computesigmaxy = true;
@@ -419,6 +420,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD, prank);
     readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD, prank);
+    readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD, prank);
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD, prank);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
@@ -533,6 +535,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_step_scale") = alpha_rscale;
     mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
+    mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
