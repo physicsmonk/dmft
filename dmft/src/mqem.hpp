@@ -357,8 +357,8 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     Eigen::MatrixXd Kp(n_omega, Ncoeff);
     Eigen::RowVectorXd intA(Ncoeff);  // Every element will be explicitly set, so no need of initialization
     Eigen::MatrixXd B = Eigen::MatrixXd::Zero(Ncoeff, Ncoeff), T = Eigen::MatrixXd::Zero(Ncoeff, n_omega);
-    double uj, uj1, ujp, uj1p, omegajp, omegaj1p;
-    std::size_t ja, jglobal;
+    double uj, uj1 = 2.0 * dul, ujp, uj1p, omegajp, omegaj1p;
+    std::size_t ja = 0, jglobal;
     m_omega.resize(n_omega);
     
     // First fill real frequencies; all the real frequencies will be needed later
