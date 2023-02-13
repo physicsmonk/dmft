@@ -315,9 +315,8 @@ int main(int argc, char * argv[]) {
     
     // For MQEM analytic continuation
     std::size_t n_lrealfreq = 10;
-    double lrealfreq = -5.0;
-    std::size_t n_mrealfreq = 51;
-    double rrealfreq = 5.0;
+    Eigen::Array<double, 7, 1> midrealfreq_anchors_steps;
+    midrealfreq_anchors_steps << -5.0, 0.1, -2.0, 0.05, 2.0, 0.1, 5.0;
     std::size_t n_rrealfreq = 10;
     double pulay_mix = 0.01;
     std::size_t pulay_histsize = 5;
@@ -353,34 +352,34 @@ int main(int argc, char * argv[]) {
     }
     docroot = doc.child("input");
 
-    readxml_bcast(nc, docroot, "physical/numSites", MPI_COMM_WORLD, prank);
-    readxml_bcast(t, docroot, "physical/hoppingXy", MPI_COMM_WORLD, prank);
-    readxml_bcast(tz, docroot, "physical/hoppingXy.hoppingZ", MPI_COMM_WORLD, prank);
-    readxml_bcast(q, docroot, "physical/q", MPI_COMM_WORLD, prank);
-    readxml_bcast(p, docroot, "physical/q.p", MPI_COMM_WORLD, prank);
-    readxml_bcast(beta, docroot, "physical/inverseTemperature", MPI_COMM_WORLD, prank);
-    readxml_bcast(U, docroot, "physical/onsiteCoulombRepulsion", MPI_COMM_WORLD, prank);
-    readxml_bcast(mu_eff, docroot, "physical/effectiveChemicalPotential", MPI_COMM_WORLD, prank);
-    readxml_bcast(nbins4dos, docroot, "numerical/bareDOS/numBins", MPI_COMM_WORLD, prank);
-    readxml_bcast(nkx, docroot, "numerical/bareDOS/numBins.numkx", MPI_COMM_WORLD, prank);
-    readxml_bcast(nky, docroot, "numerical/bareDOS/numBins.numky", MPI_COMM_WORLD, prank);
-    readxml_bcast(nfcut, docroot, "numerical/GreenFunction/frequencyCutoff", MPI_COMM_WORLD, prank);
+    readxml_bcast(nc, docroot, "physical/numSites", MPI_COMM_WORLD);
+    readxml_bcast(t, docroot, "physical/hoppingXy", MPI_COMM_WORLD);
+    readxml_bcast(tz, docroot, "physical/hoppingXy.hoppingZ", MPI_COMM_WORLD);
+    readxml_bcast(q, docroot, "physical/q", MPI_COMM_WORLD);
+    readxml_bcast(p, docroot, "physical/q.p", MPI_COMM_WORLD);
+    readxml_bcast(beta, docroot, "physical/inverseTemperature", MPI_COMM_WORLD);
+    readxml_bcast(U, docroot, "physical/onsiteCoulombRepulsion", MPI_COMM_WORLD);
+    readxml_bcast(mu_eff, docroot, "physical/effectiveChemicalPotential", MPI_COMM_WORLD);
+    readxml_bcast(nbins4dos, docroot, "numerical/bareDOS/numBins", MPI_COMM_WORLD);
+    readxml_bcast(nkx, docroot, "numerical/bareDOS/numBins.numkx", MPI_COMM_WORLD);
+    readxml_bcast(nky, docroot, "numerical/bareDOS/numBins.numky", MPI_COMM_WORLD);
+    readxml_bcast(nfcut, docroot, "numerical/GreenFunction/frequencyCutoff", MPI_COMM_WORLD);
     readxml_bcast(ntau, docroot, "numerical/GreenFunction/tauGridSize", MPI_COMM_WORLD, prank);
-    readxml_bcast(ntau4eiwt, docroot, "numerical/GreenFunction/tauGridSizeOfExpiwt", MPI_COMM_WORLD, prank);
-    readxml_bcast(nbins4S, docroot, "numerical/GreenFunction/numTauBinsForSelfEnergy", MPI_COMM_WORLD, prank);
-    readxml_bcast(markovchainlength, docroot, "numerical/QMC/MarkovChainLength", MPI_COMM_WORLD, prank);
-    readxml_bcast(qmctimelimit, docroot, "numerical/QMC/timeLimit", MPI_COMM_WORLD, prank);
-    readxml_bcast(measureperiod, docroot, "numerical/QMC/measurePeriod", MPI_COMM_WORLD, prank);
-    readxml_bcast(warmupsize, docroot, "numerical/QMC/numWarmupSteps", MPI_COMM_WORLD, prank);
-    readxml_bcast(measurewhat, docroot, "numerical/QMC/whatToMeasure", MPI_COMM_WORLD, prank);
-    readxml_bcast(histmaxorder, docroot, "numerical/QMC/maxOrderForHistogram", MPI_COMM_WORLD, prank);
-    readxml_bcast(magneticorder, docroot, "numerical/QMC/magneticOrder", MPI_COMM_WORLD, prank);
-    readxml_bcast(verbosity, docroot, "numerical/QMC/verbosity", MPI_COMM_WORLD, prank);
-    readxml_bcast(ansatz, docroot, "numerical/selfConsistency/ansatz", MPI_COMM_WORLD, prank);
-    readxml_bcast(nitmax, docroot, "numerical/selfConsistency/maxIteration", MPI_COMM_WORLD, prank);
-    readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD, prank);
-    readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD, prank);
-    readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD, prank);
+    readxml_bcast(ntau4eiwt, docroot, "numerical/GreenFunction/tauGridSizeOfExpiwt", MPI_COMM_WORLD);
+    readxml_bcast(nbins4S, docroot, "numerical/GreenFunction/numTauBinsForSelfEnergy", MPI_COMM_WORLD);
+    readxml_bcast(markovchainlength, docroot, "numerical/QMC/MarkovChainLength", MPI_COMM_WORLD);
+    readxml_bcast(qmctimelimit, docroot, "numerical/QMC/timeLimit", MPI_COMM_WORLD);
+    readxml_bcast(measureperiod, docroot, "numerical/QMC/measurePeriod", MPI_COMM_WORLD);
+    readxml_bcast(warmupsize, docroot, "numerical/QMC/numWarmupSteps", MPI_COMM_WORLD);
+    readxml_bcast(measurewhat, docroot, "numerical/QMC/whatToMeasure", MPI_COMM_WORLD);
+    readxml_bcast(histmaxorder, docroot, "numerical/QMC/maxOrderForHistogram", MPI_COMM_WORLD);
+    readxml_bcast(magneticorder, docroot, "numerical/QMC/magneticOrder", MPI_COMM_WORLD);
+    readxml_bcast(verbosity, docroot, "numerical/QMC/verbosity", MPI_COMM_WORLD);
+    readxml_bcast(ansatz, docroot, "numerical/selfConsistency/ansatz", MPI_COMM_WORLD);
+    readxml_bcast(nitmax, docroot, "numerical/selfConsistency/maxIteration", MPI_COMM_WORLD);
+    readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD);
+    readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
+    readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD);
     /*
     readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
@@ -398,33 +397,35 @@ int main(int argc, char * argv[]) {
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
     */
-    readxml_bcast(n_lrealfreq, docroot, "numerical/MQEM/numLeftRealFreqencies", MPI_COMM_WORLD, prank);
-    readxml_bcast(lrealfreq, docroot, "numerical/MQEM/leftRealFreqencyAnchor", MPI_COMM_WORLD, prank);
-    readxml_bcast(n_mrealfreq, docroot, "numerical/MQEM/numMidRealFreqencies", MPI_COMM_WORLD, prank);
-    readxml_bcast(rrealfreq, docroot, "numerical/MQEM/rightRealFreqencyAnchor", MPI_COMM_WORLD, prank);
-    readxml_bcast(n_rrealfreq, docroot, "numerical/MQEM/numRightRealFreqencies", MPI_COMM_WORLD, prank);
-    readxml_bcast(pulay_mix, docroot, "numerical/MQEM/PulayMixingParameter", MPI_COMM_WORLD, prank);
-    readxml_bcast(pulay_histsize, docroot, "numerical/MQEM/PulayHistorySize", MPI_COMM_WORLD, prank);
-    readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD, prank);
-    readxml_bcast(pulay_tol, docroot, "numerical/MQEM/PulayTolerance", MPI_COMM_WORLD, prank);
-    readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD, prank);
-    readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/defaultModelSigma", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_maxfac, docroot, "numerical/MQEM/alphaMaxFactor", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_infofitfac, docroot, "numerical/MQEM/alphaInfoFitFactor", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_initfrac, docroot, "numerical/MQEM/alphaInitFraction", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_stopslope, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_stopstep, docroot, "numerical/MQEM/alphaStopStep", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD, prank);
-    readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD, prank);
-    readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD, prank);
-    readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD, prank);
-    readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD, prank);
-    readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD, prank);
+    readxml_bcast(n_lrealfreq, docroot, "numerical/MQEM/numLeftRealFrequencies", MPI_COMM_WORLD);
+    std::string rfai;
+    std::stringstream rfai_;
+    readxml_bcast(rfai, docroot, "numerical/MQEM/midRealFrequencyAnchorsSteps", MPI_COMM_WORLD);
+    rfai_ << rfai;
+    rfai_ >> midrealfreq_anchors_steps;
+    readxml_bcast(n_rrealfreq, docroot, "numerical/MQEM/numRightRealFrequencies", MPI_COMM_WORLD);
+    readxml_bcast(pulay_mix, docroot, "numerical/MQEM/PulayMixingParameter", MPI_COMM_WORLD);
+    readxml_bcast(pulay_histsize, docroot, "numerical/MQEM/PulayHistorySize", MPI_COMM_WORLD);
+    readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD);
+    readxml_bcast(pulay_tol, docroot, "numerical/MQEM/PulayTolerance", MPI_COMM_WORLD);
+    readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD);
+    readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/defaultModelSigma", MPI_COMM_WORLD);
+    readxml_bcast(alpha_maxfac, docroot, "numerical/MQEM/alphaMaxFactor", MPI_COMM_WORLD);
+    readxml_bcast(alpha_infofitfac, docroot, "numerical/MQEM/alphaInfoFitFactor", MPI_COMM_WORLD);
+    readxml_bcast(alpha_initfrac, docroot, "numerical/MQEM/alphaInitFraction", MPI_COMM_WORLD);
+    readxml_bcast(alpha_stopslope, docroot, "numerical/MQEM/alphaStopSlope", MPI_COMM_WORLD);
+    readxml_bcast(alpha_stopstep, docroot, "numerical/MQEM/alphaStopStep", MPI_COMM_WORLD);
+    readxml_bcast(alpha_dAtol, docroot, "numerical/MQEM/alphaSpectrumRelativeError", MPI_COMM_WORLD);
+    readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD);
+    readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD);
+    readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD);
+    readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD);
+    readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD);
+    readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD);
+    readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
+    readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
+    readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD);
+    readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD);
 
     if (prank == 0) std::cout << sep << std::endl;
 
@@ -537,6 +538,9 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
     mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
     
+    const Eigen::ArrayXd midrealfreqs = mqem.midRealFreqs(midrealfreq_anchors_steps);
+    if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;
+    
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
     auto spectramastpart = spectra.mastFlatPart();
@@ -562,29 +566,28 @@ int main(int argc, char * argv[]) {
         //           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
         //           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
         Eigen::ArrayXd mats_freq = Eigen::ArrayXd::LinSpaced(selfendyn.dim1(), M_PI / beta, (2 * selfendyn.dim1() - 1) * M_PI / beta);
-        mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, lrealfreq, n_mrealfreq, rrealfreq, n_rrealfreq);
+        mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
+        if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
-        
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         mqem.computeRetardedFunc(selfenstatic);
+        computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
+        for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
+        spectramastpart.allGather();
+        if (prank == 0) {
+            printData("selfenergy_retarded.txt", mqem.retardedFunc());
+            printData("spectramatrix.txt", spectra);
+            printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
+            //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
+            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
+        }
         
         //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
         sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
         if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
-        
-        computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
-        for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
-        spectramastpart.allGather();
-        
         if (prank == 0) {
-            //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
-            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
-            printData("real_freqs.txt", mqem.realFreqGrid());
-            printData("selfenergy_retarded.txt", mqem.retardedFunc());
-            printData("spectramatrix.txt", spectra);
-            printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
         }
         
         MPI_Finalize();
@@ -719,7 +722,7 @@ int main(int argc, char * argv[]) {
 //        }
 //    }
     
-    mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, lrealfreq, n_mrealfreq, rrealfreq, n_rrealfreq);
+    mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, midrealfreqs, n_rrealfreq);
     if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
     
     bool computesigma;

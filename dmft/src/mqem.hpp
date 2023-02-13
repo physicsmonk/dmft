@@ -29,17 +29,19 @@ public:
     MQEMContinuator& operator=(const MQEMContinuator&) = default;
     MQEMContinuator& operator=(MQEMContinuator&&) = default;
     
-    template <int n_mom>
+    template <int n_mom, typename Derived>
     MQEMContinuator(const Eigen::Array<double, _n1, 1>& mats_freq, const SqMatArray<std::complex<double>, _n0, _n1, _nm>& Gw,
                     const Eigen::Array<double, _n1, _n0>& Gwvar, const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom,
-                    const std::size_t Nul, const double omegal, const std::size_t Nw, const double omegar, const std::size_t Nur) {
+                    const std::size_t Nul, const Eigen::ArrayBase<Derived>& midrealfreq_anchors_steps, const std::size_t Nur) {
         initParams();
-        assembleKernelMatrix(mats_freq, Nul, omegal, Nw, omegar, Nur);
-        computeSpectra(mats_freq, Gw, Gwvar, mom, Nul, omegal, Nw, omegar, Nur);
+        assembleKernelMatrix(mats_freq, Nul, midRealFreqs(midrealfreq_anchors_steps), Nur);
+        computeSpectra(mats_freq, Gw, Gwvar, mom);
     }
     
-    // Useful for obtaining Matsubara function from spectral function
-    void assembleKernelMatrix(const Eigen::Array<double, _n1, 1>& mats_freq, const std::size_t Nul, const double omegal, const std::size_t Nw, const double omegar,
+    template <typename Derived>
+    static Eigen::ArrayXd midRealFreqs(const Eigen::ArrayBase<Derived>& anchors_steps);
+    template <typename Derived>
+    void assembleKernelMatrix(const Eigen::Array<double, _n1, 1>& mats_freq, const std::size_t Nul, const Eigen::ArrayBase<Derived>& real_freq_mid,
                               const std::size_t Nur);
     template <int n_mom>
     bool computeSpectra(const Eigen::Array<double, _n1, 1>& mats_freq, const SqMatArray<std::complex<double>, _n0, _n1, _nm>& Gw,
@@ -334,19 +336,77 @@ void MQEMContinuator<_n0, _n1, _nm>::computeRetardedFunc(const SqMatArray<std::c
 }
 
 template <int _n0, int _n1, int _nm>
-void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<double, _n1, 1> &mats_freq, const std::size_t Nul, const double omegal,
-                                                          const std::size_t Nw, const double omegar, const std::size_t Nur) {
+template <typename Derived>
+Eigen::ArrayXd MQEMContinuator<_n0, _n1, _nm>::midRealFreqs(const Eigen::ArrayBase<Derived> &anchors_steps) {
+    if (anchors_steps.size() < 3 || anchors_steps.size() % 2 == 0)
+        throw std::range_error("MQEMContinuator::assembleMidRealFreqs: size of anchor_interval array is wrong");
+    
+    const std::size_t n_intervals = (anchors_steps.size() - 1) / 2;
+    const std::size_t n_mid_anchors = n_intervals - 1;
+    const std::size_t n_half_trans = 5;
+    const std::size_t n_trans = 2 * n_half_trans;
+    
+    
+    // Prepare steps in transition zone
+    Eigen::ArrayXXd trans_dw(n_trans, n_mid_anchors);
+    for (std::size_t j = 0; j < n_mid_anchors; ++j)
+        for (std::size_t i = 0; i < n_trans; ++i)
+            trans_dw(i, j) = 0.5 * (anchors_steps(2 * j + 1) + anchors_steps(2 * j + 3)
+                                    + (anchors_steps(2 * j + 3) - anchors_steps(2 * j + 1))
+                                    * std::tanh(2.0 * (static_cast<double>(i) - static_cast<double>(n_half_trans) + 0.5) / static_cast<double>(n_half_trans)));
+    // Prepare steps in constant zone
+    double interval;
+    Eigen::ArrayXi n_const_dw(n_intervals);
+    Eigen::ArrayXd const_dw(n_intervals);
+    for (std::size_t i = 0; i < n_intervals; ++i) {
+        interval = anchors_steps(2 * i + 2) - anchors_steps(2 * i);
+        if (i > 0) interval -= trans_dw(Eigen::lastN(n_half_trans), i - 1).sum();
+        if (i < n_intervals - 1) interval -= trans_dw(Eigen::seqN(0, n_half_trans), i).sum();
+        n_const_dw(i) = static_cast<int>(interval / anchors_steps(2 * i + 1) + 0.5);
+        const_dw(i) = interval / n_const_dw(i);
+    }
+    
+    // Calculate real frequency grid
+    const std::size_t n_realfreqs = n_trans * n_mid_anchors + n_const_dw.sum() + 1;
+    std::size_t k = 0;
+    Eigen::ArrayXd realfreqs(n_realfreqs);
+    realfreqs(0) = anchors_steps(0);
+    for (std::size_t j = 0; j < n_mid_anchors; ++j) {
+        for (std::size_t i = 0; i < n_const_dw(j); ++i) {
+            realfreqs(k + 1) = realfreqs(k) + const_dw(j);
+            ++k;
+        }
+        for (std::size_t i = 0; i < n_trans; ++i) {
+            realfreqs(k + 1) = realfreqs(k) + trans_dw(i, j);
+            ++k;
+        }
+    }
+    for (std::size_t i = 0; i < n_const_dw(n_intervals - 1); ++i) {
+        realfreqs(k + 1) = realfreqs(k) + const_dw(n_intervals - 1);
+        ++k;
+    }
+    
+    return realfreqs;
+}
+
+template <int _n0, int _n1, int _nm>
+template <typename Derived>
+void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<double, _n1, 1> &mats_freq, const std::size_t Nul,
+                                                          const Eigen::ArrayBase<Derived>& real_freq_mid, const std::size_t Nur) {
+    const std::size_t Nw = real_freq_mid.size();
     if (Nul < 1) throw std::range_error("computeKernelMatrix: Nul cannot be less than 1");
-    if (Nw < 2) throw std::range_error("computeKernelMatrix: Nw cannot be less than 2");
+    if (Nw < 2) throw std::range_error("computeKernelMatrix: #points in middle part of real frequencies cannot be less than 2");
     if (Nur < 1) throw std::range_error("computeKernelMatrix: Nur cannot be less than 1");
     
     const auto eps = std::any_cast<double>(parameters.at("principle_int_eps"));
-    const double domega = (omegar - omegal) / (Nw - 1);
-    const double omega0l = omegal + Nul * domega;
-    const double dul = 1.0 / (Nul * (omegal - domega - omega0l));  // This is negative; point sequence dul, 2*dul, ..., Nul*dul corresponds omega from left to right
-    const double omega0r = omegar - Nur * domega;
-    const double dur = 1.0 / (Nur * (omegar + domega - omega0r));  // This is positive; point sequence dur, 2*dur, ..., Nur*dur corresponds omega from right to left
-    const double ur = (Nur + 1) * dur;
+    const double domegal = real_freq_mid(1) - real_freq_mid(0);
+    const double domegar = real_freq_mid(Nw - 1) - real_freq_mid(Nw - 2);
+    const double omega0l = real_freq_mid(0) + Nul * domegal;
+    // This is negative; point sequence dul, 2*dul, ..., Nul*dul corresponds omega from left to right
+    const double dul = 1.0 / (Nul * (real_freq_mid(0) - domegal - omega0l));
+    const double omega0r = real_freq_mid(Nw - 1) - Nur * domegar;
+    // This is positive; point sequence dur, 2*dur, ..., Nur*dur corresponds omega from right to left
+    const double dur = 1.0 / (Nur * (real_freq_mid(Nw - 1) + domegar - omega0r));
     
     const std::size_t n_iomega = mats_freq.size();
     const std::size_t Nspl = Nul + Nw - 1 + Nur;
@@ -357,13 +417,13 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     Eigen::MatrixXd Kp(n_omega, Ncoeff);
     Eigen::RowVectorXd intA(Ncoeff);  // Every element will be explicitly set, so no need of initialization
     Eigen::MatrixXd B = Eigen::MatrixXd::Zero(Ncoeff, Ncoeff), T = Eigen::MatrixXd::Zero(Ncoeff, n_omega);
-    double uj, uj1 = 2.0 * dul, ujp, uj1p, omegajp, omegaj1p;
+    double uj, uj1 = 2.0 * dul, ujp, uj1p, omegajp, omegaj1p, domegaj;
     std::size_t ja = 0, jglobal;
-    m_omega.resize(n_omega);
     
     // First fill real frequencies; all the real frequencies will be needed later
+    m_omega.resize(n_omega);
     for (std::size_t j = 0; j < Nul; ++j) m_omega(j) = 1.0 / ((j + 1) * dul) + omega0l;
-    for (std::size_t j = 0; j < Nw; ++j) m_omega(j + Nul) = j * domega + omegal;
+    m_omega(Eigen::seqN(Nul, Nw)) = real_freq_mid;
     for (std::size_t j = 0; j < Nur; ++j) m_omega(j + Nul + Nw) = 1.0 / ((Nur - j) * dur) + omega0r;
     
     m_K_raw_Hc.resize(n_iomega, n_omega);
@@ -427,48 +487,50 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
         //omegaj = j * domega + omegal;
         //m_omega(jglobal) = omegaj;
         for (std::size_t n = 0; n < n_iomega; ++n) {
-            K(n, ja) = a_mid_coeff(m_omega(jglobal), m_omega(jglobal) + domega, 1i * mats_freq(n));
-            K(n, ja + 1) = b_mid_coeff(m_omega(jglobal), m_omega(jglobal) + domega, 1i * mats_freq(n));
-            K(n, ja + 2) = c_mid_coeff(m_omega(jglobal), m_omega(jglobal) + domega, 1i * mats_freq(n));
-            K(n, ja + 3) = d_mid_coeff(m_omega(jglobal), m_omega(jglobal) + domega, 1i * mats_freq(n));
+            K(n, ja) = a_mid_coeff(m_omega(jglobal), m_omega(jglobal + 1), 1i * mats_freq(n));
+            K(n, ja + 1) = b_mid_coeff(m_omega(jglobal), m_omega(jglobal + 1), 1i * mats_freq(n));
+            K(n, ja + 2) = c_mid_coeff(m_omega(jglobal), m_omega(jglobal + 1), 1i * mats_freq(n));
+            K(n, ja + 3) = d_mid_coeff(m_omega(jglobal), m_omega(jglobal + 1), 1i * mats_freq(n));
         }
         for (std::size_t i = 0; i < n_omega; ++i) {
             if (i == jglobal + 1) {  // Spline immediately left to point i
                 omegajp = m_omega(jglobal);
-                omegaj1p = m_omega(jglobal) + domega - eps;
+                omegaj1p = m_omega(jglobal + 1) - eps;
             }
             else if (i == jglobal) {  // Spline immediately right to point i
                 omegajp = m_omega(jglobal) + eps;
-                omegaj1p = m_omega(jglobal) + domega;
+                omegaj1p = m_omega(jglobal + 1);
             }
             else {
                 omegajp = m_omega(jglobal);
-                omegaj1p = m_omega(jglobal) + domega;
+                omegaj1p = m_omega(jglobal + 1);
             }
             Kp(i, ja) = a_mid_coeff(omegajp, omegaj1p, m_omega(i));
             Kp(i, ja + 1) = b_mid_coeff(omegajp, omegaj1p, m_omega(i));
             Kp(i, ja + 2) = c_mid_coeff(omegajp, omegaj1p, m_omega(i));
             Kp(i, ja + 3) = d_mid_coeff(omegajp, omegaj1p, m_omega(i));
         }
-        intA(ja) = domega * domega * domega * domega / 4.0; intA(ja + 1) = domega * domega * domega / 3.0; intA(ja + 2) = domega * domega / 2.0; intA(ja + 3) = domega;
+        domegaj = m_omega(jglobal + 1) - m_omega(jglobal);
+        intA(ja) = domegaj * domegaj * domegaj * domegaj / 4.0; intA(ja + 1) = domegaj * domegaj * domegaj / 3.0; intA(ja + 2) = domegaj * domegaj / 2.0; intA(ja + 3) = domegaj;
         B(ja, ja + 3) = 1.0;
         T(ja, jglobal) = 1.0;
-        B(ja + 1, ja) = domega * domega * domega; B(ja + 1, ja + 1) = domega * domega; B(ja + 1, ja + 2) = domega; B(ja + 1, ja + 3) = 1.0;
+        B(ja + 1, ja) = domegaj * domegaj * domegaj; B(ja + 1, ja + 1) = domegaj * domegaj; B(ja + 1, ja + 2) = domegaj; B(ja + 1, ja + 3) = 1.0;
         T(ja + 1, jglobal + 1) = 1.0;
         if (j < Nw - 2) {
-            B(ja + 2, ja) = 3.0 * domega * domega; B(ja + 2, ja + 1) = 2.0 * domega; B(ja + 2, ja + 2) = 1.0;
+            B(ja + 2, ja) = 3.0 * domegaj * domegaj; B(ja + 2, ja + 1) = 2.0 * domegaj; B(ja + 2, ja + 2) = 1.0;
             B(ja + 2, ja + 6) = -1.0;
-            B(ja + 3, ja) = 6.0 * domega; B(ja + 3, ja + 1) = 2.0;
+            B(ja + 3, ja) = 6.0 * domegaj; B(ja + 3, ja + 1) = 2.0;
             B(ja + 3, ja + 5) = -2.0;
         }
     }
     //m_omega(jglobal + 1) = omegar;
     
+    const double ur = (Nur + 1) * dur;
     // For derivatives at omegar; ja just has the proper value now
-    B(ja + 2, ja) = 3.0 * domega * domega; B(ja + 2, ja + 1) = 2.0 * domega; B(ja + 2, ja + 2) = 1.0;
+    B(ja + 2, ja) = 3.0 * domegar * domegar; B(ja + 2, ja + 1) = 2.0 * domegar; B(ja + 2, ja + 2) = 1.0;
     // Arising from the first spline in the right side
     B(ja + 2, ja + 4) = ur * ur * 3.0 * ur * ur; B(ja + 2, ja + 5) = ur * ur * 2.0 * ur; B(ja + 2, ja + 6) = ur * ur;
-    B(ja + 3, ja) = 6.0 * domega; B(ja + 3, ja + 1) = 2.0;
+    B(ja + 3, ja) = 6.0 * domegar; B(ja + 3, ja + 1) = 2.0;
     // Arising from the first spline in the right side
     B(ja + 3, ja + 4) = -12.0 * ur * ur * ur * ur * ur; B(ja + 3, ja + 5) = -6.0 * ur * ur * ur * ur; B(ja + 3, ja + 6) = -2.0 * ur * ur * ur;
     

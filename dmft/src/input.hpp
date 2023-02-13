@@ -18,212 +18,152 @@
 #include <cstdint>
 #include <climits>
 #if SIZE_MAX == UCHAR_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
+#define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
 #elif SIZE_MAX == USHRT_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
+#define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
 #elif SIZE_MAX == UINT_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED
+#define my_MPI_SIZE_T MPI_UNSIGNED
 #elif SIZE_MAX == ULONG_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG
+#define my_MPI_SIZE_T MPI_UNSIGNED_LONG
 #elif SIZE_MAX == ULLONG_MAX
-   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+#define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
 #else
-   #error "What is happening here?"
+#error "What is happening here?"
 #endif
 
 // Read from a xml doc root the data located at path. Use
 // template function to handle various output datatypes
 // Note docroot is passed by value as it will be changed in this function.
-template <typename SomeType>
-bool readxml(SomeType& data, pugi::xml_node docroot, const std::string& path)
+template <typename T>
+bool readxml(T& data, pugi::xml_node docroot, const std::string& path)
 {
-  std::vector<std::string> pathlist;
-  std::istringstream pathstream(path);
-  std::string s;
-  std::size_t l = 0;
-  std::stringstream ss;
-
-  // Split the path nodes for later use
-  while (std::getline(pathstream, s, '/'))
-  {
-    pathlist.push_back(s);
-  }
-  // Test
-  // for (const auto& i : pathlist) std::cout << i << "-->";
-  // std::cout << std::endl;
-
-  for (std::size_t i=0; i < pathlist.size()-1; ++i)
-  {
-    docroot = docroot.child(pathlist[i].c_str());
-    l += pathlist[i].length();
-    if (!docroot)
+    std::vector<std::string> pathlist;
+    std::istringstream pathstream(path);
+    std::string s, text;
+    std::size_t l = 0;
+    
+    // Split the path nodes for later use
+    while (std::getline(pathstream, s, '/'))
     {
-      std::cout << "No " << path.substr(0, l+i)
-      << " specified, using default value(s)" << std::endl;
-      return false;
+        pathlist.push_back(s);
     }
-  }
-  // Test
-  // std::cout << l << std::endl;
-
-  l = pathlist.back().find(".");
-  if (l != std::string::npos)
-  {
-    docroot = docroot.child(pathlist.back().substr(0, l).c_str());
-    if (!docroot)
+    // Test
+    // for (const auto& i : pathlist) std::cout << i << "-->";
+    // std::cout << std::endl;
+    
+    for (std::size_t i=0; i < pathlist.size()-1; ++i)
     {
-      std::cout << "No "
-      << path.substr(0, path.length()-(pathlist.back().length()-l))
-      << " specified, using default value(s)" << std::endl;
-      return false;
+        docroot = docroot.child(pathlist[i].c_str());
+        l += pathlist[i].length();
+        if (!docroot)
+        {
+            std::cout << "No " << path.substr(0, l+i)
+            << " specified, using default value(s)" << std::endl;
+            return false;
+        }
     }
-    else if (docroot.attribute(pathlist.back().substr(l+1).c_str()))
+    // Test
+    // std::cout << l << std::endl;
+    
+    l = pathlist.back().find(".");
+    if (l != std::string::npos)
     {
-      ss << docroot.attribute(pathlist.back().substr(l+1).c_str()).value();
-      ss >> data;
-      std::cout << "Input " << path << " is " << data << std::endl;
+        pugi::xml_attribute attr;
+        docroot = docroot.child(pathlist.back().substr(0, l).c_str());
+        if (!docroot)
+        {
+            std::cout << "No "
+            << path.substr(0, path.length()-(pathlist.back().length()-l))
+            << " specified, using default value(s)" << std::endl;
+            return false;
+        }
+        else if ((attr = docroot.attribute(pathlist.back().substr(l+1).c_str())))
+        {
+            text = attr.value();
+        }
+        else
+        {
+            std::cout << "No " << path << " specified, using default " << data << std::endl;
+            return false;
+        }
     }
     else
     {
-      std::cout << "No " << path << " specified, using default " << data << std::endl;
-      return false;
+        docroot = docroot.child(pathlist.back().c_str());
+        if (!docroot)
+        {
+            std::cout << "No " << path << " specified, using default " << data << std::endl;
+            return false;
+        }
+        else
+        {
+            text = docroot.child_value();
+        }
     }
-  }
-  else
-  {
-    docroot = docroot.child(pathlist.back().c_str());
-    if (!docroot)
-    {
-      std::cout << "No " << path << " specified, using default " << data << std::endl;
-      return false;
+    
+    if constexpr (std::is_same<T, std::string>::value) data = text;
+    else if (std::is_same<T, int>::value || std::is_same<T, bool>::value) data = std::stoi(text);
+    else if (std::is_same<T, std::size_t>::value) {
+#if SIZE_MAX == ULONG_MAX
+        data = std::stoul(text);
+#elif SIZE_MAX == ULLONG_MAX
+        data = std::stoull(text);
+#else
+#error "What is happening here?"
+#endif
     }
-    else
-    {
-      ss << docroot.child_value();
-      ss >> data;
-      std::cout << "Input " << path << " is " << data << std::endl;
-    }
-  }
-
-  return true;
+    else if (std::is_same<T, double>::value) data = std::stod(text);
+    else if (std::is_same<T, float>::value) data = std::stof(text);
+    else throw std::invalid_argument("readxml: input data type not implemented currently");
+    
+    std::cout << "Input " << path << " is " << data << std::endl;
+    
+    return true;
 }
 
-// Overloaded data-reading-broadcasting function to handle different MPI datatypes and dolfin Constant object
-bool readxml_bcast(std::string& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const int rank)  // String data
-{
-  bool readed;
-  int l;
-
-  if (rank == 0)
-  {
-    readed = readxml(data, docroot, path);
-    if (readed) l = static_cast<int>(data.length());
-  }
-  MPI_Bcast(&readed, 1, MPI_CXX_BOOL, 0, comm);
-
-  if (readed)
-  {
-    char* tmp = NULL;
-    MPI_Bcast(&l, 1, MPI_INT, 0, comm);
-    tmp = (char *) malloc((l+1)*sizeof(char));
-    if (!tmp)
-    {
-      std::cout << "Error: Memory allocation for char* tmp failed (inside function readxml_bcast)" << std::endl;
-      exit(1);
-    }
-    if (rank == 0) strcpy(tmp, data.c_str());  // Copy data string on root processor to character array for broadcasting
-    MPI_Bcast(tmp, l+1, MPI_CHAR, 0, comm);
-    data = tmp;  // Copy tmp back to data on all processors
-    if (rank == 0) std::cout << "Broadcasted " << path << std::endl;
-    free(tmp);
-  }
-  else
-  {
-    return false;
-  }
-
-  return true;
-}
-
-bool readxml_bcast(int& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const int rank)  // Integer data
+// Data-reading-broadcasting function
+template <typename T>
+bool readxml_bcast(T& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const double unit=-1.0)  // Integer data
 {
     bool readed;
-
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    
     if (rank == 0) readed = readxml(data, docroot, path);
     MPI_Bcast(&readed, 1, MPI_CXX_BOOL, 0, comm);
-
+    
     if (readed)
     {
-        MPI_Bcast(&data, 1, MPI_INT, 0, comm);
+        if constexpr (std::is_same<T, std::string>::value) {
+            int l;
+            if (rank == 0) l = static_cast<int>(data.length());
+            MPI_Bcast(&l, 1, MPI_INT, 0, comm);
+            char *tmp = new char[l + 1];
+            if (rank == 0) strcpy(tmp, data.c_str());
+            MPI_Bcast(tmp, l + 1, MPI_CHAR, 0, comm);
+            if (rank != 0) data = tmp;
+            delete[] tmp;
+        }
+        else if (std::is_same<T, int>::value) MPI_Bcast(&data, 1, MPI_INT, 0, comm);
+        else if (std::is_same<T, std::size_t>::value) MPI_Bcast(&data, 1, my_MPI_SIZE_T, 0, comm);
+        else if (std::is_same<T, bool>::value) MPI_Bcast(&data, 1, MPI_CXX_BOOL, 0, comm);
+        else if (std::is_same<T, float>::value) {
+            MPI_Bcast(&data, 1, MPI_FLOAT, 0, comm);
+            if (unit > 0) data /= unit;
+        }
+        else if (std::is_same<T, double>::value) {
+            MPI_Bcast(&data, 1, MPI_DOUBLE, 0, comm);
+            if (unit > 0) data /= unit;
+        }
+        else throw std::invalid_argument("readxml_bcast: input data type not implemented currently");
+        
         if (rank == 0) std::cout << "Broadcasted " << path << std::endl;
+        return true;
     }
     else
     {
         return false;
     }
-
-    return true;
-}
-
-bool readxml_bcast(bool& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const int rank)  // Integer data
-{
-    bool readed;
-
-    if (rank == 0) readed = readxml(data, docroot, path);
-    MPI_Bcast(&readed, 1, MPI_CXX_BOOL, 0, comm);
-
-    if (readed)
-    {
-        MPI_Bcast(&data, 1, MPI_CXX_BOOL, 0, comm);
-        if (rank == 0) std::cout << "Broadcasted " << path << std::endl;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool readxml_bcast(std::size_t& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const int rank)  // Integer data
-{
-    bool readed;
-
-    if (rank == 0) readed = readxml(data, docroot, path);
-    MPI_Bcast(&readed, 1, MPI_CXX_BOOL, 0, comm);
-
-    if (readed)
-    {
-        MPI_Bcast(&data, 1, my_MPI_SIZE_T, 0, comm);
-        if (rank == 0) std::cout << "Broadcasted " << path << std::endl;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool readxml_bcast(double& data, const pugi::xml_node& docroot, const std::string& path, const MPI_Comm& comm, const int rank, const double unit=-1.0)  // Double float data
-{
-    bool readed;
-
-    if (rank == 0) readed = readxml(data, docroot, path);
-    MPI_Bcast(&readed, 1, MPI_CXX_BOOL, 0, comm);
-
-    if (readed)
-    {
-        MPI_Bcast(&data, 1, MPI_DOUBLE, 0, comm);
-        if (unit > 0) data /= unit;
-        if (rank == 0) std::cout << "Broadcasted " << path << std::endl;
-    }
-    else
-    {
-        return false;
-    }
-
-    return true;
 }
 
 #endif /* input_hpp */
