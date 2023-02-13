@@ -355,15 +355,17 @@ Eigen::ArrayXd MQEMContinuator<_n0, _n1, _nm>::midRealFreqs(const Eigen::ArrayBa
                                     + (anchors_steps(2 * j + 3) - anchors_steps(2 * j + 1))
                                     * std::tanh(2.0 * (static_cast<double>(i) - static_cast<double>(n_half_trans) + 0.5) / static_cast<double>(n_half_trans)));
     // Prepare steps in constant zone
-    double interval;
+    double const_interval;
     Eigen::ArrayXi n_const_dw(n_intervals);
     Eigen::ArrayXd const_dw(n_intervals);
     for (std::size_t i = 0; i < n_intervals; ++i) {
-        interval = anchors_steps(2 * i + 2) - anchors_steps(2 * i);
-        if (i > 0) interval -= trans_dw(Eigen::lastN(n_half_trans), i - 1).sum();
-        if (i < n_intervals - 1) interval -= trans_dw(Eigen::seqN(0, n_half_trans), i).sum();
-        n_const_dw(i) = static_cast<int>(interval / anchors_steps(2 * i + 1) + 0.5);
-        const_dw(i) = interval / n_const_dw(i);
+        const_interval = anchors_steps(2 * i + 2) - anchors_steps(2 * i);
+        if (i > 0) const_interval -= trans_dw(Eigen::lastN(n_half_trans), i - 1).sum();
+        if (i < n_intervals - 1) const_interval -= trans_dw(Eigen::seqN(0, n_half_trans), i).sum();
+        if (const_interval < 0.0)
+            throw std::runtime_error("MQEMContinuator::assembleMidRealFreqs: encountered negative interval for constant range; try to reduce step size");
+        n_const_dw(i) = std::max<int>(static_cast<int>(const_interval / anchors_steps(2 * i + 1) + 0.5), 1);
+        const_dw(i) = const_interval / n_const_dw(i);
     }
     
     // Calculate real frequency grid
