@@ -109,13 +109,15 @@ void DMFTIterator::approxSelfEnergy() {
     const auto Gimpvarmastpart = m_ptr2Gimp->fCoeffsVar().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     std::array<std::size_t, 2> so;
-    Eigen::MatrixXd tmp;
+    Eigen::MatrixXd tmp, tmp1;
     computeSelfEnStatMoms();
     for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
         so = selfen_dyn_mastpart.global2dIndex(i);
-        selfen_dyn_mastpart[i].noalias() = Gimpmastpart[i].inverse() - Gbathmastpart[i].inverse() - m_selfen_static[so[0]];
-        tmp = Gimpmastpart[i].inverse().cwiseAbs2();
-        selfen_var_mastpart[i].noalias() = tmp * Gimpvarmastpart[i] * tmp;
+        tmp = Gimpmastpart[i].inverse();
+        selfen_dyn_mastpart[i].noalias() = tmp - Gbathmastpart[i].inverse() - m_selfen_static[so[0]];
+        tmp1 = tmp.cwiseAbs2();
+        tmp.noalias() = tmp1 * Gimpvarmastpart[i];
+        selfen_var_mastpart[i].noalias() = tmp * tmp1;
     }
     
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));

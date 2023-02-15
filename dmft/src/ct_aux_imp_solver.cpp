@@ -415,7 +415,14 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
             gc.noalias() = (G0l * MG) / beta;
             // _problem->G->fourierCoeffs()(s, o) += fermi_sign * gc;
             m_ptr2problem->G->fourierCoeffs()(s, o).noalias() += m_fermisign * gc;
-            m_ptr2problem->G->fCoeffsVar()(s, o) += m_fermisign * gc.cwiseAbs2();  // Accumulate squared norm of sample for calculating variance later
+            //m_ptr2problem->G->fCoeffsVar()(s, o) += m_fermisign * gc.cwiseAbs2();  // Accumulate squared norm of sample for calculating variance later
+            
+            // Note this line below for accumulating squared norm of sample for calculating variance later, where no Fermi sign is multiplied.
+            // This is because the sampling is really according to the probability |p|, not p, so the variance should directly arises from this sampling
+            // that is according to |p|:
+            // VarG = <|dG|^2>_|p| = <|G|^2>_|p| / <sgn>_|p|^2 - |<G>_p|^2, where dG = G * sgn / <sgn>_|p| - <G>_p, so that <dG>_|p| = 0.
+            // But we chose not to do the same thing for the standard deviation of electron density.
+            m_ptr2problem->G->fCoeffsVar()(s, o) += gc.cwiseAbs2();
         }
         
         // Measure electron density, using time translational invariance
@@ -767,7 +774,8 @@ double CTAUXImpuritySolver::solve() {
             Gwvarmastpart.sum2mastPart();
             
             Gwmastpart() /= m_nmeasure * m_measuredfermisign;  // This is G's correction to G0
-            Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
+            //Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
+            Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
             Gwmastpart() += m_ptr2problem->G0->fourierCoeffs().mastFlatPart()();  // Add G0 to obtain G
             
             m_ptr2problem->G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
