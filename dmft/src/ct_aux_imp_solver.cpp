@@ -421,7 +421,6 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
             // This is because the sampling is really according to the probability |p|, not p, so the variance should directly arises from this sampling
             // that is according to |p|:
             // VarG = <|dG|^2>_|p| = <|G|^2>_|p| / <sgn>_|p|^2 - |<G>_p|^2, where dG = G * sgn / <sgn>_|p| - <G>_p, so that <dG>_|p| = 0.
-            // But we chose not to do the same thing for the standard deviation of electron density.
             m_ptr2problem->G->fCoeffsVar()(s, o) += gc.cwiseAbs2();
         }
         
@@ -437,7 +436,8 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
         }
         denssample /= nrandmeasure;
         m_ptr2problem->G->elecDensities().col(s) += m_fermisign * denssample;
-        m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2problem->G->elecDensStdDev().col(s) += denssample.cwiseAbs2();
     }
     
     m_measuredfermisign += m_fermisign;
@@ -517,7 +517,8 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
         }
         denssample /= nrandmeasure;
         m_ptr2problem->G->elecDensities().col(s) += m_fermisign * denssample;
-        m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2problem->G->elecDensStdDev().col(s) += denssample.cwiseAbs2();
     }
     
     m_measuredfermisign += m_fermisign;
@@ -751,7 +752,7 @@ double CTAUXImpuritySolver::solve() {
         MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensities().data(), static_cast<int>(m_ptr2problem->G->elecDensities().size()), MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensStdDev().data(), static_cast<int>(m_ptr2problem->G->elecDensStdDev().size()), MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         m_ptr2problem->G->elecDensities() /= m_nmeasure * m_measuredfermisign;
-        m_ptr2problem->G->elecDensStdDev() = ((m_ptr2problem->G->elecDensStdDev() / (m_nmeasure * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
+        m_ptr2problem->G->elecDensStdDev() = ((m_ptr2problem->G->elecDensStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
         for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
