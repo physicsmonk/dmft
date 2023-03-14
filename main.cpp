@@ -340,6 +340,7 @@ int main(int argc, char * argv[]) {
     int proc_control = 0;
     bool computesigmaxy = true;
     bool computecondonce = true;
+    int intalg = CubicSpline;
     
     bool loc_corr = false;   // Whether to use local correlation approximation (off-diagonal elements of self-energy are zero)
 
@@ -425,6 +426,8 @@ int main(int argc, char * argv[]) {
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD);
+    readxml_bcast(intalg, docroot, "processControl/IntegrationAlgorithm", MPI_COMM_WORLD);
+    IntAlg intalg_ = static_cast<IntAlg>(intalg);
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD);
 
     if (prank == 0) std::cout << sep << std::endl;
@@ -583,8 +586,8 @@ int main(int argc, char * argv[]) {
         }
         
         //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
-        sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
+        sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+        if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
         if (prank == 0) {
             std::cout << "sigmaxx = " << sigmaxx << std::endl;
             if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
@@ -816,8 +819,8 @@ int main(int argc, char * argv[]) {
             
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
-            sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
-            if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector());
+            sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;

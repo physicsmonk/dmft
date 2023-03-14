@@ -63,15 +63,13 @@ public:
 
 
 
-
+enum IntAlg : int {Trapezoidal = 0, CubicSpline = 1, Simpson = 2};
 
 // Calculate longitudinal conductivity; Pass a intvec with any NaN to indicate equidistant energy grid and use Simpson integration
 template <int n0, int n1, int nm, typename Derived, typename OtherDerived>
 double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const double beta,
-                    const Eigen::ArrayBase<Derived>& engrid, const Eigen::MatrixBase<OtherDerived>& intvec) {
+                    const Eigen::ArrayBase<Derived>& engrid, const Eigen::MatrixBase<OtherDerived>& intvec, const IntAlg intalg) {
     assert(selfen.dim1() == engrid.size());
-    const bool useSimpson = intvec.array().isNaN().any();
-    if (useSimpson) assert(selfen.dim1() == intvec.size());
     
     Eigen::ArrayXd integrand = Eigen::ArrayXd::Zero(selfen.dim1());
     std::size_t iw, ik, m0, m1;
@@ -103,8 +101,11 @@ double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<dou
         }
         integrand *= -beta * ebws / (1.0 + ebws).square();
         // In units of e^2 / (2 * pi * hbar)
-        if (useSimpson) sigmaxx = simpsonIntegrate(integrand, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;
-        else sigmaxx = intvec.dot(integrand.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;
+        if (intalg == Simpson) sigmaxx = simpsonIntegrate(integrand, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;
+        else if (intalg == CubicSpline) sigmaxx = intvec.dot(integrand.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;
+        // Use trapezoidal integration
+        else sigmaxx = ((integrand(Eigen::seq(1, Eigen::last)) + integrand(Eigen::seq(0, Eigen::last - 1))) / 2.0
+            * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum() / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI;
         MPI_Allreduce(MPI_IN_PLACE, &sigmaxx, 1, MPI_DOUBLE, MPI_SUM, selfen.mpiCommunicator());
     }
     else throw std::range_error("Have not implemented calculation of longitudinal conductivity for H0.type() not being dimer_mag_2d");
@@ -115,10 +116,8 @@ double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<dou
 // Calculate Hall conductivity; Pass a intvec with any NaN to indicate equidistant energy grid and use Simpson integration
 template <int n0, int n1, int nm, typename Derived, typename OtherDerived>
 double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const double beta,
-                  const Eigen::ArrayBase<Derived>& engrid, const Eigen::MatrixBase<OtherDerived>& intvec) {
+                  const Eigen::ArrayBase<Derived>& engrid, const Eigen::MatrixBase<OtherDerived>& intvec, const IntAlg intalg) {
     assert(selfen.dim1() == engrid.size());
-    const bool useSimpson = intvec.array().isNaN().any();
-    if (useSimpson) assert(selfen.dim1() == intvec.size());
     
     Eigen::ArrayXd integrand0(selfen.dim1()), integrand1 = Eigen::ArrayXd::Zero(selfen.dim1());
     std::size_t iw0, iw1, ik, m0, m1;
@@ -154,14 +153,20 @@ double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<doubl
                             }
                         }
                     }
-                    if (useSimpson) integrand1(iw1) += simpsonIntegrate(integrand0, std::real(engrid(1)) - std::real(engrid(0)));
-                    else integrand1(iw1) += intvec.dot(integrand0.matrix());
+                    if (intalg == Simpson) integrand1(iw1) += simpsonIntegrate(integrand0, std::real(engrid(1)) - std::real(engrid(0)));
+                    else if (intalg == CubicSpline) integrand1(iw1) += intvec.dot(integrand0.matrix());
+                    // Use trapezoidal integration
+                    else integrand1(iw1) += ((integrand0(Eigen::seq(1, Eigen::last)) + integrand0(Eigen::seq(0, Eigen::last - 1))) / 2.0
+                        * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum();
                 }
             }
         }
         // In units of e^2 / (2 * pi * hbar)
-        if (useSimpson) sigmaxy = -simpsonIntegrate(integrand1, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI;
-        else sigmaxy = -intvec.dot(integrand1.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI;
+        if (intalg == Simpson) sigmaxy = -simpsonIntegrate(integrand1, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI;
+        else if (intalg == CubicSpline) sigmaxy = -intvec.dot(integrand1.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI;
+        // Use trapezoidal integration
+        else sigmaxy = -((integrand1(Eigen::seq(1, Eigen::last)) + integrand1(Eigen::seq(0, Eigen::last - 1))) / 2.0
+            * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum() / H0.hamDimerMag2d().size() * 2.0 * M_PI;
         MPI_Allreduce(MPI_IN_PLACE, &sigmaxy, 1, MPI_DOUBLE, MPI_SUM, selfen.mpiCommunicator());
     }
     else throw std::range_error("Have not implemented calculation of longitudinal conductivity for H0.type() not being dimer_mag_2d");
