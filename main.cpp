@@ -426,7 +426,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
     readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD);
-    readxml_bcast(intalg, docroot, "processControl/IntegrationAlgorithm", MPI_COMM_WORLD);
+    readxml_bcast(intalg, docroot, "processControl/integrationAlgorithm", MPI_COMM_WORLD);
     IntAlg intalg_ = static_cast<IntAlg>(intalg);
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD);
 
