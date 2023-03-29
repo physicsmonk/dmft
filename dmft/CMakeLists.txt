@@ -2,8 +2,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 find_package(MPI REQUIRED)
 find_package(Eigen3 REQUIRED NO_MODULE)
-find_package(GMP REQUIRED)
-find_package(MPFR REQUIRED)
+#find_package(GMP REQUIRED)
+#find_package(MPFR REQUIRED)
 
 # Add dependent library
 add_subdirectory(dependencies/pugixml)
@@ -22,8 +22,8 @@ target_include_directories(dmft PUBLIC
 
 target_link_libraries(dmft PUBLIC
     Eigen3::Eigen
-    ${MPFR_LIBRARIES}
-    ${GMP_LIBRARIES}
+    #${MPFR_LIBRARIES}
+    #${GMP_LIBRARIES}
     MPI::MPI_CXX
     pugixml
     )
