@@ -790,7 +790,7 @@ int main(int argc, char * argv[]) {
         }
         
         converg = dmft.checkConvergence();
-        computesigma = !computecondonce || (computecondonce && converg.first);
+        computesigma = !computecondonce || (computecondonce && converg.first) || dmft.numIterations() == nitmax;
         
         // Calculate conductivities
         if (computesigma) {
