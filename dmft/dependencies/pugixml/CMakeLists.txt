@@ -1,17 +1,17 @@
-set(VECTORIZATION "AVX512_KNL" CACHE STRING "Specify vectorization")
-if("${VECTORIZATION}" STREQUAL "AVX512_KNL")
-    set(VECTOR_FLAG "-xMIC-AVX512")
-elseif("${VECTORIZATION}" STREQUAL "AVX512_SKX")
-    set(VECTOR_FLAG "-xCORE-AVX512")
-elseif("${VECTORIZATION}" STREQUAL "AVX2")
-    set(VECTOR_FLAG "-march=core-avx2")
-else()
-    set(VECTOR_FLAG "")
-endif()
+set(VECTORIZATION "" CACHE STRING "Specify vectorization")
+#if("${VECTORIZATION}" STREQUAL "AVX512_KNL")
+#    set(VECTOR_FLAG "-xMIC-AVX512")
+#elseif("${VECTORIZATION}" STREQUAL "AVX512_SKX")
+#    set(VECTOR_FLAG "-xCORE-AVX512")
+#elseif("${VECTORIZATION}" STREQUAL "AVX2")
+#    set(VECTOR_FLAG "-march=core-avx2")
+#else()
+#    set(VECTOR_FLAG "")
+#endif()
 
 add_library(pugixml pugixml.cpp)
 
 target_include_directories(pugixml PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_compile_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTOR_FLAG}")  # $<$<CONFIG:RELEASE>:-xMIC-AVX512>
-target_link_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTOR_FLAG}")  #  $<$<CONFIG:RELEASE>:-xMIC-AVX512>
+target_compile_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTORIZATION}")  # $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}"
+target_link_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTORIZATION}")  #  $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}"

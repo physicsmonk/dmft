@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.16.1)
+cmake_minimum_required(VERSION 3.20.0)
 
 project(dimerHubbardMag
     LANGUAGES CXX)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(CMAKE_CXX_COMPILER mpiicpc)
+#set(CMAKE_CXX_COMPILER mpiicpc)
 
 # Add the dmft library
 add_subdirectory(dmft)

@@ -70,6 +70,7 @@
 		44934F242830B2A900620D90 /* mpreal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mpreal.h; sourceTree = "<group>"; };
 		44934F2728317F3500620D90 /* FindMPFR.cmake */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = FindMPFR.cmake; sourceTree = "<group>"; };
 		44934F2828317F3500620D90 /* FindGMP.cmake */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = FindGMP.cmake; sourceTree = "<group>"; };
+		44E07B2429DE0195003BE220 /* FindEigen3.cmake */ = {isa = PBXFileReference; lastKnownFileType = text; path = FindEigen3.cmake; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -199,6 +200,7 @@
 			children = (
 				44934F2728317F3500620D90 /* FindMPFR.cmake */,
 				44934F2828317F3500620D90 /* FindGMP.cmake */,
+				44E07B2429DE0195003BE220 /* FindEigen3.cmake */,
 			);
 			path = cmake;
 			sourceTree = "<group>";
