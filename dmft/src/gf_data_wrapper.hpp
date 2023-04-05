@@ -18,6 +18,7 @@
 #include <iomanip>
 #include <sstream>
 #include <charconv>
+#include <iterator>
 
 // Get underlying data type of std::size_t
 #include <cstdint>
