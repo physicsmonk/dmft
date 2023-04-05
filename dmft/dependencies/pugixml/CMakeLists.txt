@@ -8,10 +8,11 @@ set(VECTORIZATION "" CACHE STRING "Specify vectorization")
 #else()
 #    set(VECTOR_FLAG "")
 #endif()
+set(FPMODEL "" CACHE STRING "Specify math precision")
 
 add_library(pugixml pugixml.cpp)
 
 target_include_directories(pugixml PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_compile_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTORIZATION}")  # $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}"
-target_link_options(pugixml PUBLIC -std=c++17 -fp-model precise "${VECTORIZATION}")  #  $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}"
+target_compile_options(pugixml PUBLIC -std=c++17 "${FPMODEL}" "${VECTORIZATION}")  # $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}" -fp-model precise
+target_link_options(pugixml PUBLIC -std=c++17 "${FPMODEL}" "${VECTORIZATION}")  #  $<$<CONFIG:RELEASE>:-xMIC-AVX512> "${VECTOR_FLAG}" -fp-model precise
