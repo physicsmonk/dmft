@@ -641,7 +641,6 @@ CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> proble
 
 double CTAUXImpuritySolver::solve() {
     std::pair<int, std::pair<double, bool> > mstepinfo;
-    int s;
     double simpinterror = -1.0;
     
     const auto neffstep_globtot = std::any_cast<std::size_t>(parameters.at("markov chain length"));

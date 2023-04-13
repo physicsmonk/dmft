@@ -234,8 +234,8 @@ void BareGreenFunction::setParams(const double beta, const std::size_t nc, const
 // Sw0 and Sw0var use MPI only to sum measurements on all processes
 GreenFunction::GreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau,
                              const std::size_t nbins4S, const MPI_Comm& comm) : GenericGreenFunction(beta, nc, nfcut, ntau, comm),
-                                                          m_Gwvar(2, nfcut + 1, nc, comm),
-                                                          m_S(2, nbins4S, nc, comm), m_dens(nc, 2), m_densstddev(nc, 2) {}
+                                                                                m_Gwvar(2, nfcut + 1, nc, comm), m_S(2, nbins4S, nc, comm),
+                                                                                m_dens(nc, 2), m_densstddev(nc, 2) {}
 
 void GreenFunction::computeMoments(const BareHamiltonian& H0, const double U) {
     const auto I = Eigen::MatrixXd::Identity(nSites(), nSites());  // Identity matrix expression
