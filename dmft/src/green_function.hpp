@@ -136,9 +136,10 @@ protected:
     SqMatArray2XXcd m_S;
     Eigen::MatrixX2d m_dens;  // Accurate measure of spin- and site-resolved electron densities; dens = diag(G(beta-))
     Eigen::MatrixX2d m_densstddev;  // Variance of measured densities
-    std::complex<double> m_spincorr;  // Intersite spin-spin correlation <Sz1 * Sz2>
     
 public:
+    double spinCorrelation;  // Intersite spin-spin correlation <Sz1 * Sz2>, a real number
+    
     GreenFunction() {}
     GreenFunction(const double beta, const std::size_t nc, const std::size_t nfcut, const std::size_t ntau, const std::size_t nbins4S, const MPI_Comm& comm = MPI_COMM_SELF);
     GreenFunction(const GreenFunction&) = default;
@@ -160,9 +161,6 @@ public:
     
     const Eigen::MatrixX2d& elecDensStdDev() const {return m_densstddev;}
     Eigen::MatrixX2d& elecDensStdDev() {return m_densstddev;}
-    
-    const std::complex<double>& spinCorrelation() const {return m_spincorr;}
-    std::complex<double>& spinCorrelation() {return m_spincorr;}
     
     void computeMoments(const BareHamiltonian& H0, const double U);
     

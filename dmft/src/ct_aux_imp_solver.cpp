@@ -447,7 +447,7 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
     }
     // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
     const double del = nc == 1 ? 1.0 : 0.0;
-    m_ptr2problem->G->spinCorrelation() += m_fermisign * (gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
+    m_ptr2problem->G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
     - 2.0 * gbeta[0](0, 0) * gbeta[1](nc - 1, nc - 1) + gbeta[1](0, 0) * gbeta[1](nc - 1, nc - 1) + (del - gbeta[1](0, nc - 1)) * gbeta[1](nc - 1, 0));
     
     m_measuredfermisign += m_fermisign;
@@ -471,14 +471,14 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
     const double binsize4S = beta / nbins4S;
     // const double dtau4eiwt = beta / (_problem->G0->tauGridSizeOfExpiwt() - 1);
     Eigen::VectorXd eV_1(m_vertices.size());
-    Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc);
+    Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc);
     const int nrandmeasure = 10;
     Eigen::ArrayXXd randtaudiffs(m_vertices.size(), nrandmeasure), beta_randtaudiffs(m_vertices.size(), nrandmeasure), sgns(m_vertices.size(), nrandmeasure);
     Eigen::Array<std::size_t, Eigen::Dynamic, Eigen::Dynamic> ibins4S(m_vertices.size(), nrandmeasure);
     int rm;
     double rdt;
     std::size_t p, x;
-    Eigen::VectorXd denssample(nc);
+    std::array<Eigen::MatrixXcd, 2> gbeta;
     
     // Set random tau differences; same for up and down spins
     for (rm = 0; rm < nrandmeasure; ++rm) {
@@ -501,7 +501,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
     }
     
     for (int s = 0; s < 2; ++s) {
-        denssample.setZero();
+        gbeta[s] = Eigen::MatrixXcd::Zero(nc, nc);
         
 //        for (p = 0; p < vertices.size(); ++p) {
 //            M.row(p) = (expV(s, vertices[p].aux_spin) - 1) * N[s].row(p);
@@ -521,15 +521,26 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
             for (x = 0; x < nc; ++x) {
                 for (p = 0; p < m_vertices.size(); ++p) {
                     m_ptr2problem->G->selfEnGF()(s, ibins4S(p, rm))(m_vertices[p].site, x) += (m_fermisign * sgns(p, rm) / (binsize4S * nrandmeasure)) * MG(p, x);
-                    denssample(x) += std::real(sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
+                    //denssample(x) += std::real(sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
                 }
             }
+            
+            for (p = 0; p < m_vertices.size(); ++p) {
+                for (x = 0; x < nc; ++x) G0l(x, p) = sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm));
+            }
+            gbeta[s].noalias() += G0l * MG;
         }
-        denssample /= nrandmeasure;
-        m_ptr2problem->G->elecDensities().col(s) += m_fermisign * denssample;
+        // Already added G0, for measuring spin correlation
+        gbeta[s].noalias() = m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
+        // Accumulate electron density and its variance
+        m_ptr2problem->G->elecDensities().col(s) += m_fermisign * gbeta[s].diagonal().real();
         //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
-        m_ptr2problem->G->elecDensStdDev().col(s) += denssample.cwiseAbs2();
+        m_ptr2problem->G->elecDensStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
     }
+    // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
+    const double del = nc == 1 ? 1.0 : 0.0;
+    m_ptr2problem->G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
+    - 2.0 * gbeta[0](0, 0) * gbeta[1](nc - 1, nc - 1) + gbeta[1](0, 0) * gbeta[1](nc - 1, nc - 1) + (del - gbeta[1](0, nc - 1)) * gbeta[1](nc - 1, 0));
     
     m_measuredfermisign += m_fermisign;
     
@@ -683,7 +694,7 @@ double CTAUXImpuritySolver::solve() {
         m_ptr2problem->G->elecDensities().setZero();
         m_ptr2problem->G->elecDensStdDev().setZero();
         m_ptr2problem->G->fCoeffsVar()().setZero();
-        m_ptr2problem->G->spinCorrelation() = 0.0;
+        m_ptr2problem->G->spinCorrelation = 0.0;
         if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
         else if (measure_what == "G") m_ptr2problem->G->fourierCoeffs()().setZero();
         else throw std::invalid_argument("There are only two options for what to measure (S or G)!");
@@ -763,11 +774,11 @@ double CTAUXImpuritySolver::solve() {
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensStdDev().data(), static_cast<int>(m_ptr2problem->G->elecDensStdDev().size()), MPI_DOUBLE, MPI_SUM,
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2problem->G->spinCorrelation()), 1, MPI_DOUBLE_COMPLEX, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2problem->G->spinCorrelation), 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         m_ptr2problem->G->elecDensities() /= m_nmeasure * m_measuredfermisign;
         m_ptr2problem->G->elecDensStdDev() = ((m_ptr2problem->G->elecDensStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
         //for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
-        m_ptr2problem->G->spinCorrelation() /= m_nmeasure * m_measuredfermisign;
+        m_ptr2problem->G->spinCorrelation /= m_nmeasure * m_measuredfermisign;
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
         m_ptr2problem->G->computeMoments(*(m_ptr2problem->H0), m_ptr2problem->U);
