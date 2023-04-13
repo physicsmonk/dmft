@@ -750,11 +750,13 @@ int main(int argc, char * argv[]) {
         }
         else if (measurewhat == "G") {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
-            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <sign>" << std::setw(cw + 1) << " sxx (e^2/h)";
+            << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <Sz0*Sz1>" << std::setw(cw + 1) << " <sign>"
+            << std::setw(cw + 1) << " sxx (e^2/h)";
             if (computesigmaxy) fiter << std::setw(cw + 1) << " sxy (e^2/h)";
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
-            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash      << " "               << dash;
+            << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash         << " "               << dash
+            << " "               << dash;
             if (computesigmaxy) fiter << " "               << dash;
             fiter << std::endl;
         }
@@ -775,6 +777,7 @@ int main(int argc, char * argv[]) {
             printData("G.txt", G->valsOnTauGrid());
             printData("Gmatsubara.txt", G->fourierCoeffs());
             std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
+            std::cout << "    Im[<Sz0*Sz1>] = " << G->spinCorrelation().imag() << std::endl;
         }
         
         dmft.approxSelfEnergy();
@@ -836,7 +839,8 @@ int main(int argc, char * argv[]) {
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum() << " " << std::setw(cw) << impsolver.fermiSign();
+                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum()
+                << " " << std::setw(cw) << G->spinCorrelation().real() << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
                 fiter << " " << std::setw(cw) << sigmaxx;
