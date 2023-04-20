@@ -339,7 +339,7 @@ int main(int argc, char * argv[]) {
     
     int proc_control = 0;
     bool computesigmaxy = true;
-    bool computecondonce = true;
+    int n_computecond = 1;   // Number of times computing conductivities after convergence
     int intalg = CubicSpline;
     
     bool loc_corr = false;   // Whether to use local correlation approximation (off-diagonal elements of self-energy are zero)
@@ -425,7 +425,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD);
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
-    readxml_bcast(computecondonce, docroot, "processControl/computeConductivityOnce", MPI_COMM_WORLD);
+    readxml_bcast(n_computecond, docroot, "processControl/numComputeConductivity", MPI_COMM_WORLD);
     readxml_bcast(intalg, docroot, "processControl/integrationAlgorithm", MPI_COMM_WORLD);
     IntAlg intalg_ = static_cast<IntAlg>(intalg);
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD);
@@ -669,6 +669,7 @@ int main(int argc, char * argv[]) {
     
     
     std::pair<bool, double> converg;
+    int cond_computed_times = 0;
     double interr;
     // double varmax, var;
     auto tstart = std::chrono::high_resolution_clock::now();
@@ -792,7 +793,7 @@ int main(int argc, char * argv[]) {
         }
         
         converg = dmft.checkConvergence();
-        computesigma = !computecondonce || (computecondonce && converg.first) || dmft.numIterations() == nitmax;
+        computesigma = (converg.first && cond_computed_times < n_computecond) || dmft.numIterations() == nitmax;
         
         // Calculate conductivities
         if (computesigma) {
@@ -827,6 +828,7 @@ int main(int argc, char * argv[]) {
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
         }
+        ++cond_computed_times;
         
         if (prank == 0) {
             if (measurewhat == "S") {
@@ -852,7 +854,7 @@ int main(int argc, char * argv[]) {
             fiter << std::endl;
         }
     }
-    while (!converg.first && dmft.numIterations() < nitmax);  // Main iteration stops here
+    while (cond_computed_times < n_computecond && dmft.numIterations() < nitmax);  // Main iteration stops here
     if (!converg.first && prank == 0) {
         fiter << sep << std::endl;
         fiter << ">>>>>> DMFT self-consistency iteration did not converge! <<<<<<" << std::endl;
