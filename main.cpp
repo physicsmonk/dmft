@@ -827,8 +827,8 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
+            ++cond_computed_times;
         }
-        ++cond_computed_times;
         
         if (prank == 0) {
             if (measurewhat == "S") {
