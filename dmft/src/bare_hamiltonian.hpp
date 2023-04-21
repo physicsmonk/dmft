@@ -184,8 +184,14 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     }
     
     // Record info because finding max or min is a little bit costly
-    m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
-    m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
+    if (m_klocalsize > 0) {
+        m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
+        m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
+    }
+    else {
+        m_erange[0] = 1e9 * m_t.abs().maxCoeff();
+        m_erange[1] = -m_erange[0];
+    }
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
     MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
     
