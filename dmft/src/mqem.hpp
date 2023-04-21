@@ -191,7 +191,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
     
     double m0trace, varmin, logainfofit, loga, logchi2, logchi2_old, dloga, dloga_fac, dAr, dH, slope;
-    std::size_t na, nrecord, trial, s;
+    std::size_t na, nrecord, trial, s, max_slope_id;
     std::pair<bool, std::size_t> cvg;
     
     m_D.mpiCommunicator(Gw.mpiCommunicator());
@@ -307,8 +307,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
             //m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&(m_opt_alpha_id(s)));
             //m_opt_alpha_id(s) += 2;
+            ((m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 1) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 1)) /
+             (m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 0) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 0))).maxCoeff(&max_slope_id);
+            max_slope_id += afitsize / 2;
+            if (max_slope_id >= nrecord) throw std::range_error("MQEM: Calculated misfit curve did not pass information-fitting regime");
             fitCurvature(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].col(2), afitsize);
-            m_misfit_curve[sl].col(2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(sl)));
+            m_misfit_curve[sl](Eigen::seq(max_slope_id, Eigen::last), 2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(sl)));
+            m_opt_alpha_id(sl) += max_slope_id;
             Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
         }
         else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
