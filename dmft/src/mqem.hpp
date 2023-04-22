@@ -66,6 +66,7 @@ public:
     
 private:
     static constexpr int nm2 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * _nm;
+    double m_pulay_mix_param;   // Internal Pulay mixing parameter that can change
     Eigen::Array<std::size_t, Eigen::Dynamic, 1> m_opt_alpha_id;
     Eigen::ArrayXd m_omega;
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_A;
@@ -215,6 +216,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     if (verbose && Gw.processRank() == 0) std::cout << std::scientific << std::setprecision(6)
         << "====== MQEM: start decreasing alpha in process 0 ======" << std::endl;
     for (std::size_t sl = 0; sl < Gwpart.dim0(); ++sl) {
+        m_pulay_mix_param = std::any_cast<double>(parameters.at("Pulay_mixing_param"));
         s = sl + Gwpart.start();
         m0trace = mom(s, 0).trace().real();
         // Initialize quantities
@@ -249,7 +251,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 Apart.atDim0(sl) = A_old();  // Restore initial guess
                 dloga *= rmin;
                 //parameters.at("Pulay_period") = std::any_cast<std::size_t>(parameters.at("Pulay_period")) + 1;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * rmin;
+                m_pulay_mix_param *= rmin;
                 ++trial;
                 continue;
             }
@@ -283,7 +285,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 //if (dA < dAtol) parameters.at("Pulay_period") = std::max(std::any_cast<std::size_t>(parameters.at("Pulay_period")) - 1, std::size_t(2));
                 dloga_fac = std::min(std::max(sa * (dAtol - dH) / (dAr + dH), rmin), rmax);
                 dloga *= dloga_fac;
-                parameters.at("Pulay_mixing_param") = std::any_cast<double>(parameters.at("Pulay_mixing_param")) * dloga_fac;
+                m_pulay_mix_param *= dloga_fac;
             }
             
             ++na;
@@ -689,7 +691,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
                                                                                 const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom,
                                                                                 const double alpha,
                                                                                 const std::size_t s) {
-    const auto mix_param = std::any_cast<double>(parameters.at("Pulay_mixing_param"));
+    //const auto mix_param = std::any_cast<double>(parameters.at("Pulay_mixing_param"));
     const auto hist_size = std::any_cast<std::size_t>(parameters.at("Pulay_history_size"));
     const auto period = std::any_cast<std::size_t>(parameters.at("Pulay_period"));
     const auto tol = std::any_cast<double>(parameters.at("Pulay_tolerance"));
@@ -737,7 +739,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
         A_old() = m_A.atDim0(s);
         f_old() = f();
         // Calculate new variables
-        m_A.atDim0(s) += mix_param * f();  // Linear mixing
+        m_A.atDim0(s) += m_pulay_mix_param * f();  // Linear mixing
         if (iter >= hist_size && (iter + 1) % period == 0) {  // Pulay mixing, do this only after history caches are full
             // Prepare permutation matrix to properly order the history
             // for (std::size_t ip = 0; ip < hist_size; ++ip) perm.indices()[ip] = (ip + 1 + ih) % hist_size;
@@ -755,7 +757,7 @@ std::pair<bool, std::size_t> MQEMContinuator<_n0, _n1, _nm>::periodicPulaySolve(
             decomp.compute(F);
             J = decomp.solve(Eigen::MatrixXcd::Identity(N, N));
             v.noalias() = J * f().reshaped();
-            RF.noalias() = R + mix_param * F;
+            RF.noalias() = R + m_pulay_mix_param * F;
             m_A.atDim0(s).reshaped().noalias() -= RF * v;
         }
     }
