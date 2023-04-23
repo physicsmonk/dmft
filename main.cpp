@@ -258,7 +258,7 @@ int main(int argc, char * argv[]) {
     // std::random_device rd;
     // std::cout << rd() << std::endl;
     
-    std::size_t nc = 2;
+    std::size_t nsite = 2;
     double t = -1.0;
     double tz = -1.0;
     int q = 2;
@@ -268,6 +268,9 @@ int main(int argc, char * argv[]) {
     // mu_eff is the effective chemical potential of the interacting system for the impurity solver while mu = mu_eff + U / 2 is
     // the true chemical potential. mu_eff = 0 corresponds to half-filling, which is default.
     double mu_eff = 0.0;
+    // Goal electron density; negative means to fix chemical potential while positive means to fix electron density to this goal value,
+    // in which case mu_eff is taken as initial value
+    double density_goal = -1.0;
     double K = 1.0;
     
     std::size_t nkx = 101;
@@ -293,6 +296,7 @@ int main(int argc, char * argv[]) {
     double G0stepsize = 1.0;
     std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
+    double density_error = 0.001;
     
     /*
     // For Pade interpolation
@@ -353,7 +357,7 @@ int main(int argc, char * argv[]) {
     }
     docroot = doc.child("input");
 
-    readxml_bcast(nc, docroot, "physical/numSites", MPI_COMM_WORLD);
+    readxml_bcast(nsite, docroot, "physical/numSites", MPI_COMM_WORLD);
     readxml_bcast(t, docroot, "physical/hoppingXy", MPI_COMM_WORLD);
     readxml_bcast(tz, docroot, "physical/hoppingXy.hoppingZ", MPI_COMM_WORLD);
     readxml_bcast(q, docroot, "physical/q", MPI_COMM_WORLD);
@@ -361,6 +365,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(beta, docroot, "physical/inverseTemperature", MPI_COMM_WORLD);
     readxml_bcast(U, docroot, "physical/onsiteCoulombRepulsion", MPI_COMM_WORLD);
     readxml_bcast(mu_eff, docroot, "physical/effectiveChemicalPotential", MPI_COMM_WORLD);
+    readxml_bcast(density_goal, docroot, "physical/density", MPI_COMM_WORLD);
     readxml_bcast(nbins4dos, docroot, "numerical/bareDOS/numBins", MPI_COMM_WORLD);
     readxml_bcast(nkx, docroot, "numerical/bareDOS/numBins.numkx", MPI_COMM_WORLD);
     readxml_bcast(nky, docroot, "numerical/bareDOS/numBins.numky", MPI_COMM_WORLD);
@@ -381,6 +386,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD);
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD);
+    readxml_bcast(density_error, docroot, "numerical/selfConsistency/densityError", MPI_COMM_WORLD);
     /*
     readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
@@ -445,7 +451,7 @@ int main(int argc, char * argv[]) {
     
     // Note this constructor: if nc is of type int, on some computers it could be implicitely converted to MPI_Comm type, not std::size_t type,
     // and call another constructor, very dangerous
-    SqMatArray22Xcd moments(2, 2, nc);
+    SqMatArray22Xcd moments(2, 2, nsite);
     moments(0, 0) << 0.0, tz,
                      tz, 0.0;  // Set first moment
     moments(0, 1) << 4.0 * t * t + tz * tz, 0.0,
@@ -550,10 +556,10 @@ int main(int argc, char * argv[]) {
     //Eigen::ArrayXcd en_idel;
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
-        SqMatArray2XXcd selfendyn(2, nfcut + 1, nc, MPI_COMM_WORLD);
-        SqMatArray2XXd selfenvar(2, nfcut + 1, nc, MPI_COMM_WORLD);
-        SqMatArray21Xcd selfenstatic(2, 1, nc, MPI_COMM_WORLD);
-        SqMatArray23Xcd selfenmom(2, 3, nc, MPI_COMM_WORLD);
+        SqMatArray2XXcd selfendyn(2, nfcut + 1, nsite, MPI_COMM_WORLD);
+        SqMatArray2XXd selfenvar(2, nfcut + 1, nsite, MPI_COMM_WORLD);
+        SqMatArray21Xcd selfenstatic(2, 1, nsite, MPI_COMM_WORLD);
+        SqMatArray23Xcd selfenmom(2, 3, nsite, MPI_COMM_WORLD);
         if (prank == 0) {
             loadData("selfenergy_dyn.txt", selfendyn);
             loadData("selfenergy_var.txt", selfenvar);
@@ -621,7 +627,7 @@ int main(int argc, char * argv[]) {
     
     
     if (measurewhat == "S") ntau4eiwt = 0;  // Not allocate eiwt array anyway if measuring S
-    auto G0 = std::make_shared<BareGreenFunction>(beta, nc, nfcut, ntau, ntau4eiwt, MPI_COMM_WORLD);
+    auto G0 = std::make_shared<BareGreenFunction>(beta, nsite, nfcut, ntau, ntau4eiwt, MPI_COMM_WORLD);
 //    std::complex<double> omega;
 //    for (int o = 0; o <= nfcut; ++o) {
 //        omega = (2.0 * o + 1.0) * M_PI / beta;
@@ -633,7 +639,7 @@ int main(int argc, char * argv[]) {
 //        printG("G0.txt", G0);
 //    }
 
-    auto G = std::make_shared<GreenFunction>(beta, nc, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
+    auto G = std::make_shared<GreenFunction>(beta, nsite, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
     
     //MPI_Barrier(MPI_COMM_WORLD);
     //usleep(1000 * prank);
@@ -693,7 +699,7 @@ int main(int argc, char * argv[]) {
         for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
             so = G0wmastpart.global2dIndex(i);
             // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
-            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0->moments()(so[0], 0)).inverse();
+            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nsite, nsite) - H0->moments()(so[0], 0)).inverse();
         }
         G0wmastpart.allGather();
         G0->invFourierTrans();
@@ -730,6 +736,7 @@ int main(int argc, char * argv[]) {
     if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
     
     bool computesigma;
+    double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
     
     const int cw = 13;
     std::string dash(cw, '-');
@@ -792,8 +799,11 @@ int main(int argc, char * argv[]) {
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
         }
         
+        density = G->densities().sum();
         converg = dmft.checkConvergence();
-        computesigma = (converg.first && cond_computed_times < n_computecond) || dmft.numIterations() == nitmax;
+        computesigma = converg.first;
+        if (density_goal >= 0.0) computesigma = computesigma && std::abs(density - density_goal) < density_error;
+        computesigma = computesigma || dmft.numIterations() == nitmax;
         
         // Calculate conductivities
         if (computesigma) {
@@ -834,13 +844,13 @@ int main(int argc, char * argv[]) {
             if (measurewhat == "S") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum()
+                << " " << std::setw(cw) << G->densStdDev()(0, 0) << " " << std::setw(cw) << density
                 << " " << std::setw(cw) << G->spinCorrelation << " " << std::setw(cw) << impsolver.fermiSign() << " " << std::setw(cw) << interr;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->elecDensStdDev()(0, 0) << " " << std::setw(cw) << G->elecDensities().sum()
+                << " " << std::setw(cw) << G->densStdDev()(0, 0) << " " << std::setw(cw) << density
                 << " " << std::setw(cw) << G->spinCorrelation << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
@@ -853,8 +863,16 @@ int main(int argc, char * argv[]) {
             }
             fiter << std::endl;
         }
-    }
-    while (cond_computed_times < n_computecond && dmft.numIterations() < nitmax);  // Main iteration stops here
+        
+        if (density_goal >= 0.0 && converg.first) {
+            // Newton's iteration for finding root of n(mu_eff) - n_goal = 0
+            H0->chemPot(mu_eff - (mu_eff - mueff_old) / (density - density_old) * (density - density_goal));
+            mueff_old = mu_eff;
+            density_old = density;
+            mu_eff = H0->chemPot();
+            if (prank == 0) std::cout << "Adjusted effective chemical potential by " << mu_eff - mueff_old << " to " << mu_eff << std::endl;
+        }
+    } while (cond_computed_times < n_computecond && dmft.numIterations() < nitmax);  // Main iteration stops here
     if (!converg.first && prank == 0) {
         fiter << sep << std::endl;
         fiter << ">>>>>> DMFT self-consistency iteration did not converge! <<<<<<" << std::endl;

@@ -441,9 +441,9 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
         // Already added G0, for measuring spin correlation
         gbeta[s].noalias() = m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
         // Accumulate electron density and its variance
-        m_ptr2problem->G->elecDensities().col(s) += m_fermisign * gbeta[s].diagonal().real();
+        m_ptr2problem->G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
         //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
-        m_ptr2problem->G->elecDensStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
+        m_ptr2problem->G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
     }
     // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
     const double del = nc == 1 ? 1.0 : 0.0;
@@ -533,9 +533,9 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
         // Already added G0, for measuring spin correlation
         gbeta[s].noalias() = m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
         // Accumulate electron density and its variance
-        m_ptr2problem->G->elecDensities().col(s) += m_fermisign * gbeta[s].diagonal().real();
+        m_ptr2problem->G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
         //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
-        m_ptr2problem->G->elecDensStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
+        m_ptr2problem->G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
     }
     // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
     const double del = nc == 1 ? 1.0 : 0.0;
@@ -691,8 +691,8 @@ double CTAUXImpuritySolver::solve() {
     const auto does_measure = std::any_cast<bool>(parameters.at("does measure"));
     const auto measure_what = std::any_cast<std::string>(parameters.at("measure what"));
     if (does_measure) {
-        m_ptr2problem->G->elecDensities().setZero();
-        m_ptr2problem->G->elecDensStdDev().setZero();
+        m_ptr2problem->G->densities().setZero();
+        m_ptr2problem->G->densStdDev().setZero();
         m_ptr2problem->G->fCoeffsVar()().setZero();
         m_ptr2problem->G->spinCorrelation = 0.0;
         if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
@@ -770,13 +770,13 @@ double CTAUXImpuritySolver::solve() {
     // Finalize measurement
     if (does_measure) {
         // Finalize the measurement of electron density
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensities().data(), static_cast<int>(m_ptr2problem->G->elecDensities().size()), MPI_DOUBLE, MPI_SUM,
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densities().data(), static_cast<int>(m_ptr2problem->G->densities().size()), MPI_DOUBLE, MPI_SUM,
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->elecDensStdDev().data(), static_cast<int>(m_ptr2problem->G->elecDensStdDev().size()), MPI_DOUBLE, MPI_SUM,
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densStdDev().data(), static_cast<int>(m_ptr2problem->G->densStdDev().size()), MPI_DOUBLE, MPI_SUM,
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2problem->G->spinCorrelation), 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        m_ptr2problem->G->elecDensities() /= m_nmeasure * m_measuredfermisign;
-        m_ptr2problem->G->elecDensStdDev() = ((m_ptr2problem->G->elecDensStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2problem->G->elecDensities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
+        m_ptr2problem->G->densities() /= m_nmeasure * m_measuredfermisign;
+        m_ptr2problem->G->densStdDev() = ((m_ptr2problem->G->densStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2problem->G->densities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
         //for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
         m_ptr2problem->G->spinCorrelation /= m_nmeasure * m_measuredfermisign;
         

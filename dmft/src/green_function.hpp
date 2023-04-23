@@ -156,11 +156,11 @@ public:
     
     std::size_t nTauBins4selfEnGF() const {return m_S.dim1();}
     
-    const Eigen::MatrixX2d& elecDensities() const {return m_dens;}
-    Eigen::MatrixX2d& elecDensities() {return m_dens;}
+    const Eigen::MatrixX2d& densities() const {return m_dens;}
+    Eigen::MatrixX2d& densities() {return m_dens;}
     
-    const Eigen::MatrixX2d& elecDensStdDev() const {return m_densstddev;}
-    Eigen::MatrixX2d& elecDensStdDev() {return m_densstddev;}
+    const Eigen::MatrixX2d& densStdDev() const {return m_densstddev;}
+    Eigen::MatrixX2d& densStdDev() {return m_densstddev;}
     
     void computeMoments(const BareHamiltonian& H0, const double U);
     
