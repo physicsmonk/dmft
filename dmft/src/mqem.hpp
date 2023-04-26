@@ -596,7 +596,8 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     //Binv = B.partialPivLu().inverse();
     //std::cout << K.array().isNaN().any() << ", " << Binv.array().isNaN().any() << std::endl;
     //m_K.resize(n_iomega, Nspl + 1);
-    Eigen::ColPivHouseholderQR<Eigen::MatrixXd> decomp(B);
+    //Eigen::ColPivHouseholderQR<Eigen::MatrixXd> decomp(B);
+    Eigen::FullPivLU<Eigen::MatrixXd> decomp(B);
     if (decomp.isInvertible()) B = decomp.inverse();
     else throw std::runtime_error("MQEMContinuator::assembleKernelMatrix: matrix B is not invertible");
     const Eigen::MatrixXd tmp = B * T;  // Now B is already its inverse matrix
