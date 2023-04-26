@@ -318,7 +318,7 @@ int main(int argc, char * argv[]) {
      */
     
     // For MQEM analytic continuation
-    double mat_inv_threshold = 1e-6;
+    double mat_inv_threshold = -1.0;
     std::size_t n_lrealfreq = 10;
     Eigen::Array<double, 7, 1> midrealfreq_anchors_steps;
     midrealfreq_anchors_steps << -5.0, 0.1, -2.0, 0.05, 2.0, 0.1, 5.0;
