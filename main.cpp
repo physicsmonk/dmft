@@ -318,6 +318,7 @@ int main(int argc, char * argv[]) {
      */
     
     // For MQEM analytic continuation
+    double mat_inv_threshold = 1e-6;
     std::size_t n_lrealfreq = 10;
     Eigen::Array<double, 7, 1> midrealfreq_anchors_steps;
     midrealfreq_anchors_steps << -5.0, 0.1, -2.0, 0.05, 2.0, 0.1, 5.0;
@@ -404,6 +405,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
     */
+    readxml_bcast(mat_inv_threshold, docroot, "numerical/MQEM/matrixInvertibleThreshold", MPI_COMM_WORLD);
     readxml_bcast(n_lrealfreq, docroot, "numerical/MQEM/numLeftRealFrequencies", MPI_COMM_WORLD);
     std::string rfai;
     std::stringstream rfai_;
@@ -528,6 +530,7 @@ int main(int argc, char * argv[]) {
 //    PadeApproximant2XXmpreal pade;
 //#endif
     MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> mqem;
+    mqem.parameters.at("matrix_invertible_threshold") = mat_inv_threshold;
     mqem.parameters.at("Pulay_mixing_param") = pulay_mix;
     mqem.parameters.at("Pulay_history_size") = pulay_histsize;
     mqem.parameters.at("Pulay_period") = pulay_period;
