@@ -798,21 +798,26 @@ void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived
     typedef typename Derived::Scalar Scalar;
     //typedef typename Eigen::internal::plain_col_type<Derived>::type VectorType;
     
-    // A general circle has 3 parameters; 3 for #row for contiguous memory for local param matrix
+    // We choose circle equation A * (x^2 + y^2) + B * x + C * y + 1 = 0, so it can also represent a straight line.
+    // It has 3 parameters; 3 for #row for contiguous memory for local param matrix
     Eigen::Matrix<Scalar, 3, Derived::RowsAtCompileTime> param_mat(3, curve.rows());
     Eigen::Vector<Scalar, Derived::RowsAtCompileTime> param_vec(curve.rows());
     
     // Assemble the full param matrix and vector
     for (std::size_t i = 0; i < curve.rows(); ++i) {
-        param_mat(0, i) = curve(i, 0);
-        param_mat(1, i) = curve(i, 1);
-        param_mat(2, i) = 1.0;
-        param_vec(i) = -(curve(i, 0) * curve(i, 0) + curve(i, 1) * curve(i, 1));
+        //param_mat(0, i) = curve(i, 0);
+        //param_mat(1, i) = curve(i, 1);
+        //param_mat(2, i) = 1.0;
+        //param_vec(i) = -(curve(i, 0) * curve(i, 0) + curve(i, 1) * curve(i, 1));
+        param_mat(0, i) = curve(i, 0) * curve(i, 0) + curve(i, 1) * curve(i, 1);
+        param_mat(1, i) = curve(i, 0);
+        param_mat(2, i) = curve(i, 1);
+        param_vec(i) = -1.0;
     }
     
     Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<Scalar, Eigen::Dynamic, 3> > decomp(n_fitpts, 3);
     Eigen::Vector<Scalar, 3> circ_coeffs;
-    Scalar dx, dy;
+    Scalar dx, dy, centerx, centery;
     const std::size_t ifitbegin = n_fitpts / 2;
     const std::size_t ifitend = curve.rows() - (n_fitpts + 1) / 2;
     
@@ -824,15 +829,20 @@ void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived
         if (i < ifitbegin) curvature_(i) = std::nan("initial");
         else if (i > ifitend) curvature_(i) = std::nan("last");
         else {
-            decomp.compute(param_mat.middleCols(i - ifitbegin, n_fitpts).transpose());
-            circ_coeffs = decomp.solve(param_vec.segment(i - ifitbegin, n_fitpts));
-            circ_coeffs(0) /= -2.0;  // Center coordinates of the circle
-            circ_coeffs(1) /= -2.0;
             dx = curve(i + 1, 0) - curve(i, 0);
             dy = (curve(i + 1, 1) - curve(i, 1)) * std::copysign(1.0, dx);
             dx = std::abs(dx);
-            curvature_(i) = std::copysign(1.0 / std::sqrt(circ_coeffs(0) * circ_coeffs(0) + circ_coeffs(1) * circ_coeffs(1) - circ_coeffs(2)),
-                                          (curve(i, 0) - circ_coeffs(0)) * dy - (curve(i, 1) - circ_coeffs(1)) * dx);
+            decomp.compute(param_mat.middleCols(i - ifitbegin, n_fitpts).transpose());
+            circ_coeffs = decomp.solve(param_vec.segment(i - ifitbegin, n_fitpts));
+            //circ_coeffs(0) /= -2.0;  // Center coordinates of the circle
+            //circ_coeffs(1) /= -2.0;
+            //curvature_(i) = std::copysign(1.0 / std::sqrt(circ_coeffs(0) * circ_coeffs(0) + circ_coeffs(1) * circ_coeffs(1) - circ_coeffs(2)),
+            //                              (curve(i, 0) - circ_coeffs(0)) * dy - (curve(i, 1) - circ_coeffs(1)) * dx);
+            centerx = -circ_coeffs(1) / (2.0 * circ_coeffs(0));  // Center coordinates of the circle
+            centery = -circ_coeffs(2) / (2.0 * circ_coeffs(0));
+            curvature_(i) = std::copysign(2.0 * std::abs(circ_coeffs(0))
+                                          / std::sqrt(circ_coeffs(1) * circ_coeffs(1) + circ_coeffs(2) * circ_coeffs(2) - 4.0 * circ_coeffs(0)),
+                                          (curve(i, 0) - centerx) * dy - (curve(i, 1) - centery) * dx);
         }
     }
 }
