@@ -740,7 +740,7 @@ int main(int argc, char * argv[]) {
     
     // For testing
     SqMatArray2XXcd selfentail(2, std::any_cast<std::size_t>(dmft.parameters.at("num_high_freq_tail")), nsite);
-    double w;
+    std::size_t ng;
     
     bool computesigma;
     double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
@@ -807,9 +807,10 @@ int main(int argc, char * argv[]) {
             // For testing
             for (std::size_t s = 0; s < 2; ++s) {
                 for (std::size_t n = 0; n < selfentail.dim1(); ++n) {
-                    w = (2 * (nfcut + 1 - selfentail.dim1() + n) + 1) / beta;
-                    selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (w * 1i) + dmft.selfEnergyMoms()(s, 1) / (-w * w)
-                    + dmft.selfEnergyMoms()(s, 2) / (-1i * w * w * w);
+                    ng = nfcut + 1 - selfentail.dim1() + n;
+                    selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (G0->matsubFreqs()(ng) * 1i)
+                    + dmft.selfEnergyMoms()(s, 1) / (-G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng))
+                    + dmft.selfEnergyMoms()(s, 2) / (-1i * G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng));
                 }
             }
             printData("selfenergy_tail.txt", selfentail);

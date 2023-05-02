@@ -96,19 +96,16 @@ void DMFTIterator::computeSelfEnMoms() {
     const auto n_hftail = std::any_cast<std::size_t>(parameters.at("num_high_freq_tail"));
     const std::size_t fcut = m_ptr2Gimp->freqCutoff();
     if (n_hftail > fcut + 1) throw std::range_error("DMFTIterator::computeSelfEnStatMoms: number of high frequency tail exceeds frequency cut-off");
-    const double beta = m_ptr2Gimp->inverseTemperature();
     const std::size_t ns = m_ptr2Gimp->nSites();
     Eigen::MatrixX2cd coef(n_hftail, 2), coef_weighted(n_hftail, 2);
     Eigen::VectorXcd input(n_hftail);
     Eigen::VectorXd weight(n_hftail);
     std::size_t ng;
-    double w;
     Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2cd> decomp(n_hftail, 2);
     for (std::size_t n = 0; n < n_hftail; ++n) {
         ng = fcut + 1 - n_hftail + n;
-        w = (2 * ng + 1) / beta;
-        coef(n, 0) = -1.0 / (w * w);
-        coef(n, 1) = -1.0 / (w * w * w * 1i);
+        coef(n, 0) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
+        coef(n, 1) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * 1i);
     }
     for (int s = 0; s < 2; ++s) {
         // Calculate first moment
@@ -119,8 +116,7 @@ void DMFTIterator::computeSelfEnMoms() {
             for (std::size_t i = 0; i < ns; ++i) {
                 for (std::size_t n = 0; n < n_hftail; ++n) {
                     ng = fcut + 1 - n_hftail + n;
-                    w = (2 * ng + 1) / beta;
-                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_moms(s, 0, i, j) / (w * 1i);
+                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_moms(s, 0, i, j) / (m_ptr2Gimp->matsubFreqs()(ng) * 1i);
                 }
                 weight = m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt().matrix().transpose();
                 coef_weighted.noalias() = weight.asDiagonal() * coef;
