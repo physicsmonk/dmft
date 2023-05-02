@@ -120,7 +120,7 @@ void DMFTIterator::computeSelfEnMoms() {
                 for (std::size_t n = 0; n < n_hftail; ++n) {
                     ng = fcut + 1 - n_hftail + n;
                     w = (2 * ng + 1) / beta;
-                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_static(s, 0, i, j) / (w * 1i);
+                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_moms(s, 0, i, j) / (w * 1i);
                 }
                 weight = m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt().matrix().transpose();
                 coef_weighted.noalias() = weight.asDiagonal() * coef;
