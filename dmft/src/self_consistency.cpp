@@ -97,32 +97,73 @@ void DMFTIterator::computeSelfEnMoms() {
     const std::size_t fcut = m_ptr2Gimp->freqCutoff();
     if (n_hftail > fcut + 1) throw std::range_error("DMFTIterator::computeSelfEnStatMoms: number of high frequency tail exceeds frequency cut-off");
     const std::size_t ns = m_ptr2Gimp->nSites();
-    Eigen::MatrixX2cd coef(n_hftail, 2), coef_weighted(n_hftail, 2);
-    Eigen::VectorXcd input(n_hftail);
-    Eigen::VectorXd weight(n_hftail);
+    Eigen::MatrixX2d coef = Eigen::MatrixX2d::Zero(2 * n_hftail, 2), coef_weighted(2 * n_hftail, 2);
+    Eigen::MatrixX4d coef_off = Eigen::MatrixX4d::Zero(4 * n_hftail, 4), coef_off_weighted(4 * n_hftail, 4);
+    Eigen::VectorXd input(2 * n_hftail), weight(2 * n_hftail), input_off(4 * n_hftail), weight_off(4 * n_hftail);
     std::size_t ng;
-    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2cd> decomp(n_hftail, 2);
+    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2d> decomp(2 * n_hftail, 2);
+    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX4d> decomp_off(4 * n_hftail, 4);
+    Eigen::Vector4d sol;
     for (std::size_t n = 0; n < n_hftail; ++n) {
         ng = fcut + 1 - n_hftail + n;
-        coef(n, 0) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
-        coef(n, 1) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * 1i);
+        // For real part of diagonal element of Matsubara self-energy
+        coef(2 * n, 0) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
+        // For imaginary part of diagonal element of Matsubara self-energy
+        coef(2 * n + 1, 1) = 1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
+        // For real part of lower triangular element of Matsubara self-energy
+        coef_off(4 * n, 0) = coef(2 * n, 0);
+        coef_off(4 * n, 3) = -coef(2 * n + 1, 1);
+        // For imaginary part of lower triangular element of Matsubara self-energy
+        coef_off(4 * n + 1, 1) = coef_off(4 * n, 0);
+        coef_off(4 * n + 1, 2) = -coef_off(4 * n, 3);
+        // For real part of upper triangular element of Matsubara self-energy
+        coef_off(4 * n + 2, 0) = coef_off(4 * n, 0);
+        coef_off(4 * n + 2, 3) = -coef_off(4 * n, 3);
+        // For imaginary part of upper triangular element of Matsubara self-energy
+        coef_off(4 * n + 3, 1) = -coef_off(4 * n + 1, 1);
+        coef_off(4 * n + 3, 2) = coef_off(4 * n + 1, 2);
     }
     for (int s = 0; s < 2; ++s) {
         // Calculate first moment
         m_selfen_moms(s, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
         + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
-        // Obtain second and third coefficients by fitting (linear least-square solving)
-        for (std::size_t j = 0; j < ns; ++j) {
-            for (std::size_t i = 0; i < ns; ++i) {
+        // Obtain second and third coefficients by fitting (linear least-square solving), respecting their Hermicity
+        for (std::size_t i = 0; i < ns; ++i) {  // Fit real diagonal elements of moments
+            for (std::size_t n = 0; n < n_hftail; ++n) {
+                ng = fcut + 1 - n_hftail + n;
+                input(2 * n) = m_selfen_dyn(s, ng, i, i).real();
+                input(2 * n + 1) = m_selfen_dyn(s, ng, i, i).imag() + m_selfen_moms(s, 0, i, i).real() / m_ptr2Gimp->matsubFreqs()(ng);
+            }
+            weight.head(n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+            weight.tail(n_hftail) = weight.head(n_hftail);
+            coef_weighted.noalias() = weight.asDiagonal() * coef;
+            input.array() *= weight.array();
+            decomp.compute(coef_weighted);
+            m_selfen_moms.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(Eigen::fix<2>)).transpose() = decomp.solve(input);  // This is real
+        }
+        for (std::size_t j = 0; j < ns; ++j) {  // Fit complex off-diagonal elements of moments
+            for (std::size_t i = j + 1; i < ns; ++i) {
                 for (std::size_t n = 0; n < n_hftail; ++n) {
                     ng = fcut + 1 - n_hftail + n;
-                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_moms(s, 0, i, j) / (m_ptr2Gimp->matsubFreqs()(ng) * 1i);
+                    input_off(4 * n) = m_selfen_dyn(s, ng, i, j).real() - m_selfen_moms(s, 0, i, j).imag() / m_ptr2Gimp->matsubFreqs()(ng);
+                    input_off(4 * n + 1) = m_selfen_dyn(s, ng, i, j).imag() + m_selfen_moms(s, 0, i, j).real() / m_ptr2Gimp->matsubFreqs()(ng);
+                    input_off(4 * n + 2) = m_selfen_dyn(s, ng, j, i).real() - m_selfen_moms(s, 0, j, i).imag() / m_ptr2Gimp->matsubFreqs()(ng);
+                    input_off(4 * n + 3) = m_selfen_dyn(s, ng, j, i).imag() + m_selfen_moms(s, 0, j, i).real() / m_ptr2Gimp->matsubFreqs()(ng);
                 }
-                weight = m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt().matrix().transpose();
-                coef_weighted.noalias() = weight.asDiagonal() * coef;
-                input.array() *= weight.array();
-                decomp.compute(coef_weighted);
-                m_selfen_moms.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(Eigen::fix<2>)).transpose() = decomp.solve(input);
+                weight_off.head(n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+                weight_off.segment(n_hftail, n_hftail) = weight_off.head(n_hftail);
+                weight_off.segment(2 * n_hftail, n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(j + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+                weight_off.tail(n_hftail) = weight_off.segment(2 * n_hftail, n_hftail);
+                coef_off_weighted.noalias() = weight_off.asDiagonal() * coef_off;
+                input_off.array() *= weight_off.array();
+                decomp_off.compute(coef_off_weighted);
+                sol = decomp_off.solve(input_off);
+                m_selfen_moms(s, 1, i, j).real(sol(0));
+                m_selfen_moms(s, 1, i, j).imag(sol(1));
+                m_selfen_moms(s, 2, i, j).real(sol(2));
+                m_selfen_moms(s, 2, i, j).imag(sol(3));
+                m_selfen_moms(s, 1, j, i) = std::conj(m_selfen_moms(s, 1, i, j));
+                m_selfen_moms(s, 2, j, i) = std::conj(m_selfen_moms(s, 2, i, j));
             }
         }
     }

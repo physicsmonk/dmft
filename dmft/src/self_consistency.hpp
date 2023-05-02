@@ -27,7 +27,7 @@ protected:
     SqMatArray2XXcd m_Glat;  // This is the lattice Green's function in Matsubara frequency space (differing from the canonical definition by a minus sign)
     SqMatArray2XXcd m_selfen_dyn;    // Dynamic part of self-energy
     SqMatArray21Xcd m_selfen_static;  // Static part of self-energy
-    SqMatArray23Xcd m_selfen_moms;   // first to third moments of dynamic part of self-energy
+    SqMatArray23Xcd m_selfen_moms;   // first to third moments (all Hermitian) of dynamic part of self-energy
     SqMatArray2XXd m_selfen_var;   // Self-energy variances
     std::size_t m_iter;  // The number of iterations
     
