@@ -31,7 +31,7 @@ protected:
     SqMatArray2XXd m_selfen_var;   // Self-energy variances
     std::size_t m_iter;  // The number of iterations
     
-    void computeSelfEnStatMoms();
+    void computeSelfEnMoms();
     
 public:
     std::map<std::string, std::any> parameters;

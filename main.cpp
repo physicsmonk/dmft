@@ -738,6 +738,10 @@ int main(int argc, char * argv[]) {
     mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, midrealfreqs, n_rrealfreq);
     if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
     
+    // For testing
+    SqMatArray2XXcd selfentail(2, std::any_cast<std::size_t>(dmft.parameters.at("num_high_freq_tail")), nsite);
+    double w;
+    
     bool computesigma;
     double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
     
@@ -800,6 +804,15 @@ int main(int argc, char * argv[]) {
             printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
+            // For testing
+            for (std::size_t s = 0; s < 2; ++s) {
+                for (std::size_t n = 0; n < selfentail.dim1(); ++n) {
+                    w = (2 * (nfcut + 1 - selfentail.dim1() + n) + 1) / beta;
+                    selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (w * 1i) + dmft.selfEnergyMoms()(s, 1) / (-w * w)
+                    + dmft.selfEnergyMoms()(s, 2) / (-1i * w * w * w);
+                }
+            }
+            printData("selfenergy_tail.txt", selfentail);
         }
         
         density = G->densities().sum();

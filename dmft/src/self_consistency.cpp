@@ -22,7 +22,7 @@ m_selfen_moms(2, 3, Gimp->nSites()), m_selfen_var(2, Gimp->freqCutoff() + 1, Gim
     parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     parameters["local correlation"] = false;
-    
+    parameters["num_high_freq_tail"] = std::size_t(Gimp->freqCutoff() / 10);
     // Compute moments of bath Green's function, which only depend on bare Hamiltonian
     // and thus only need to be calculated once when bare Hamiltonian passed in.
     m_ptr2Gbath->computeMoments(*m_ptr2H0);
@@ -92,12 +92,43 @@ void DMFTIterator::updateBathGF() {
 }
 
 // Calculate static part and moments of self-energy, remember the used nonstandard definition of Green's function
-void DMFTIterator::computeSelfEnStatMoms() {
+void DMFTIterator::computeSelfEnMoms() {
+    const auto n_hftail = std::any_cast<std::size_t>(parameters.at("num_high_freq_tail"));
+    const std::size_t fcut = m_ptr2Gimp->freqCutoff();
+    if (n_hftail > fcut + 1) throw std::range_error("DMFTIterator::computeSelfEnStatMoms: number of high frequency tail exceeds frequency cut-off");
+    const double beta = m_ptr2Gimp->inverseTemperature();
+    const std::size_t ns = m_ptr2Gimp->nSites();
+    Eigen::MatrixX2cd coef(n_hftail, 2), coef_weighted(n_hftail, 2);
+    Eigen::VectorXcd input(n_hftail);
+    Eigen::VectorXd weight(n_hftail);
+    std::size_t ng;
+    double w;
+    Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2cd> decomp(n_hftail, 2);
+    for (std::size_t n = 0; n < n_hftail; ++n) {
+        ng = fcut + 1 - n_hftail + n;
+        w = (2 * ng + 1) / beta;
+        coef(n, 0) = -1.0 / (w * w);
+        coef(n, 1) = -1.0 / (w * w * w * 1i);
+    }
     for (int s = 0; s < 2; ++s) {
-        m_selfen_static[s] = m_ptr2Gbath->moments()(s, 1) - m_ptr2Gimp->moments()(s, 1);  // This is the static part
+        // Calculate first moment
         m_selfen_moms(s, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
         + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
-        // Second and third coefficients to be implemented
+        // Obtain second and third coefficients by fitting (linear least-square solving)
+        for (std::size_t j = 0; j < ns; ++j) {
+            for (std::size_t i = 0; i < ns; ++i) {
+                for (std::size_t n = 0; n < n_hftail; ++n) {
+                    ng = fcut + 1 - n_hftail + n;
+                    w = (2 * ng + 1) / beta;
+                    input(n) = m_selfen_dyn(s, ng, i, j) - m_selfen_static(s, 0, i, j) / (w * 1i);
+                }
+                weight = m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt().matrix().transpose();
+                coef_weighted.noalias() = weight.asDiagonal() * coef;
+                input.array() *= weight.array();
+                decomp.compute(coef_weighted);
+                m_selfen_moms.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(Eigen::fix<2>)).transpose() = decomp.solve(input);
+            }
+        }
     }
 }
 
@@ -112,7 +143,8 @@ void DMFTIterator::approxSelfEnergy() {
     std::array<std::size_t, 2> so;
     Eigen::MatrixXcd tmp(nc, nc);
     Eigen::MatrixXd tmp1(nc, nc), tmp2(nc, nc);
-    computeSelfEnStatMoms();
+    // Calculate static part of self-energy
+    for (int s = 0; s < 2; ++s) m_selfen_static[s] = m_ptr2Gbath->moments()(s, 1) - m_ptr2Gimp->moments()(s, 1);
     for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
         so = selfen_dyn_mastpart.global2dIndex(i);
         tmp.noalias() = Gimpmastpart[i].inverse();
@@ -147,6 +179,7 @@ void DMFTIterator::approxSelfEnergy() {
     }
     selfen_dyn_mastpart.allGather();  // For analytic continuation after calling this method
     selfen_var_mastpart.allGather();
+    computeSelfEnMoms();
 }
 
 // Update the lattice Green's function using the current self-energy
