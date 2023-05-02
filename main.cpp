@@ -648,7 +648,7 @@ int main(int argc, char * argv[]) {
     //usleep(1000 * prank);
     //std::this_thread::sleep_for(std::chrono::milliseconds(prank));
     //std::cout << "rank " << prank << " of " << psize << ": mastered size = " << G->fourierCoeffs().mastFlatPart().size() << ", mastered start = "
-    //<< G->fourierCoeffs().mastFlatPart().start() << std::endl;
+    // << G->fourierCoeffs().mastFlatPart().start() << std::endl;
     //MPI_Barrier(MPI_COMM_WORLD);
     //sleep(1);   // Wait 1 s
     //std::this_thread::sleep_for(std::chrono::seconds(1));
@@ -739,7 +739,7 @@ int main(int argc, char * argv[]) {
     if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
     
     // For testing
-    SqMatArray2XXcd selfentail(2, std::any_cast<std::size_t>(dmft.parameters.at("num_high_freq_tail")), nsite);
+    SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
     std::size_t ng;
     
     bool computesigma;
@@ -806,11 +806,10 @@ int main(int argc, char * argv[]) {
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
             // For testing
             for (std::size_t s = 0; s < 2; ++s) {
-                for (std::size_t n = 0; n < selfentail.dim1(); ++n) {
-                    ng = nfcut + 1 - selfentail.dim1() + n;
-                    selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (G0->matsubFreqs()(ng) * 1i)
-                    + dmft.selfEnergyMoms()(s, 1) / (-G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng))
-                    + dmft.selfEnergyMoms()(s, 2) / (-1i * G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng) * G0->matsubFreqs()(ng));
+                for (std::size_t n = 0; n <= nfcut; ++n) {
+                    selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (G0->matsubFreqs()(n) * 1i)
+                    + dmft.selfEnergyMoms()(s, 1) / (-G0->matsubFreqs()(n) * G0->matsubFreqs()(n))
+                    + dmft.selfEnergyMoms()(s, 2) / (-1i * G0->matsubFreqs()(n) * G0->matsubFreqs()(n) * G0->matsubFreqs()(n));
                 }
             }
             printData("selfenergy_tail.txt", selfentail);
