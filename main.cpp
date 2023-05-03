@@ -297,6 +297,7 @@ int main(int argc, char * argv[]) {
     std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
     double density_error = 0.001;
+    std::size_t tailsize = 100;
     
     /*
     // For Pade interpolation
@@ -388,6 +389,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD);
     readxml_bcast(density_error, docroot, "numerical/selfConsistency/densityError", MPI_COMM_WORLD);
+    readxml_bcast(tailsize, docroot, "numerical/selfConsistency/selfEnergyTailSize", MPI_COMM_WORLD);
     /*
     readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
@@ -674,6 +676,7 @@ int main(int argc, char * argv[]) {
     dmft.parameters.at("convergence type") = converge_type;
     dmft.parameters.at("convergence criterion") = converge_criterion;
     dmft.parameters.at("local correlation") = loc_corr;
+    dmft.parameters.at("num_high_freq_tail") = tailsize;
     
     
     
