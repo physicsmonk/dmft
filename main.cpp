@@ -329,7 +329,7 @@ int main(int argc, char * argv[]) {
     std::size_t pulay_period = 3;
     double pulay_tol = 1e-6;
     std::size_t pulay_maxiter = 500;
-    double gaussian_sig = 1.0;
+    //double gaussian_sig = 1.0;
     double alpha_maxfac = 100.0;
     double alpha_infofitfac = 0.05;
     double alpha_initfrac = 0.01;
@@ -420,7 +420,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(pulay_period, docroot, "numerical/MQEM/PulayPeriod", MPI_COMM_WORLD);
     readxml_bcast(pulay_tol, docroot, "numerical/MQEM/PulayTolerance", MPI_COMM_WORLD);
     readxml_bcast(pulay_maxiter, docroot, "numerical/MQEM/PulayMaxIteration", MPI_COMM_WORLD);
-    readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/defaultModelSigma", MPI_COMM_WORLD);
+    //readxml_bcast(gaussian_sig, docroot, "numerical/MQEM/defaultModelSigma", MPI_COMM_WORLD);
     readxml_bcast(alpha_maxfac, docroot, "numerical/MQEM/alphaMaxFactor", MPI_COMM_WORLD);
     readxml_bcast(alpha_infofitfac, docroot, "numerical/MQEM/alphaInfoFitFactor", MPI_COMM_WORLD);
     readxml_bcast(alpha_initfrac, docroot, "numerical/MQEM/alphaInitFraction", MPI_COMM_WORLD);
@@ -536,7 +536,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_mixing_param") = pulay_mix;
     mqem.parameters.at("Pulay_history_size") = pulay_histsize;
     mqem.parameters.at("Pulay_period") = pulay_period;
-    mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
+    //mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
     mqem.parameters.at("alpha_max_fac") = alpha_maxfac;
     mqem.parameters.at("alpha_info_fit_fac") = alpha_infofitfac;
     mqem.parameters.at("alpha_init_fraction") = alpha_initfrac;
@@ -744,7 +744,6 @@ int main(int argc, char * argv[]) {
     
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
-    std::size_t ng;
     
     bool computesigma;
     double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
