@@ -589,6 +589,7 @@ int main(int argc, char * argv[]) {
         for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
         spectramastpart.allGather();
         if (prank == 0) {
+            printData("default_model.txt", mqem.defaultModel());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
@@ -841,6 +842,7 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) {  // Output obtained result ASAP
+                printData("default_model.txt", mqem.defaultModel());
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);

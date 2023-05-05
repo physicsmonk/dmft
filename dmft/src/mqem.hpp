@@ -75,7 +75,7 @@ private:
     SqMatArray<std::complex<double>, _n0, Eigen::Dynamic, _nm> m_G_retarded;
     Eigen::Matrix<std::complex<double>, _n1, Eigen::Dynamic> m_K, m_K_raw_Hc;
     Eigen::MatrixXd m_Kp;
-    Eigen::VectorXd m_intA;
+    Eigen::VectorXd m_intA, m_intwA, m_intw2A;
     std::vector<Eigen::ArrayX3d> m_misfit_curve;  // Use std::vector because each Eigen::ArrayX2d could have different length
     
     template <typename T>
@@ -126,6 +126,9 @@ private:
     }
     
     void initParams() {
+        parameters["grad_descent_max_iter"] = std::size_t(500);
+        parameters["grad_descent_step"] = 0.5;
+        parameters["grad_descent_tol"] = 1e-5;
         parameters["matrix_invertible_threshold"] = -1.0;
         parameters["principle_int_eps"] = 0.0001;
         parameters["Pulay_mixing_param"] = 0.005;
@@ -134,7 +137,7 @@ private:
         parameters["Pulay_tolerance"] = 1e-5;
         parameters["Pulay_max_iteration"] = std::size_t(500);
         //parameters["Pulay_exp_limit"] = 300.0;
-        parameters["Gaussian_sigma"] = 1.5;
+        //parameters["Gaussian_sigma"] = 1.5;
         parameters["alpha_max_fac"] = 10.0;
         parameters["alpha_info_fit_fac"] = 0.05;
         parameters["alpha_init_fraction"] = 0.01;
@@ -151,7 +154,7 @@ private:
         parameters["verbose"] = true;
     }
     template <int n_mom>
-    void computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom);
+    bool computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& mom);
     void fixedPointRelation(const Eigen::Array<double, _n1, 1>& mats_freq, const SqMatArray<std::complex<double>, _n0, _n1, _nm>& Gw,
                             const SqMatArray<double, _n0, _n1, _nm>& Gwvar, const double m0trace, const double alpha,
                             const std::size_t s, SqMatArray<std::complex<double>, 1, Eigen::Dynamic, _nm>& g) const;
@@ -425,7 +428,7 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     // Matrix connecting Matsubara Green's function and cubic spline coefficients of spectral function
     Eigen::Matrix<std::complex<double>, _n1, Eigen::Dynamic> K(n_iomega, Ncoeff);  // Every element of K will be explicitly set, so no need of initialization
     Eigen::MatrixXd Kp(n_omega, Ncoeff);
-    Eigen::RowVectorXd intA(Ncoeff);  // Every element will be explicitly set, so no need of initialization
+    Eigen::RowVectorXd intA(Ncoeff), intwA(Ncoeff), intw2A(Ncoeff);  // Every element will be explicitly set, so no need of initialization
     Eigen::MatrixXd B = Eigen::MatrixXd::Zero(Ncoeff, Ncoeff), T = Eigen::MatrixXd::Zero(Ncoeff, n_omega);
     double uj, uj1 = 2.0 * dul, ujp, uj1p, omegajp, omegaj1p, domegaj;
     std::size_t ja = 0, jglobal;
@@ -472,6 +475,14 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
             Kp(i, ja + 3) = d_side_coeff(ujp, uj1p, m_omega(i), omega0l);
         }
         intA(ja) = -(uj1 * uj1 - uj * uj) / 2.0; intA(ja + 1) = -(uj1 - uj); intA(ja + 2) = -std::log(uj1 / uj); intA(ja + 3) = 1.0 / uj1 - 1.0 / uj;
+        intwA(ja) = uj - uj1 + omega0l * (uj * uj - uj1 * uj1) / 2.0;
+        intwA(ja + 1) = std::log(uj / uj1) + omega0l * (uj - uj1);
+        intwA(ja + 2) = 1.0 / uj1 - 1.0 / uj + omega0l * std::log(uj / uj1);
+        intwA(ja + 3) = (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) / 2.0 + omega0l * (1.0 / uj1 - 1.0 / uj);
+        intw2A(ja) = std::log(uj / uj1) + 2.0 * omega0l * (uj - uj1) + omega0l * omega0l * (uj * uj - uj1 * uj1) / 2.0;
+        intw2A(ja + 1) = 1.0 / uj1 - 1.0 / uj + 2.0 * omega0l * std::log(uj / uj1) + omega0l * omega0l * (uj - uj1);
+        intw2A(ja + 2) = (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) / 2.0 + 2.0 * omega0l * (1.0 / uj1 - 1.0 / uj) + omega0l * omega0l * std::log(uj / uj1);
+        intw2A(ja + 3) = (1.0 / (uj1 * uj1 * uj1) - 1.0 / (uj * uj * uj)) / 3.0 + omega0l * (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) + omega0l * omega0l * (1.0 / uj1 - 1.0 / uj);
         B(ja, ja) = uj * uj * uj; B(ja, ja + 1) = uj * uj; B(ja, ja + 2) = uj; B(ja, ja + 3) = 1.0;
         T(ja, j) = 1.0;
         B(ja + 1, ja) = uj1 * uj1 * uj1; B(ja + 1, ja + 1) = uj1 * uj1; B(ja + 1, ja + 2) = uj1; B(ja + 1, ja + 3) = 1.0;
@@ -522,6 +533,14 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
         }
         domegaj = m_omega(jglobal + 1) - m_omega(jglobal);
         intA(ja) = domegaj * domegaj * domegaj * domegaj / 4.0; intA(ja + 1) = domegaj * domegaj * domegaj / 3.0; intA(ja + 2) = domegaj * domegaj / 2.0; intA(ja + 3) = domegaj;
+        intwA(ja) = domegaj * domegaj * domegaj * domegaj * (domegaj / 5.0 + m_omega(jglobal) / 4.0);
+        intwA(ja + 1) = domegaj * domegaj * domegaj * (domegaj / 4.0 + m_omega(jglobal) / 3.0);
+        intwA(ja + 2) = domegaj * domegaj * (domegaj / 3.0 + m_omega(jglobal) / 2.0);
+        intwA(ja + 3) = domegaj * (m_omega(jglobal + 1) + m_omega(jglobal)) / 2.0;
+        intw2A(ja) = domegaj * domegaj * domegaj * domegaj * (domegaj * domegaj / 6.0 + 2.0 * domegaj * m_omega(jglobal) / 5.0 + m_omega(jglobal) * m_omega(jglobal) / 4.0);
+        intw2A(ja + 1) = domegaj * domegaj * domegaj * (domegaj * domegaj / 5.0 + 2.0 * domegaj * m_omega(jglobal) / 4.0 + m_omega(jglobal) * m_omega(jglobal) / 3.0);
+        intw2A(ja + 2) = domegaj * domegaj * (domegaj * domegaj / 4.0 + 2.0 * domegaj * m_omega(jglobal) / 3.0 + m_omega(jglobal) * m_omega(jglobal) / 2.0);
+        intw2A(ja + 3) = domegaj * (m_omega(jglobal + 1) * m_omega(jglobal + 1) + m_omega(jglobal + 1) * m_omega(jglobal) + m_omega(jglobal) * m_omega(jglobal)) / 3.0;
         B(ja, ja + 3) = 1.0;
         T(ja, jglobal) = 1.0;
         B(ja + 1, ja) = domegaj * domegaj * domegaj; B(ja + 1, ja + 1) = domegaj * domegaj; B(ja + 1, ja + 2) = domegaj; B(ja + 1, ja + 3) = 1.0;
@@ -576,6 +595,14 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
             Kp(i, ja + 3) = d_side_coeff(ujp, uj1p, m_omega(i), omega0r);
         }
         intA(ja) = -(uj1 * uj1 - uj * uj) / 2.0; intA(ja + 1) = -(uj1 - uj); intA(ja + 2) = -std::log(uj1 / uj); intA(ja + 3) = 1.0 / uj1 - 1.0 / uj;
+        intwA(ja) = uj - uj1 + omega0r * (uj * uj - uj1 * uj1) / 2.0;
+        intwA(ja + 1) = std::log(uj / uj1) + omega0r * (uj - uj1);
+        intwA(ja + 2) = 1.0 / uj1 - 1.0 / uj + omega0r * std::log(uj / uj1);
+        intwA(ja + 3) = (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) / 2.0 + omega0r * (1.0 / uj1 - 1.0 / uj);
+        intw2A(ja) = std::log(uj / uj1) + 2.0 * omega0r * (uj - uj1) + omega0r * omega0r * (uj * uj - uj1 * uj1) / 2.0;
+        intw2A(ja + 1) = 1.0 / uj1 - 1.0 / uj + 2.0 * omega0r * std::log(uj / uj1) + omega0r * omega0r * (uj - uj1);
+        intw2A(ja + 2) = (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) / 2.0 + 2.0 * omega0r * (1.0 / uj1 - 1.0 / uj) + omega0r * omega0r * std::log(uj / uj1);
+        intw2A(ja + 3) = (1.0 / (uj1 * uj1 * uj1) - 1.0 / (uj * uj * uj)) / 3.0 + omega0r * (1.0 / (uj1 * uj1) - 1.0 / (uj * uj)) + omega0r * omega0r * (1.0 / uj1 - 1.0 / uj);
         B(ja, ja) = uj * uj * uj; B(ja, ja + 1) = uj * uj; B(ja, ja + 2) = uj; B(ja, ja + 3) = 1.0;
         T(ja, jglobal) = 1.0;
         B(ja + 1, ja) = uj1 * uj1 * uj1; B(ja + 1, ja + 1) = uj1 * uj1; B(ja + 1, ja + 2) = uj1; B(ja + 1, ja + 3) = 1.0;
@@ -613,31 +640,84 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     //std::cout << nanrow << ", " << nancol << std::endl;
     m_intA.resize(n_omega);
     m_intA.transpose().noalias() = intA * tmp;
+    m_intwA.resize(n_omega);
+    m_intwA.transpose().noalias() = intwA * tmp;
+    m_intw2A.resize(n_omega);
+    m_intw2A.transpose().noalias() = intw2A * tmp;
 }
 
-// Currently only use the first (zero-th) moment; MPI communicators of m_D and m_log_normD must be set before
+// MPI communicators of m_D and m_log_normD must be set before
 template <int _n0, int _n1, int _nm>
 template <int n_mom>
-void MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &mom) {
-    const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
-    double fac, m0trace;
+bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &mom) {
+    static_assert(n_mom > 2, "MQEMContinuator::computeDefaultModel: number of provided moments must be larger than 2");
+    //const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
+    const auto max_iter = std::any_cast<std::size_t>(parameters.at("grad_descent_max_iter"));
+    const auto step = std::any_cast<double>(parameters.at("grad_descent_step"));
+    const auto tol = std::any_cast<double>(parameters.at("grad_descent_tol"));
+    //double fac, m0trace;
     Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > es(mom.dimm());
     m_D.resize(mom.dim0(), m_omega.size(), mom.dimm());
     m_log_normD.resize(mom.dim0(), m_omega.size(), mom.dimm());
     auto Dpart = m_D.mastDim0Part();
     auto logDpart = m_log_normD.mastDim0Part();
+    SqMatArray<std::complex<double>, 1, 3, _nm> mu(1, 3, mom.dimm());
+    Eigen::Matrix<std::complex<double>, _nm, _nm> f(mom.dimm(), mom.dimm());
+    double err, fmax;
+    bool converged = true;
+    // Use gradient descent method to solve for default model
     for (std::size_t s = 0; s < Dpart.dim0(); ++s) {
-        m0trace = mom(s + Dpart.start(), 0).trace().real();  // Trace must be real
-        // Diagonalize the default model; in the current version, only need to diagonalize the first moment; all moments are Hermitian
-        es.compute(mom(s + Dpart.start(), 0));
-        for (std::size_t j = 0; j < m_D.dim1(); ++j) {
-            fac = std::exp(-m_omega(j) * m_omega(j) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
-            Dpart(s, j) = mom(s + Dpart.start(), 0) * fac;
-            logDpart(s, j) = es.eigenvectors() * (es.eigenvalues().array() * fac / m0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+        //m0trace = mom(s + Dpart.start(), 0).trace().real();  // Trace must be real
+        //es.compute(mom(s + Dpart.start(), 0));
+        //for (std::size_t j = 0; j < m_D.dim1(); ++j) {
+        //    fac = std::exp(-m_omega(j) * m_omega(j) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
+        //    Dpart(s, j) = mom(s + Dpart.start(), 0) * fac;
+        //    logDpart(s, j) = es.eigenvectors() * (es.eigenvalues().array() * fac / m0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+        //}
+        // Initialize
+        mu[0].setZero();
+        mu[1].setZero();
+        mu[2].setIdentity();
+        for (std::size_t n = 0; n < m_D.dim1(); ++n) {
+            logDpart(s, n) = mu[0] + mu[1] * m_omega(n) - mu[2] * m_omega(n) * m_omega(n);
+            Dpart(s, n) = logDpart(s, n).diagonal().array().exp().matrix().asDiagonal();
         }
+        err = 0.0;
+        // Gradient descent iteration
+        for (std::size_t iter = 0; iter < max_iter; ++iter) {
+            // Update default model
+            for (std::size_t n = 0; n < m_D.dim1(); ++n) {
+                f = logDpart(s, n) - mu[0] - mu[1] * m_omega(n) + mu[2] * m_omega(n) * m_omega(n);
+                Dpart(s, n) -= step * f;
+                es.compute(Dpart(s, n));
+                logDpart(s, n) = es.eigenvectors() * es.eigenvalues().array().log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+                fmax = f.template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients
+                if (err < fmax) err = fmax;
+            }
+            // Update Lagrange multipliers
+            f = (Dpart.dim1RowVecsAtDim0(s) * m_intA).reshaped(mom.dimm(), mom.dimm()) - mom(s + Dpart.start(), 0);
+            mu[0] -= step * f;
+            fmax = f.template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients
+            if (err < fmax) err = fmax;
+            f = (Dpart.dim1RowVecsAtDim0(s) * m_intwA).reshaped(mom.dimm(), mom.dimm()) - mom(s + Dpart.start(), 1);
+            mu[1] -= step * f;
+            fmax = f.template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients
+            if (err < fmax) err = fmax;
+            f = mom(s + Dpart.start(), 2) - (Dpart.dim1RowVecsAtDim0(s) * m_intw2A).reshaped(mom.dimm(), mom.dimm());
+            mu[2] -= step * f;
+            fmax = f.template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients
+            if (err < fmax) err = fmax;
+            // Check convergence
+            if (err < tol) break;
+        }
+        if (err >= tol) converged = false;
+        f = std::log(mom(s + Dpart.start(), 0).trace()) * Eigen::Matrix<double, _nm, _nm>::Identity(mom.dimm(), mom.dimm());
+        for (std::size_t n = 0; n < m_D.dim1(); ++n)
+            logDpart(s, n) -= f;  // Renormalize logD
     }
     Dpart.allGather();
     logDpart.allGather();
+    return converged;  // Each process return its own convergence status
 }
 
 // Renormalize quantities by m0trace in situ
