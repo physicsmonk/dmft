@@ -8,6 +8,7 @@
 #ifndef input_hpp
 #define input_hpp
 
+#include <iostream>
 #include <sstream>
 #include <cstring>
 #include <vector>

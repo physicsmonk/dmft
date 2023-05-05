@@ -17,6 +17,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <fstream>
 #include <charconv>
 #include <iterator>
 
@@ -825,6 +826,28 @@ typedef SqMatArray<std::complex<double>, 2, 2, Eigen::Dynamic> SqMatArray22Xcd;
 typedef SqMatArray<std::complex<double>, 2, 3, Eigen::Dynamic> SqMatArray23Xcd;
 typedef SqMatArray<double, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXd;
 typedef SqMatArray<std::complex<double>, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXcd;
+
+
+template <typename T>
+void printData(const std::string& fname, const T& data, const int precision = 6) {
+    std::ofstream fout(fname, std::fstream::out | std::fstream::trunc);
+    fout << std::setprecision(precision);
+    if (fout.is_open()) {
+        fout << data;
+        fout.close();
+    }
+    else std::cout << "Unable to open file" << std::endl;
+}
+
+template <typename T>
+void loadData(const std::string& fname, T& A) {
+    std::ifstream fin(fname);
+    if (fin.is_open()) {
+        fin >> A;
+        fin.close();
+    }
+    else std::cout << "Unable to open file" << std::endl;
+}
 
 
 #endif /* gf_data_wrapper_hpp */

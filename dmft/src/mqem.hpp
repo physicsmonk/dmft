@@ -201,7 +201,11 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     
     m_D.mpiCommunicator(Gw.mpiCommunicator());
     m_log_normD.mpiCommunicator(Gw.mpiCommunicator());
-    computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
+    bool defaultmodelcvg = computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
+    if (Gw.processRank() == 0) {  // For testing
+        std::cout << "Default model calculation convergence: " << defaultmodelcvg << std::endl;
+        printData("default_model.txt", m_D);
+    }
     
     m_A.mpiCommunicator(Gw.mpiCommunicator());
     m_A.resize(Gw.dim0(), m_omega.size(), Gw.dimm());

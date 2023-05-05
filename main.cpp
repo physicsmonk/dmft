@@ -5,9 +5,6 @@
 //  Created by Yin Shi on 4/22/22.
 //
 
-#include <iostream>
-#include <iomanip>      // std::setw
-#include <fstream>
 #include <thread>       // std::this_thread::sleep_for
 #include <chrono>
 #include <limits>
@@ -26,69 +23,6 @@
 using namespace std::complex_literals;
 
 
-template <typename ScalarT, int n0, int n1, int nm>
-void printData(const std::string& fname, const SqMatArray<ScalarT, n0, n1, nm>& data, const int precision = 6) {
-    std::ofstream fout(fname, std::fstream::out | std::fstream::trunc);
-    fout << std::setprecision(precision);
-    if (fout.is_open()) {
-        fout << data;
-        fout.close();
-    }
-    else std::cout << "Unable to open file" << std::endl;
-}
-
-template <typename ScalarT, int n0, int n1, int nm>
-void loadData(const std::string& fname, SqMatArray<ScalarT, n0, n1, nm>& A) {
-    std::ifstream fin(fname);
-    if (fin.is_open()) {
-        fin >> A;
-        fin.close();
-    }
-    else std::cout << "Unable to open file" << std::endl;
-}
-
-template <typename Derived>
-void printData(const std::string& fname, const Eigen::DenseBase<Derived>& data, const int precision = 6) {
-    std::ofstream fout(fname, std::fstream::out | std::fstream::trunc);
-    fout << std::setprecision(precision);
-    if (fout.is_open()) {
-        fout << data;
-        fout.close();
-    }
-    else std::cout << "Unable to open file" << std::endl;
-}
-
-template <typename Derived>
-void loadData(const std::string& fname, const Eigen::DenseBase<Derived>& A) {
-    std::ifstream fin(fname);
-    if (fin.is_open()) {
-        fin >> A;
-        fin.close();
-    }
-    else std::cout << "Unable to open file" << std::endl;
-}
-
-void printHistogram(const std::string &fname, const ArrayXsizet &vohistogram) {
-    if (fname == "screen") {
-        std::cout << std::setw(15) << "Vertex order" << std::setw(15) << "Count" << std::endl;
-        std::cout << std::setw(15) << "------------" << std::setw(15) << "-----" << std::endl;
-        for (int i = 0; i < vohistogram.size(); ++i) {
-            std::cout << std::setw(15) << i << std::setw(15) << vohistogram[i] << std::endl;
-        }
-    }
-    else {
-        std::ofstream myfile(fname, std::fstream::out | std::fstream::trunc);
-        if (myfile.is_open()) {
-            myfile << std::setw(15) << "Vertex order" << std::setw(15) << "Count" << std::endl;
-            myfile << std::setw(15) << "------------" << std::setw(15) << "-----" << std::endl;
-            for (int i = 0; i < vohistogram.size(); ++i) {
-                myfile << std::setw(15) << i << std::setw(15) << vohistogram[i] << std::endl;
-            }
-            myfile.close();
-        }
-        else std::cout << "Unable to open file" << std::endl;
-    }
-}
 
 // Derive from the BareHamiltonian class the user-defined Hamiltonian
 class Dimer2DinMag : public BareHamiltonian {
@@ -589,7 +523,7 @@ int main(int argc, char * argv[]) {
         for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
         spectramastpart.allGather();
         if (prank == 0) {
-            printData("default_model.txt", mqem.defaultModel());
+            //printData("default_model.txt", mqem.defaultModel());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             printData("spectramatrix.txt", spectra);
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
@@ -791,7 +725,7 @@ int main(int argc, char * argv[]) {
         tend = std::chrono::high_resolution_clock::now();
         tdur = tend - tstart;
         if (prank == 0) {  // Output obtained result ASAP
-            printHistogram("histogram.txt", impsolver.vertexOrderHistogram());
+            printData("histogram.txt", impsolver.vertexOrderHistogram());
             printData("G.txt", G->valsOnTauGrid());
             printData("Gmatsubara.txt", G->fourierCoeffs());
             std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
@@ -841,7 +775,7 @@ int main(int argc, char * argv[]) {
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) {  // Output obtained result ASAP
-                printData("default_model.txt", mqem.defaultModel());
+                //printData("default_model.txt", mqem.defaultModel());
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 printData("spectramatrix.txt", spectra);
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
