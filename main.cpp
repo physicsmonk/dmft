@@ -751,11 +751,11 @@ int main(int argc, char * argv[]) {
         tdur = tend - tstart;
         if (prank == 0) {  // Output obtained result ASAP
             printData("histogram.txt", impsolver.vertexOrderHistogram());
-            std::cout << "Output histogram.txt" << std::endl;
+            std::cout << "    Output histogram.txt" << std::endl;
             printData("G.txt", G->valsOnTauGrid());
-            std::cout << "Output G.txt" << std::endl;
+            std::cout << "    Output G.txt" << std::endl;
             printData("Gmatsubara.txt", G->fourierCoeffs());
-            std::cout << "Output Gmatsubara.txt" << std::endl;
+            std::cout << "    Output Gmatsubara.txt" << std::endl;
             std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
         }
         
@@ -764,17 +764,17 @@ int main(int argc, char * argv[]) {
         dmft.updateBathGF();
         if (prank == 0) {  // Output obtained result ASAP
             printData("G0.txt", G0->valsOnTauGrid());
-            std::cout << "Output G0.txt" << std::endl;
+            std::cout << "    Output G0.txt" << std::endl;
             printData("G0matsubara.txt", G0->fourierCoeffs());
-            std::cout << "Output G0matsubara.txt" << std::endl;
+            std::cout << "    Output G0matsubara.txt" << std::endl;
             printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            std::cout << "Output selfenergy_dyn.txt" << std::endl;
+            std::cout << "    Output selfenergy_dyn.txt" << std::endl;
             printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
-            std::cout << "Output selfenergy_var.txt" << std::endl;
+            std::cout << "    Output selfenergy_var.txt" << std::endl;
             printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            std::cout << "Output selfenergy_static.txt" << std::endl;
+            std::cout << "    Output selfenergy_static.txt" << std::endl;
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
-            std::cout << "Output selfenergy_moms.txt" << std::endl;
+            std::cout << "    Output selfenergy_moms.txt" << std::endl;
             // For testing
             for (Eigen::Index s = 0; s < 2; ++s) {
                 for (Eigen::Index n = 0; n <= nfcut; ++n) {
@@ -784,7 +784,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             printData("selfenergy_tail.txt", selfentail);
-            std::cout << "Output selfenergy_tail.txt" << std::endl;
+            std::cout << "    Output selfenergy_tail.txt" << std::endl;
         }
         
         density = G->densities().sum();
@@ -812,11 +812,11 @@ int main(int argc, char * argv[]) {
             if (prank == 0) {  // Output obtained result ASAP
                 //printData("default_model.txt", mqem.defaultModel());
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
-                std::cout << "Output selfenergy_retarded.txt" << std::endl;
+                std::cout << "    Output selfenergy_retarded.txt" << std::endl;
                 printData("spectramatrix.txt", spectra);
-                std::cout << "Output spectramatrix.txt" << std::endl;
+                std::cout << "    Output spectramatrix.txt" << std::endl;
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
-                std::cout << "Output mqem_diagnosis.txt" << std::endl;
+                std::cout << "    Output mqem_diagnosis.txt" << std::endl;
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
