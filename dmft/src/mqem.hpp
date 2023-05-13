@@ -242,7 +242,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         m_opt_alpha_id(sl) = 0;
         logchi2 = std::log10(misfit(Gw, Gwvar, s));
         m_misfit_curve[sl].resize(acapacity, Eigen::NoChange);
-        if (verbose && Gw.processRank() == 0) std::cout << "--- MQEM: decreasing alpha for spin " << s << " ---" << std::endl
+        if (verbose && Gw.processRank() == 0) std::cout << "------ MQEM: decreasing alpha for spin " << s << " ------" << std::endl
             << "    stepID log10alpha log10chi^2   stepSize      slope #PulayIter #PulayFail" << std::endl;
         do {
             if (trial > amaxtrial) {
@@ -302,12 +302,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             trial = 0;
         } while ((slope > astopslope || loga > logainfofit) && dloga > astopstep && nrecord < acapacity);
         if (verbose && Gw.processRank() == 0) {
-            std::cout << "--- Stopped due to ";
+            std::cout << "------ Stopped due to ";
             if (slope <= astopslope) std::cout << "small slope";
             else if (dloga <= astopstep) std::cout << "small step";
             else if (nrecord >= acapacity) std::cout << "full reservoir";
             else std::cout << "divergence";
-            std::cout << " ---" << std::endl;
+            std::cout << " ------" << std::endl;
         }
         m_misfit_curve[sl].conservativeResize(nrecord, Eigen::NoChange);  // Get size right
         if (nrecord >= afitsize) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
@@ -703,8 +703,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     for (Eigen::Index sl = 0; sl < Dpart.dim0(); ++sl) {
         s = sl + Dpart.start();
         if (verbose && m_D.processRank() == 0) {
-            std::cout << "--- MQEM: computing default model for spin " << s << " ---" << std::endl;
-            std::cout << "iter      error" << std::endl;
+            std::cout << "------ MQEM: computing default model for spin " << s << " ------" << std::endl;
+            std::cout << "iter    residue" << std::endl;
         }
         //m0trace = mom(s + Dpart.start(), 0).trace().real();  // Trace must be real
         //es.compute(mom(s + Dpart.start(), 0));
@@ -773,11 +773,11 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         tmp = std::log(moms(s, 0).trace()) * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());
         for (Eigen::Index n = 0; n < m_D.dim1(); ++n) logDpart(sl, n) -= tmp;  // Renormalize logD
         if (verbose && m_D.processRank() == 0) {  // For testing
-            std::cout << "--- Stopped due to ";
+            std::cout << "------ Stopped due to ";
             if (stoptype == 0) std::cout << "convergence";
             else if (stoptype == 1) std::cout << "full iteration";
             else if (stoptype == 2) std::cout << "divergence";
-            std::cout << " ---" << std::endl;
+            std::cout << " ------" << std::endl;
             std::cout << "mu = " << std::endl;
             std::cout << mu << std::endl;
             std::cout << "residue = " << std::endl;
