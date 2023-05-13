@@ -29,7 +29,7 @@ private:
     Eigen::Matrix<_ScalarT, _n1, m_sc_nmatelems> m_deriv2;
     const SqMatArray<_ScalarT, _n0, _n1, _nm> *m_ptr2y;  // A link to the const external y data
     
-    std::size_t flatIndex(const std::size_t i0, const std::size_t im0, const std::size_t im1) const {
+    Eigen::Index flatIndex(const Eigen::Index i0, const Eigen::Index im0, const Eigen::Index im1) const {
         assert(i0 < m_ptr2y->dim0() && im0 < m_ptr2y->dimm() && im1 < m_ptr2y->dimm());
         return (i0 * m_ptr2y->dimm() + im1) * m_ptr2y->dimm() + im0;
     }
@@ -48,13 +48,13 @@ public:
     CubicSplineMat& operator=(CubicSplineMat&&) = default;
     ~CubicSplineMat() = default;
     
-    _ScalarT operator() (const std::size_t i0, const double x0, const std::size_t im0, const std::size_t im1) const;
+    _ScalarT operator() (const Eigen::Index i0, const double x0, const Eigen::Index im0, const Eigen::Index im1) const;
     // Equidistant version for getting a y value at arbitrary x. Specialize this for efficiency.
-    _ScalarT equidistAt(const std::size_t i0, const double x0, const std::size_t im0, const std::size_t im1) const;
+    _ScalarT equidistAt(const Eigen::Index i0, const double x0, const Eigen::Index im0, const Eigen::Index im1) const;
     
-    std::complex<double> fourierTransform(const std::size_t i0, const double omega, const std::size_t im0, const std::size_t im1) const;
+    std::complex<double> fourierTransform(const Eigen::Index i0, const double omega, const Eigen::Index im0, const Eigen::Index im1) const;
     
-    void fourierTransform(const std::size_t i0, const double omega, Eigen::Ref<Eigen::Matrix<_ScalarT, Eigen::Dynamic, Eigen::Dynamic> > result) const;
+    void fourierTransform(const Eigen::Index i0, const double omega, Eigen::Ref<Eigen::Matrix<_ScalarT, Eigen::Dynamic, Eigen::Dynamic> > result) const;
     
     void symmetrizeDim0();
 };
@@ -71,7 +71,7 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _
     m_dx = (*x)(1) - (*x)(0);
     
     // Get run-time dimmension
-    const std::size_t np = x->size();
+    const Eigen::Index np = x->size();
     
     // Matrix for the linear equations, always real because x is real; automatically asserts _n1 == np for fixed-size case
     // At the beginning fill the diagonal part
@@ -79,7 +79,7 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _
     // Matrix for the rhs values, automatically asserts _n_mat_elems == _dim0 * nmnm for fixed-size case
     Eigen::Matrix<_ScalarT, _n1, m_sc_nmatelems> B(np, y->dim0() * y->dimm() * y->dimm());
     
-    std::size_t ix, i0, im0, im1;
+    Eigen::Index ix, i0, im0, im1;
     
     // Construct the coefficient matrix of the linear equations for the second derivative of the cubic spline S"(x)
     // First row, for the boundary condition y"(x_min) + y"(x_max) = G2
@@ -109,17 +109,18 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _
     }
     
     // Solve for the second derivatives
-    Eigen::PartialPivLU<Eigen::Matrix<double, _n1, _n1> > dec(A);
+    Eigen::ColPivHouseholderQR<Eigen::Matrix<double, _n1, _n1> > dec(A);
     if constexpr (std::is_same<_ScalarT, double>::value) m_deriv2 = dec.solve(B);
     else if (std::is_same<_ScalarT, std::complex<double> >::value) m_deriv2 = dec.solve(B.real()) + 1i * dec.solve(B.imag());
+    //assert(B.isApprox(A * m_deriv2));  // Checks if solution exists
 }
 
 template <typename _ScalarT, int _n0, int _n1, int _nm>
-_ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::operator()(const std::size_t i0, const double x0, const std::size_t im0, const std::size_t im1) const {
+_ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::operator()(const Eigen::Index i0, const double x0, const Eigen::Index im0, const Eigen::Index im1) const {
     assert(x0 >= (*m_ptr2x)(0) && x0 <= (*m_ptr2x)(m_ptr2x->size() - 1));
     
-    const std::size_t j0 = flatIndex(i0, im0, im1);
-    std::size_t x0si = std::lower_bound(m_ptr2x->cbegin(), m_ptr2x->cend() - 1, x0) - m_ptr2x->cbegin();
+    const Eigen::Index j0 = flatIndex(i0, im0, im1);
+    Eigen::Index x0si = std::lower_bound(m_ptr2x->cbegin(), m_ptr2x->cend() - 1, x0) - m_ptr2x->cbegin();
     if (x0si > 0) --x0si;
     const double Dx0 = x0 - (*m_ptr2x)(x0si);
     const double Dx1 = (*m_ptr2x)(x0si + 1) - x0;
@@ -132,11 +133,11 @@ _ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::operator()(const std::size_t i
 }
 
 template <typename _ScalarT, int _n0, int _n1, int _nm>
-_ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::equidistAt(const std::size_t i0, const double x0, const std::size_t im0, const std::size_t im1) const {
+_ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::equidistAt(const Eigen::Index i0, const double x0, const Eigen::Index im0, const Eigen::Index im1) const {
     assert(x0 >= (*m_ptr2x)(0) && x0 <= (*m_ptr2x)(m_ptr2x->size() - 1));
     
-    const std::size_t j0 = flatIndex(i0, im0, im1);
-    const std::size_t x0si = std::min(static_cast<std::size_t>((x0 - (*m_ptr2x)(0)) / m_dx), static_cast<std::size_t>(m_ptr2x->size() - 2));
+    const Eigen::Index j0 = flatIndex(i0, im0, im1);
+    const Eigen::Index x0si = std::min(static_cast<Eigen::Index>((x0 - (*m_ptr2x)(0)) / m_dx), m_ptr2x->size() - 2);
     const double Dx0 = x0 - (*m_ptr2x)(x0si);
     const double Dx1 = (*m_ptr2x)(x0si + 1) - x0;
     const double dxsq = m_dx * m_dx;
@@ -147,9 +148,9 @@ _ScalarT CubicSplineMat<_ScalarT, _n0, _n1, _nm>::equidistAt(const std::size_t i
 }
 
 template <typename _ScalarT, int _n0, int _n1, int _nm>
-std::complex<double> CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(const std::size_t i0, const double omega, const std::size_t im0, const std::size_t im1) const {
-    const std::size_t dim1 = m_ptr2x->size();
-    const std::size_t j0 = flatIndex(i0, im0, im1);
+std::complex<double> CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(const Eigen::Index i0, const double omega, const Eigen::Index im0, const Eigen::Index im1) const {
+    const Eigen::Index dim1 = m_ptr2x->size();
+    const Eigen::Index j0 = flatIndex(i0, im0, im1);
     
     const std::complex<double> eiwtbegin = std::exp(1i * std::fmod(omega * (*m_ptr2x)(0), 2 * M_PI));
     const std::complex<double> eiwtend = std::exp(1i * std::fmod(omega * (*m_ptr2x)(dim1 - 1), 2 * M_PI));
@@ -164,7 +165,7 @@ std::complex<double> CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(c
     // Approximate the residue of integration py parts, i.e., the integration of the 4th-order derivative, which is approximated by finite difference.
     // Not adding halves of the head and tail part because the fourth derivatives at the first and last grid point can not be approximated accurately.
     std::complex<double> integral(0.0, 0.0);
-    for (std::size_t i = 1; i < dim1 - 1; ++i) {
+    for (Eigen::Index i = 1; i < dim1 - 1; ++i) {
         integral += std::exp(1i * std::fmod(omega * (*m_ptr2x)(i), 2 * M_PI)) * ((m_deriv2(i + 1, j0) - m_deriv2(i, j0)) / ((*m_ptr2x)(i + 1) - (*m_ptr2x)(i))
                                                                          - (m_deriv2(i, j0) - m_deriv2(i - 1, j0)) / ((*m_ptr2x)(i) - (*m_ptr2x)(i - 1)));
     }
@@ -181,10 +182,10 @@ std::complex<double> CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(c
 // This method is automatically implicitly instantiated because it's inside a class.
 // Eigen::Ref<Eigen::MatrixXcd> also references fixed size matrix.
 template <typename _ScalarT, int _n0, int _n1, int _nm>
-void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(const std::size_t i0, const double omega,
+void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::fourierTransform(const Eigen::Index i0, const double omega,
                                                                //Eigen::Ref<typename SqMatArray<_ScalarT, _n0, _n1, _nm>::DataType> result
                                                                Eigen::Ref<Eigen::Matrix<_ScalarT, Eigen::Dynamic, Eigen::Dynamic> > result) const {
-    std::size_t im0, im1;
+    Eigen::Index im0, im1;
     result.resize(m_ptr2y->dimm(), m_ptr2y->dimm());  // For blocks, this just does runtime assertion that the new size matches the original size
     for (im1 = 0; im1 < m_ptr2y->dimm(); ++im1) {
         for (im0 = 0; im0 < m_ptr2y->dimm(); ++im0) result(im0, im1) = fourierTransform(i0, omega, im0, im1);
@@ -197,8 +198,8 @@ template <typename _ScalarT, int _n0, int _n1, int _nm>
 void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::symmetrizeDim0() {
     if (m_ptr2y != nullptr) {
         constexpr int nmsqAtCompileTime = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * _nm;
-        const std::size_t nmsq = m_ptr2y->dimm() * m_ptr2y->dimm();
-        std::size_t i0;
+        const Eigen::Index nmsq = m_ptr2y->dimm() * m_ptr2y->dimm();
+        Eigen::Index i0;
         for (i0 = 1; i0 < m_ptr2y->dim0(); ++i0) m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq) += m_deriv2.template middleCols<nmsqAtCompileTime>(i0 * nmsq, nmsq);
         m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq) /= static_cast<double>(m_ptr2y->dim0());
         for (i0 = 1; i0 < m_ptr2y->dim0(); ++i0) m_deriv2.template middleCols<nmsqAtCompileTime>(i0 * nmsq, nmsq) = m_deriv2.template leftCols<nmsqAtCompileTime>(nmsq);

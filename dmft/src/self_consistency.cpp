@@ -16,13 +16,14 @@ using namespace std::complex_literals;
 DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) :
 m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()),
 m_selfen_dyn(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen_static(2, 1, Gimp->nSites()),
-m_selfen_moms(2, 3, Gimp->nSites()), m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
+m_selfen_moms(2, 3, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()),
+m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
     parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     parameters["local correlation"] = false;
-    parameters["num_high_freq_tail"] = std::size_t(Gimp->freqCutoff() / 10);
+    parameters["high_freq_tail_start"] = Eigen::Index(Gimp->freqCutoff() / 2);
     // Compute moments of bath Green's function, which only depend on bare Hamiltonian
     // and thus only need to be calculated once when bare Hamiltonian passed in.
     m_ptr2Gbath->computeMoments(*m_ptr2H0);
@@ -41,7 +42,7 @@ void DMFTIterator::updateBathGF() {
     
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = m_Glat.mastFlatPart();
-    std::array<std::size_t, 2> so;
+    std::array<Eigen::Index, 2> so;
     
     if (m_iter == 0) {
         stepsize = 1.0;  // This means that at zero step (initialization), directly initialize bath Green's function
@@ -53,7 +54,7 @@ void DMFTIterator::updateBathGF() {
         const std::complex<double> t = m_ptr2H0->hopMatElem(0);
         std::complex<double> iwu(m_ptr2H0->chemPot(), 0.0);
         
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < Glatmastpart.size(); ++i) {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             iwu.imag(m_ptr2Gimp->matsubFreqs()(so[1]));
             Gbathmastpart(i, 0, 0) = (1.0 - stepsize) * Gbathmastpart(i, 0, 0) + stepsize / (-iwu - (t * t) * Glatmastpart(i, 0, 0));  // Number of sites is 1
@@ -68,7 +69,7 @@ void DMFTIterator::updateBathGF() {
         zeta << m_ptr2H0->chemPot(), tz,
                 tz,             m_ptr2H0->chemPot();
         
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < Glatmastpart.size(); ++i) {
             so = Glatmastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             zeta(0, 0).imag(m_ptr2Gimp->matsubFreqs()(so[1]));
             zeta(1, 1).imag(m_ptr2Gimp->matsubFreqs()(so[1]));
@@ -77,7 +78,7 @@ void DMFTIterator::updateBathGF() {
     }
     else {
         auto selfen_dyn_mastpart = m_selfen_dyn.mastFlatPart();
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < Glatmastpart.size(); ++i) {
             so = selfen_dyn_mastpart.global2dIndex(i);
             Gbathmastpart[i] = (1.0 - stepsize) * Gbathmastpart[i] + stepsize * (Glatmastpart[i].inverse() - selfen_dyn_mastpart[i] - m_selfen_static[so[0]]).inverse();
         }
@@ -91,25 +92,32 @@ void DMFTIterator::updateBathGF() {
     m_ptr2Gbath->invFourierTrans();   // Spline built using already-calculated high-frequency expansion
 }
 
-// Calculate static part and moments of self-energy, remember the used nonstandard definition of Green's function
-void DMFTIterator::computeSelfEnMoms() {
-    const auto n_hftail = std::any_cast<std::size_t>(parameters.at("num_high_freq_tail"));
-    const std::size_t fcut = m_ptr2Gimp->freqCutoff();
-    if (n_hftail > fcut + 1) throw std::range_error("DMFTIterator::computeSelfEnStatMoms: number of high frequency tail exceeds frequency cut-off");
-    const std::size_t ns = m_ptr2Gimp->nSites();
+// Fit second and third moments of self-energy and fill them in moms leaving first moment in moms untouched
+template <typename Derived, int n0, int n1, int nm, int n_mom>
+void DMFTIterator::fitSelfEnMoms23(const Eigen::DenseBase<Derived>& matsfreqs, const SqMatArray<std::complex<double>, n0, n1, nm> &selfen_dyn,
+                                   const SqMatArray<double, n0, n1, nm> &selfen_var, const Eigen::Index tailstart, SqMatArray<std::complex<double>, n0, n_mom, nm> &moms) {
+    const Eigen::Index nfreq = selfen_dyn.dim1();
+    if (moms.dim1() < 3) throw std::range_error("DMFTIteractor::fitSelfEnMoms23: number of provided moments less than 3");
+    if (tailstart >= nfreq) throw std::range_error("DMFTIterator::fitSelfEnMoms23: starting index of high frequency tail exceeds frequency cut-off");
+    const Eigen::Index n_hftail = nfreq - tailstart;
+    const Eigen::Index ns = selfen_dyn.dimm();
+    const auto dynpart = selfen_dyn.mastDim0Part();
+    const auto varpart = selfen_var.mastDim0Part();
+    auto momspart = moms.mastDim0Part();
     Eigen::MatrixX2d coef = Eigen::MatrixX2d::Zero(2 * n_hftail, 2), coef_weighted(2 * n_hftail, 2);
     Eigen::MatrixX4d coef_off = Eigen::MatrixX4d::Zero(4 * n_hftail, 4), coef_off_weighted(4 * n_hftail, 4);
     Eigen::VectorXd input(2 * n_hftail), weight(2 * n_hftail), input_off(4 * n_hftail), weight_off(4 * n_hftail);
-    std::size_t ng;
+    Eigen::Index ng;
     Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2d> decomp(2 * n_hftail, 2);
     Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX4d> decomp_off(4 * n_hftail, 4);
     Eigen::Vector4d sol;
-    for (std::size_t n = 0; n < n_hftail; ++n) {
-        ng = fcut + 1 - n_hftail + n;
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(ns);
+    for (Eigen::Index n = 0; n < n_hftail; ++n) {
+        ng = n + tailstart;
         // For real part of diagonal element of Matsubara self-energy
-        coef(2 * n, 0) = -1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
+        coef(2 * n, 0) = -1.0 / (matsfreqs(ng) * matsfreqs(ng));
         // For imaginary part of diagonal element of Matsubara self-energy
-        coef(2 * n + 1, 1) = 1.0 / (m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng) * m_ptr2Gimp->matsubFreqs()(ng));
+        coef(2 * n + 1, 1) = 1.0 / (matsfreqs(ng) * matsfreqs(ng) * matsfreqs(ng));
         // For real part of lower triangular element of Matsubara self-energy
         coef_off(4 * n, 0) = coef(2 * n, 0);
         coef_off(4 * n, 3) = -coef(2 * n + 1, 1);
@@ -123,50 +131,65 @@ void DMFTIterator::computeSelfEnMoms() {
         coef_off(4 * n + 3, 1) = -coef_off(4 * n + 1, 1);
         coef_off(4 * n + 3, 2) = coef_off(4 * n + 1, 2);
     }
-    for (int s = 0; s < 2; ++s) {
-        // Calculate first moment
-        m_selfen_moms(s, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
-        + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
-        // Obtain second and third coefficients by fitting (linear least-square solving), respecting their Hermicity
-        for (std::size_t i = 0; i < ns; ++i) {  // Fit real diagonal elements of moments
-            for (std::size_t n = 0; n < n_hftail; ++n) {
-                ng = fcut + 1 - n_hftail + n;
-                input(2 * n) = m_selfen_dyn(s, ng, i, i).real();
-                input(2 * n + 1) = m_selfen_dyn(s, ng, i, i).imag() + m_selfen_moms(s, 0, i, i).real() / m_ptr2Gimp->matsubFreqs()(ng);
+    // Obtain second and third coefficients by fitting (linear least-square solving), respecting their Hermicity
+    for (Eigen::Index s = 0; s < dynpart.dim0(); ++s) {
+        for (Eigen::Index i = 0; i < ns; ++i) {  // Fit real diagonal elements of moments
+            for (Eigen::Index n = 0; n < n_hftail; ++n) {
+                ng = n + tailstart;
+                input(2 * n) = dynpart(s, ng, i, i).real();
+                input(2 * n + 1) = dynpart(s, ng, i, i).imag() + momspart(s, 0, i, i).real() / matsfreqs(ng);
             }
-            weight.head(n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+            weight.head(n_hftail) = (varpart.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
             weight.tail(n_hftail) = weight.head(n_hftail);
             coef_weighted.noalias() = weight.asDiagonal() * coef;
             input.array() *= weight.array();
             decomp.compute(coef_weighted);
-            m_selfen_moms.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(Eigen::fix<2>)).transpose() = decomp.solve(input);  // This is real
+            momspart.dim1RowVecsAtDim0(s)(i + i * ns, Eigen::lastN(Eigen::fix<2>)).transpose() = decomp.solve(input);  // This is real
         }
-        for (std::size_t j = 0; j < ns; ++j) {  // Fit complex off-diagonal elements of moments
-            for (std::size_t i = j + 1; i < ns; ++i) {
-                for (std::size_t n = 0; n < n_hftail; ++n) {
-                    ng = fcut + 1 - n_hftail + n;
-                    input_off(4 * n) = m_selfen_dyn(s, ng, i, j).real() - m_selfen_moms(s, 0, i, j).imag() / m_ptr2Gimp->matsubFreqs()(ng);
-                    input_off(4 * n + 1) = m_selfen_dyn(s, ng, i, j).imag() + m_selfen_moms(s, 0, i, j).real() / m_ptr2Gimp->matsubFreqs()(ng);
-                    input_off(4 * n + 2) = m_selfen_dyn(s, ng, j, i).real() - m_selfen_moms(s, 0, j, i).imag() / m_ptr2Gimp->matsubFreqs()(ng);
-                    input_off(4 * n + 3) = m_selfen_dyn(s, ng, j, i).imag() + m_selfen_moms(s, 0, j, i).real() / m_ptr2Gimp->matsubFreqs()(ng);
+        for (Eigen::Index j = 0; j < ns; ++j) {  // Fit complex off-diagonal elements of moments
+            for (Eigen::Index i = j + 1; i < ns; ++i) {
+                for (Eigen::Index n = 0; n < n_hftail; ++n) {
+                    ng = n + tailstart;
+                    input_off(4 * n) = dynpart(s, ng, i, j).real() - momspart(s, 0, i, j).imag() / matsfreqs(ng);
+                    input_off(4 * n + 1) = dynpart(s, ng, i, j).imag() + momspart(s, 0, i, j).real() / matsfreqs(ng);
+                    input_off(4 * n + 2) = dynpart(s, ng, j, i).real() - momspart(s, 0, j, i).imag() / matsfreqs(ng);
+                    input_off(4 * n + 3) = dynpart(s, ng, j, i).imag() + momspart(s, 0, j, i).real() / matsfreqs(ng);
                 }
-                weight_off.head(n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+                weight_off.head(n_hftail) = (varpart.dim1RowVecsAtDim0(s)(i + j * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
                 weight_off.segment(n_hftail, n_hftail) = weight_off.head(n_hftail);
-                weight_off.segment(2 * n_hftail, n_hftail) = (m_selfen_var.dim1RowVecsAtDim0(s)(j + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
+                weight_off.segment(2 * n_hftail, n_hftail) = (varpart.dim1RowVecsAtDim0(s)(j + i * ns, Eigen::lastN(n_hftail)).array().rsqrt() * 2.0).matrix().transpose();
                 weight_off.tail(n_hftail) = weight_off.segment(2 * n_hftail, n_hftail);
                 coef_off_weighted.noalias() = weight_off.asDiagonal() * coef_off;
                 input_off.array() *= weight_off.array();
                 decomp_off.compute(coef_off_weighted);
                 sol = decomp_off.solve(input_off);
-                m_selfen_moms(s, 1, i, j).real(sol(0));
-                m_selfen_moms(s, 1, i, j).imag(sol(1));
-                m_selfen_moms(s, 2, i, j).real(sol(2));
-                m_selfen_moms(s, 2, i, j).imag(sol(3));
-                m_selfen_moms(s, 1, j, i) = std::conj(m_selfen_moms(s, 1, i, j));
-                m_selfen_moms(s, 2, j, i) = std::conj(m_selfen_moms(s, 2, i, j));
+                momspart(s, 1, i, j).real(sol(0));
+                momspart(s, 1, i, j).imag(sol(1));
+                momspart(s, 2, i, j).real(sol(2));
+                momspart(s, 2, i, j).imag(sol(3));
+                momspart(s, 1, j, i) = std::conj(momspart(s, 1, i, j));
+                momspart(s, 2, j, i) = std::conj(momspart(s, 2, i, j));
             }
         }
+        es.compute(momspart(s, 2), Eigen::EigenvaluesOnly);
+        if ((es.eigenvalues().array() < 0.0).any())
+            throw std::runtime_error("DMFTIterator::fitSelfEnMoms23: fitted third moment of self-energy is not positive semi-definite; try to lower the tail's starting index");
     }
+    momspart.allGather();
+}
+
+// Calculate static part and moments of self-energy, remember the used nonstandard definition of Green's function
+void DMFTIterator::computeSelfEnMoms() {
+    const auto tailstart = std::any_cast<Eigen::Index>(parameters.at("high_freq_tail_start"));
+    // Calculate first moment
+    auto selfenmomspart = m_selfen_moms.mastDim0Part();
+    Eigen::Index s;
+    for (Eigen::Index sl = 0; sl < selfenmomspart.dim0(); ++sl) {
+        s = sl + selfenmomspart.start();
+        selfenmomspart(sl, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
+        + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
+    }
+    fitSelfEnMoms23(m_ptr2Gimp->matsubFreqs(), m_selfen_dyn, m_selfen_var, tailstart, m_selfen_moms);  // m_selfen_moms all gathered in here
 }
 
 // Approximate self-energy from the solved impurity problem
@@ -176,13 +199,13 @@ void DMFTIterator::approxSelfEnergy() {
     const auto Gimpmastpart = m_ptr2Gimp->fourierCoeffs().mastFlatPart();
     const auto Gimpvarmastpart = m_ptr2Gimp->fCoeffsVar().mastFlatPart();
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
-    const std::size_t nc = m_ptr2Gimp->nSites();
-    std::array<std::size_t, 2> so;
+    const Eigen::Index nc = m_ptr2Gimp->nSites();
+    std::array<Eigen::Index, 2> so;
     Eigen::MatrixXcd tmp(nc, nc);
     Eigen::MatrixXd tmp1(nc, nc), tmp2(nc, nc);
     // Calculate static part of self-energy
     for (int s = 0; s < 2; ++s) m_selfen_static[s] = m_ptr2Gbath->moments()(s, 1) - m_ptr2Gimp->moments()(s, 1);
-    for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+    for (Eigen::Index i = 0; i < selfen_dyn_mastpart.size(); ++i) {
         so = selfen_dyn_mastpart.global2dIndex(i);
         tmp.noalias() = Gimpmastpart[i].inverse();
         selfen_dyn_mastpart[i].noalias() = tmp - Gbathmastpart[i].inverse() - m_selfen_static[so[0]];
@@ -194,8 +217,8 @@ void DMFTIterator::approxSelfEnergy() {
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
     if (loc_corr) {  // Set off-diagonal parts of self-energy to zero if adopting local correlation approximation
         //if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
-        //const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
-        for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+        //const Eigen::Index ns_2 = m_ptr2Gimp->nSites() / 2;
+        for (Eigen::Index i = 0; i < selfen_dyn_mastpart.size(); ++i) {
             //selfen_dyn_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
             //selfen_dyn_mastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
             //selfen_var_mastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXd::Zero(ns_2, ns_2);
@@ -227,9 +250,9 @@ void DMFTIterator::updateLatticeGF() {
     const auto loc_corr = std::any_cast<bool>(parameters.at("local correlation"));
     if (loc_corr) {  // Set block off-diagonal parts of lattice Green's function to zero if adopting local correlation approximation
         if (m_ptr2Gimp->nSites() % 2 != 0) throw std::invalid_argument("Number of sites must be even to consider local correlation approximation!");
-        const std::size_t ns_2 = m_ptr2Gimp->nSites() / 2;
+        const Eigen::Index ns_2 = m_ptr2Gimp->nSites() / 2;
         auto Glatmastpart = m_Glat.mastFlatPart();
-        for (std::size_t i = 0; i < Glatmastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < Glatmastpart.size(); ++i) {
             Glatmastpart[i].bottomLeftCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
             Glatmastpart[i].topRightCorner(ns_2, ns_2) = Eigen::MatrixXcd::Zero(ns_2, ns_2);
         }

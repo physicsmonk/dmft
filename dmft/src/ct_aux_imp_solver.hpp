@@ -18,7 +18,7 @@
 
 struct vertex {
     double tau;
-    std::size_t site;   // Index of a site
+    Eigen::Index site;   // Index of a site
     int aux_spin;
 };
 
@@ -30,9 +30,9 @@ private:
     double m_K;
     
     struct cut {
-        std::size_t size() const {return shrunk_size;}
-        std::size_t operator[](std::size_t i) const {return i < cut_ind ? i : i + 1;}
-        std::size_t shrunk_size, cut_ind;
+        Eigen::Index size() const {return shrunk_size;}
+        Eigen::Index operator[](Eigen::Index i) const {return i < cut_ind ? i : i + 1;}
+        Eigen::Index shrunk_size, cut_ind;
     };
     
 protected:
@@ -56,13 +56,13 @@ public:
     
     std::pair<double, bool> tryInsertVertex(const vertex& v, const double barrier);
     
-    std::pair<double, bool> tryRemoveVertex(const std::size_t p, const double barrier);
+    std::pair<double, bool> tryRemoveVertex(const Eigen::Index p, const double barrier);
     
-    std::pair<double, bool> tryShiftTau(const std::size_t p, const double tau, const double barrier);
+    std::pair<double, bool> tryShiftTau(const Eigen::Index p, const double tau, const double barrier);
     
-    std::pair<double, bool> tryShiftSite(const std::size_t p, const std::size_t site, const double barrier);
+    std::pair<double, bool> tryShiftSite(const Eigen::Index p, const Eigen::Index site, const double barrier);
     
-    std::pair<double, bool> tryFlipAuxSpin(const std::size_t p, const double barrier);
+    std::pair<double, bool> tryFlipAuxSpin(const Eigen::Index p, const double barrier);
     
     virtual void reset();
     
@@ -95,9 +95,9 @@ private:
 protected:
     double m_measuredfermisign;   // Measured Fermionic sign
     // Use size_t because these QMC-related numbers could be large
-    std::size_t m_nmarkovstep, m_nmeasure;
+    Eigen::Index m_nmarkovstep, m_nmeasure;
     double m_avevertorder;
-    ArrayXsizet m_histogram;
+    ArrayXindex m_histogram;
     std::mt19937 m_reng;   // Random number engine
     std::uniform_real_distribution<double> m_urd;  // Define random number distribution
     
@@ -120,7 +120,7 @@ public:
     
     double aveVertexOrder() const {return m_avevertorder;}
     
-    const ArrayXsizet &vertexOrderHistogram() const {return m_histogram;}
+    const ArrayXindex &vertexOrderHistogram() const {return m_histogram;}
     
     void updateInterPhysParams();
 };

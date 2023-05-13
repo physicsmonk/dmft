@@ -38,7 +38,7 @@ public:
     PadeApproximant& operator=(PadeApproximant&&) = default;
     ~PadeApproximant() = default;
     
-    void computeSpectra(const SqMatArray<std::complex<double>, _n0, 1, _nm>& selfen_static, const BareHamiltonian& H0, const std::size_t np, const double low,
+    void computeSpectra(const SqMatArray<std::complex<double>, _n0, 1, _nm>& selfen_static, const BareHamiltonian& H0, const Eigen::Index np, const double low,
                         const double high, const double del, const bool physonly = true);
     
     const Eigen::Array<int, _n0, 1>& nPhysSpectra() const {return m_nphys;}
@@ -48,7 +48,7 @@ public:
 private:
     //MPI_Comm m_comm;
     //int m_prank, m_psize;
-    //std::size_t m_napproxs, m_dim0, m_dimm;  // Store the relevant dimensions
+    //Eigen::Index m_napproxs, m_dim0, m_dimm;  // Store the relevant dimensions
     // Stores Pade coefficients. Must use a std::vector because the coefficients of different Pade approximants have different lengths.
     // Each Eigen::Vector contains the coefficients of a Pade approximant. The index of the std::vector is site, then spin, and then
     // approximant, major.
@@ -60,14 +60,14 @@ private:
 
 template <typename _InnerRealType, int _n0, int _n1, int _nm>
 PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, _n0, _n1, _nm>::build(const SqMatArray<std::complex<double>, _n0, _n1, _nm>& selfen_dyn_matsub, const double beta, const Eigen::ArrayXi& datalens, const Eigen::ArrayXi& startfreqs, const Eigen::ArrayXi& coefflens, const MPI_Comm& comm) {
-    const std::size_t n0 = selfen_dyn_matsub.dim0();
-    const std::size_t nm = selfen_dyn_matsub.dimm();
-    if (startfreqs.maxCoeff() + datalens.maxCoeff() > static_cast<int>(selfen_dyn_matsub.dim1()) || -startfreqs.minCoeff() - 1 >= static_cast<int>(selfen_dyn_matsub.dim1()))
+    const Eigen::Index n0 = selfen_dyn_matsub.dim0();
+    const Eigen::Index nm = selfen_dyn_matsub.dimm();
+    if (startfreqs.maxCoeff() + datalens.maxCoeff() > selfen_dyn_matsub.dim1() || -startfreqs.minCoeff() - 1 >= selfen_dyn_matsub.dim1())
         throw std::range_error("Required data length exceeds the used data length for building Pade approximant!");
     
     Eigen::ArrayXi::const_iterator itM, itn0, itN;
     int iz, n;
-    std::size_t r, s, x0, x1, r0, ir;
+    Eigen::Index r, s, x0, x1, r0, ir;
     Eigen::Matrix<std::complex<_InnerRealType>, Eigen::Dynamic, Eigen::Dynamic> A, F(0, n0 * nm * nm);
     Eigen::Vector<std::complex<_InnerRealType>, Eigen::Dynamic> zs, b;
     
@@ -78,24 +78,24 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
     // Most evenly distribute tasks to each process, treating the three data dimensions on equal footing,
     // because the first data dimension could be small (around 10) so it is not so efficient when using
     // moderately many processes if just dividing the first data dimension
-    //const std::size_t totalsize = datalens.size() * startfreqs.size() * coefflens.size();
-    const std::size_t n0Nsize = startfreqs.size() * coefflens.size();
-    //const std::size_t bbsize = totalsize / m_psize;
-    //std::size_t localstart = m_prank * bbsize;
-    //std::size_t localfinal = (m_prank < m_psize - 1) ? localstart + bbsize : totalsize;
-    std::size_t localstart, localfinal;
+    //const Eigen::Index totalsize = datalens.size() * startfreqs.size() * coefflens.size();
+    const Eigen::Index n0Nsize = startfreqs.size() * coefflens.size();
+    //const Eigen::Index bbsize = totalsize / m_psize;
+    //Eigen::Index localstart = m_prank * bbsize;
+    //Eigen::Index localfinal = (m_prank < m_psize - 1) ? localstart + bbsize : totalsize;
+    Eigen::Index localstart, localfinal;
     mostEvenPart(datalens.size() * startfreqs.size() * coefflens.size(), psize, prank, localfinal, localstart);  // localfinal now is the local size
     localfinal += localstart;  // Now obtain localfinal
-    const std::size_t localMstart = localstart / n0Nsize;
-    const std::size_t localMfinal = localfinal / n0Nsize + (localfinal % n0Nsize > 0);
+    const Eigen::Index localMstart = localstart / n0Nsize;
+    const Eigen::Index localMfinal = localfinal / n0Nsize + (localfinal % n0Nsize > 0);
     localstart %= n0Nsize;
     localfinal %= n0Nsize;
-    const std::size_t localn0start = localstart / coefflens.size();
-    const std::size_t localn0final = localfinal == 0 ? startfreqs.size() : localfinal / coefflens.size() + (localfinal % coefflens.size() > 0);
+    const Eigen::Index localn0start = localstart / coefflens.size();
+    const Eigen::Index localn0final = localfinal == 0 ? startfreqs.size() : localfinal / coefflens.size() + (localfinal % coefflens.size() > 0);
     localstart %= coefflens.size();
     localfinal %= coefflens.size();
-    const std::size_t localNstart = localstart;
-    const std::size_t localNfinal = localfinal == 0 ? coefflens.size() : localfinal;
+    const Eigen::Index localNstart = localstart;
+    const Eigen::Index localNfinal = localfinal == 0 ? coefflens.size() : localfinal;
     
     const Eigen::ArrayXi::const_iterator localMbegin = datalens.cbegin() + localMstart;
     const Eigen::ArrayXi::const_iterator localMend = datalens.cbegin() + localMfinal;
@@ -193,14 +193,14 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
 
 template <typename _InnerRealType, int _n0, int _n1, int _nm>
 void PadeApproximant<_InnerRealType, _n0, _n1, _nm>::computeSpectra(const SqMatArray<std::complex<double>, _n0, 1, _nm>& selfen_static, const BareHamiltonian& H0,
-                                                                    const std::size_t np, const double low, const double high, const double del, const bool physonly) {
+                                                                    const Eigen::Index np, const double low, const double high, const double del, const bool physonly) {
     assert(np > 1);
     
-    const std::size_t n0 = selfen_static.dim0();
-    const std::size_t nm = selfen_static.dimm();
-    const std::size_t nmatelems = n0 * nm * nm;
-    const std::size_t napproxs = m_coeffs.size() / nmatelems;
-    std::size_t i, s, x0, x1, k, o, r0, r, ir;
+    const Eigen::Index n0 = selfen_static.dim0();
+    const Eigen::Index nm = selfen_static.dimm();
+    const Eigen::Index nmatelems = n0 * nm * nm;
+    const Eigen::Index napproxs = m_coeffs.size() / nmatelems;
+    Eigen::Index i, s, x0, x1, k, o, r0, r, ir;
     std::complex<_InnerRealType> SigmaR;
     Eigen::Vector<std::complex<_InnerRealType>, Eigen::Dynamic> zs = Eigen::Vector<_InnerRealType, Eigen::Dynamic>::LinSpaced(np, low, high)
     + std::complex<_InnerRealType>(0.0, std::fabs(del)) * Eigen::Vector<_InnerRealType, Eigen::Dynamic>::Ones(np);
@@ -259,9 +259,9 @@ void PadeApproximant<_InnerRealType, _n0, _n1, _nm>::computeSpectra(const SqMatA
         }
     }
     
-    MPI_Allreduce(MPI_IN_PLACE, m_nphys.data(), static_cast<int>(m_nphys.size()), MPI_INT, MPI_SUM, m_selfenR.mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, m_nphys.data(), m_nphys.size(), MPI_INT, MPI_SUM, m_selfenR.mpiCommunicator());
 //    _selfen.sumLocals2mastPart();
-//    std::array<std::size_t, 2> so;
+//    std::array<Eigen::Index, 2> so;
 //    for (i = 0; i < _selfen.mastPartSize(); ++i) {
 //        so = _selfen.index2DinPart(i);
 //        if (_nphys(so[0]) > 0) _selfen.masteredPart(i) /= _nphys(so[0]);

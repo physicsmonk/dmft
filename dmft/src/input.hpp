@@ -15,22 +15,22 @@
 #include "pugixml.hpp"
 #include <mpi.h>
 
-// Get underlying data type of std::size_t
-#include <cstdint>
-#include <climits>
-#if SIZE_MAX == UCHAR_MAX
-#define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
-#elif SIZE_MAX == USHRT_MAX
-#define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
-#elif SIZE_MAX == UINT_MAX
-#define my_MPI_SIZE_T MPI_UNSIGNED
-#elif SIZE_MAX == ULONG_MAX
-#define my_MPI_SIZE_T MPI_UNSIGNED_LONG
-#elif SIZE_MAX == ULLONG_MAX
-#define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
-#else
-#error "What is happening here?"
-#endif
+// Get underlying data type of Eigen::Index
+//#include <cstdint>
+//#include <climits>
+//#if SIZE_MAX == UCHAR_MAX
+//#define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
+//#elif SIZE_MAX == USHRT_MAX
+//#define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
+//#elif SIZE_MAX == UINT_MAX
+//#define my_MPI_SIZE_T MPI_UNSIGNED
+//#elif SIZE_MAX == ULONG_MAX
+//#define my_MPI_SIZE_T MPI_UNSIGNED_LONG
+//#elif SIZE_MAX == ULLONG_MAX
+//#define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+//#else
+//#error "What is happening here?"
+//#endif
 
 // Read from a xml doc root the data located at path. Use
 // template function to handle various output datatypes
@@ -41,7 +41,7 @@ bool readxml(T& data, pugi::xml_node docroot, const std::string& path)
     std::vector<std::string> pathlist;
     std::istringstream pathstream(path);
     std::string s, text;
-    std::size_t l = 0;
+    int l = 0;
     
     // Split the path nodes for later use
     while (std::getline(pathstream, s, '/'))
@@ -52,7 +52,7 @@ bool readxml(T& data, pugi::xml_node docroot, const std::string& path)
     // for (const auto& i : pathlist) std::cout << i << "-->";
     // std::cout << std::endl;
     
-    for (std::size_t i=0; i < pathlist.size()-1; ++i)
+    for (int i = 0; i + 1 < pathlist.size(); ++i)
     {
         docroot = docroot.child(pathlist[i].c_str());
         l += pathlist[i].length();
@@ -104,13 +104,13 @@ bool readxml(T& data, pugi::xml_node docroot, const std::string& path)
     
     if constexpr (std::is_same<T, std::string>::value) data = text;
     else if (std::is_same<T, int>::value || std::is_same<T, bool>::value) data = std::stoi(text);
-    else if (std::is_same<T, std::size_t>::value) {
-#if SIZE_MAX == ULONG_MAX
-        data = std::stoul(text);
-#elif SIZE_MAX == ULLONG_MAX
-        data = std::stoull(text);
+    else if (std::is_same<T, std::ptrdiff_t>::value) {
+#if PTRDIFF_MAX == LONG_MAX
+        data = std::stol(text);
+#elif PTRDIFF_MAX == LLONG_MAX
+        data = std::stoll(text);
 #else
-#error "What is happening here?"
+#error "PTRDIFF_MAX is neither LONG_MAX nor LLONG_MAX"
 #endif
     }
     else if (std::is_same<T, double>::value) data = std::stod(text);
@@ -146,7 +146,7 @@ bool readxml_bcast(T& data, const pugi::xml_node& docroot, const std::string& pa
             delete[] tmp;
         }
         else if (std::is_same<T, int>::value) MPI_Bcast(&data, 1, MPI_INT, 0, comm);
-        else if (std::is_same<T, std::size_t>::value) MPI_Bcast(&data, 1, my_MPI_SIZE_T, 0, comm);
+        else if (std::is_same<T, std::ptrdiff_t>::value) MPI_Bcast(&data, 1, MPI_AINT, 0, comm);
         else if (std::is_same<T, bool>::value) MPI_Bcast(&data, 1, MPI_CXX_BOOL, 0, comm);
         else if (std::is_same<T, float>::value) {
             MPI_Bcast(&data, 1, MPI_FLOAT, 0, comm);

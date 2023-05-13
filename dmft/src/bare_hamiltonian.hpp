@@ -14,19 +14,16 @@
 #include "gf_data_wrapper.hpp"
 
 
-
-typedef Eigen::Array<std::size_t, Eigen::Dynamic, 1> ArrayXsizet;
-
 // Base class for user-defined bare Hamiltonians. Users want to implement the virtual method
 // constructHamiltonian in derived classes to construct any Hamiltonian matrix they want.
 class BareHamiltonian {
 private:
     MPI_Comm m_comm;
     int m_psize, m_prank;
-    std::size_t m_klocalsize, m_klocalstart;
+    Eigen::Index m_klocalsize, m_klocalstart;
     double m_v0;   //  Unit cell volume/area/length
     Eigen::MatrixXd m_K;  // Stores reciprocal primative vectors in columns
-    ArrayXsizet m_nk;   // Numbers of k-points along each reciprocal primative vector
+    ArrayXindex m_nk;   // Numbers of k-points along each reciprocal primative vector
     std::array<double, 2> m_erange;   // Energy range of the band structure
     Eigen::ArrayXXd m_bands;  // Stores energy bands; index is of (energy, (kx, ky, kz))
     // Block diagonalized Hamiltonian for the special case, 2D dimer Hubbard model in magnetic fields. First index runs over k-vectors (ky major)
@@ -49,16 +46,16 @@ public:
     virtual ~BareHamiltonian() {}
     
     // Provide a method for index converting for k-space storage, otherwise we could make a data wrapper
-    std::size_t flatIndex(const std::size_t ix, const std::size_t iy, const std::size_t iz) const {
+    Eigen::Index flatIndex(const Eigen::Index ix, const Eigen::Index iy, const Eigen::Index iz) const {
         if (m_a.cols() != 3) throw std::bad_function_call();
         return (ix * m_nk(1) + iy) * m_nk(2) + iz;
     }
-    std::size_t flatIndex(const std::size_t ix, const std::size_t iy) const {
+    Eigen::Index flatIndex(const Eigen::Index ix, const Eigen::Index iy) const {
         if (m_a.cols() != 2) throw std::bad_function_call();
         return ix * m_nk(1) + iy;
     }
     
-    void kVecAtIndex(std::size_t ik, Eigen::VectorXd& k) const;  // Calculate the ik-th k vector
+    void kVecAtIndex(Eigen::Index ik, Eigen::VectorXd& k) const;  // Calculate the ik-th k vector
     
     void setMPIcomm(const MPI_Comm& comm);
     
@@ -72,7 +69,7 @@ public:
     template <typename Derived>
     void computeBands(const Eigen::DenseBase<Derived>& nk);
     
-    void computeDOS(const std::size_t nbins);
+    void computeDOS(const Eigen::Index nbins);
     
     void type(const std::string& tp) {m_type = tp;}   // Set type
     const std::string& type() const {return m_type;}   // Return type
@@ -103,11 +100,11 @@ public:
     
     const Eigen::MatrixXd& kPrimVecs() const {return m_K;}
     
-    const ArrayXsizet& kGridSizes() const {return m_nk;}
+    const ArrayXindex& kGridSizes() const {return m_nk;}
     
     template <typename Derived>
     void hopMatElem(const Eigen::DenseBase<Derived>& t_) {m_t = t_;}   // Set hoppong matrix elements
-    std::complex<double> hopMatElem(const std::size_t i) const {return m_t(i);}  // Return hopping matrix element
+    std::complex<double> hopMatElem(const Eigen::Index i) const {return m_t(i);}  // Return hopping matrix element
     
     void chemPot(const double mu) {m_mu = mu;}   // Set chemical potential
     double chemPot() const {return m_mu;}   // Return chemical potential
@@ -160,7 +157,7 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
     
-    std::size_t nbands, ik;
+    Eigen::Index nbands, ik;
     Eigen::VectorXd k = Eigen::VectorXd::Zero(m_a.rows());
     Eigen::MatrixXcd H;
     
@@ -172,7 +169,7 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es0(nbands);
     
     // Calculate bands
-    const std::size_t nkt = m_nk.prod();
+    const Eigen::Index nkt = m_nk.prod();
     mostEvenPart(nkt, m_psize, m_prank, m_klocalsize, m_klocalstart);
     m_bands.resize(nbands + k.size(), m_klocalsize);   // Allocate local-sized m_bands because it is not directly used in the program; first several rows is k-vector
     for (ik = 0; ik < m_klocalsize; ++ik) {
@@ -199,14 +196,14 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     if (m_type == "dimer_mag_2d") {
         if (m_a.cols() != 2) throw std::invalid_argument("Space dimension must be 2 for 2D dimer Hubbard model in magnetic fields!");
         if (nbands % 2 != 0) throw std::range_error("Hamiltonian's dimension must be multiple of 2 for 2D dimer Hubbard model in magnetic fields!");
-        const std::size_t nb_2 = nbands / 2;
+        const Eigen::Index nb_2 = nbands / 2;
         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(nb_2);
         Eigen::MatrixXcd fv;
         m_HdimerMag2d.mpiCommunicator(m_comm);
         m_HdimerMag2d.resize(nkt, nb_2, 2);  // Allocate resources for _HdimerMag2d, full-size data is needed by all processes
         auto Hmastpart = m_HdimerMag2d.mastDim0Part();  // Choose only partitioning the first dimension
         m_vdimerMag2d.resize(2, Hmastpart.dim0(), nb_2);   // No need to gather, so just allocate local-size data
-        std::size_t m;
+        Eigen::Index m;
         int co;
         for (ik = 0; ik < Hmastpart.dim0(); ++ik) {
             kVecAtIndex(ik + Hmastpart.start(), k);
@@ -242,14 +239,14 @@ void simpsonIntegrate(const SqMatArray<Scalar, 1, n1, nm>& integrand, const doub
     if (integrand.dim1() % 2 == 0) throw std::range_error("#grid size must be odd for Simpson integration!");
     result.resize(integrand.dimm(), integrand.dimm());
     result.setZero();
-    for (std::size_t i = 0; i + 2 < integrand.dim1(); i += 2) result += (dx / 3.0) * (integrand[i] + 4.0 * integrand[i + 1] + integrand[i + 2]);
+    for (Eigen::Index i = 0; i + 2 < integrand.dim1(); i += 2) result += (dx / 3.0) * (integrand[i] + 4.0 * integrand[i + 1] + integrand[i + 2]);
 }
 
 template <typename Derived>
 typename Derived::Scalar simpsonIntegrate(const Eigen::DenseBase<Derived>& integrand, const double dx) {
     if (integrand.size() % 2 == 0) throw std::range_error("#grid size must be odd for Simpson integration!");
     typename Derived::Scalar result = 0.0;
-    for (std::size_t i = 0; i + 2 < integrand.size(); i += 2) result += (dx / 3.0) * (integrand(i) + 4.0 * integrand(i + 1) + integrand(i + 2));
+    for (Eigen::Index i = 0; i + 2 < integrand.size(); i += 2) result += (dx / 3.0) * (integrand(i) + 4.0 * integrand(i + 1) + integrand(i + 2));
     return result;
 }
 
@@ -257,23 +254,23 @@ template <int n0, int n1, int nm, typename Derived>
 void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen_dyn,
                           const SqMatArray<std::complex<double>, n0, 1, nm>& selfen_static, const Eigen::DenseBase<Derived>& energies,
                           SqMatArray<std::complex<double>, n0, n1, nm>& Gw) {
-    const std::size_t nc = selfen_dyn.dimm();
+    const Eigen::Index nc = selfen_dyn.dimm();
     Gw.mpiCommunicator(selfen_dyn.mpiCommunicator());
     Gw.resize(selfen_dyn.dim0(), selfen_dyn.dim1(), nc);
     assert(selfen_dyn.dim1() == energies.size());
     const auto selfen_dyn_mastpart = selfen_dyn.mastFlatPart();
     auto Gwmastpart = Gw.mastFlatPart();
-    std::array<std::size_t, 2> so;
+    std::array<Eigen::Index, 2> so;
     std::complex<double> wu;
     
     if (nc == 1) {  // Single site case, where we can utilize the noninteracting density of states
-        const std::size_t nbins = H0.dos().rows();
+        const Eigen::Index nbins = H0.dos().rows();
         if (nbins == 0) throw std::range_error("DOS has not been computed or set!");
-        std::size_t ie;
+        Eigen::Index ie;
         const double binsize = (H0.energyRange()[1] - H0.energyRange()[0]) / nbins;
         Eigen::ArrayXcd integrand(nbins);
         
-        for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < selfen_dyn_mastpart.size(); ++i) {
             so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
         //    if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
         //        wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
@@ -293,16 +290,16 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
         }
     }
     else if (nc > 1) {
-        const std::size_t spatodim = H0.kPrimVecs().rows();
+        const Eigen::Index spatodim = H0.kPrimVecs().rows();
         if (spatodim == 0) throw std::range_error("Reciprocal primative vectors have not been set!");
         // else if (spatodim > 2) throw std::range_error("k-space integration has only been implemented for 1- and 2-dimensional cases!");
         // SqMatArray<std::complex<double>, 1, Eigen::Dynamic, Eigen::Dynamic> integrand0(nk, nc);
         
         if (H0.type() == "dimer_mag_2d") {
             if (H0.hamDimerMag2d().size() == 0) throw std::range_error("Block Hamiltonian of the 2D dimer Hubbard model in magnetic fields has not been computed!");
-            std::size_t ist;
+            Eigen::Index ist;
             Gwmastpart().setZero();
-            for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+            for (Eigen::Index i = 0; i < selfen_dyn_mastpart.size(); ++i) {
                 so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             //    if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
             //        wu.real(energies(so[1]).real().toDouble() + H0.chemPot());
@@ -316,12 +313,12 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
         }
         else {
             if (H0.kGridSizes().size() == 0) throw std::range_error("Grid size for the reciprocal space has not been set!");
-            const std::size_t nk = H0.kGridSizes().prod();
-            std::size_t ik;
+            const Eigen::Index nk = H0.kGridSizes().prod();
+            Eigen::Index ik;
             Eigen::VectorXd k;
             Eigen::MatrixXcd H;
             Gwmastpart().setZero();
-            for (std::size_t i = 0; i < selfen_dyn_mastpart.size(); ++i) {
+            for (Eigen::Index i = 0; i < selfen_dyn_mastpart.size(); ++i) {
                 so = selfen_dyn_mastpart.global2dIndex(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
             //    if constexpr (std::is_same<typename Derived::Scalar, std::complex<mpfr::mpreal> >::value) {
             //        wu.real(energies(so[1]).real().toDouble() + H0.chemPot());

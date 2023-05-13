@@ -29,7 +29,7 @@ protected:
     SqMatArray21Xcd m_selfen_static;  // Static part of self-energy
     SqMatArray23Xcd m_selfen_moms;   // first to third moments (all Hermitian) of dynamic part of self-energy
     SqMatArray2XXd m_selfen_var;   // Self-energy variances
-    std::size_t m_iter;  // The number of iterations
+    Eigen::Index m_iter;  // The number of iterations
     
     void computeSelfEnMoms();
     
@@ -38,7 +38,7 @@ public:
     
     DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp);
     
-    std::size_t numIterations() const {return m_iter;}
+    Eigen::Index numIterations() const {return m_iter;}
     void incrementIter() {++m_iter;}
     void resetIterator() {m_iter = 0;}
     
@@ -49,6 +49,10 @@ public:
     void updateLatticeGF();
     
     std::pair<bool, double> checkConvergence() const;
+    
+    template <typename Derived, int n0, int n1, int nm, int n_mom>
+    static void fitSelfEnMoms23(const Eigen::DenseBase<Derived>& matsfreqs, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen_dyn,
+                                const SqMatArray<double, n0, n1, nm>& selfen_var, const Eigen::Index tailstart, SqMatArray<std::complex<double>, n0, n_mom, nm>& moms);
     
     SqMatArray2XXcd& dynSelfEnergy() {return m_selfen_dyn;}
     const SqMatArray2XXcd& dynSelfEnergy() const {return m_selfen_dyn;}
@@ -72,14 +76,14 @@ double longitConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<dou
     assert(selfen.dim1() == engrid.size());
     
     Eigen::ArrayXd integrand = Eigen::ArrayXd::Zero(selfen.dim1());
-    std::size_t iw, ik, m0, m1;
+    Eigen::Index iw, ik, m0, m1;
     //const double dw = (high - low) / (selfen.dim1() - 1);
     //const Eigen::ArrayXd ws = Eigen::ArrayXd::LinSpaced(selfen.dim1(), low, high);
     const Eigen::ArrayXd ebws = (beta * engrid.real()).exp();  // Save results of rather expensive exponential calculations
     double sigmaxx = 0.0;
     
     if (H0.type() == "dimer_mag_2d") {
-        const std::size_t nb_2 = H0.hamDimerMag2d().dim1();
+        const Eigen::Index nb_2 = H0.hamDimerMag2d().dim1();
         Eigen::Matrix2cd a;
         SqMatArray<std::complex<double>, 1, Eigen::Dynamic, 2> A(1, nb_2, 2);  // Purely local
         const auto Hmastpart = H0.hamDimerMag2d().mastDim0Part();
@@ -121,7 +125,7 @@ double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<doubl
     assert(selfen.dim1() == engrid.size());
     
     Eigen::ArrayXd integrand0(selfen.dim1()), integrand1 = Eigen::ArrayXd::Zero(selfen.dim1());
-    std::size_t iw0, iw1, ik, m0, m1;
+    Eigen::Index iw0, iw1, ik, m0, m1;
     //const double dw = (high - low) / (selfen.dim1() - 1);
     //const Eigen::ArrayXd ws = Eigen::ArrayXd::LinSpaced(selfen.dim1(), low, high);
     const Eigen::ArrayXd fws = 1.0 / (1.0 + (beta * engrid.real()).exp());
@@ -129,7 +133,7 @@ double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<doubl
     const double nu = 1e-6;
     
     if (H0.type() == "dimer_mag_2d") {
-        const std::size_t nb_2 = H0.hamDimerMag2d().dim1();
+        const Eigen::Index nb_2 = H0.hamDimerMag2d().dim1();
         Eigen::Matrix2cd a;
         SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2> A(selfen.dim1(), nb_2, 2);  // Purely local
         const auto Hmastpart = H0.hamDimerMag2d().mastDim0Part();

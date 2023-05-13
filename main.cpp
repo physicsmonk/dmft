@@ -88,9 +88,9 @@ public:
 //};
 
 //struct cut {
-//    std::size_t size() const {return shrunk_size;}
-//    std::size_t operator[](std::size_t i) const {return i < cut_ind ? i : i + 1;}
-//    std::size_t shrunk_size, cut_ind;
+//    Eigen::Index size() const {return shrunk_size;}
+//    Eigen::Index operator[](Eigen::Index i) const {return i < cut_ind ? i : i + 1;}
+//    Eigen::Index shrunk_size, cut_ind;
 //};
 
 
@@ -130,7 +130,7 @@ int main(int argc, char * argv[]) {
     //std::cout << arr << std::endl;
     
     /*
-    std::size_t Nul = 5, Nur = 5, Nw = 51, Niw = 71;
+    Eigen::Index Nul = 5, Nur = 5, Nw = 51, Niw = 71;
     double omegal = -3.0, omegar = 3.0, invT = 10.0;
     Eigen::ArrayXd iomegas = Eigen::ArrayXd::LinSpaced(Niw, M_PI / invT, (2 * Niw - 1) * M_PI / invT);
     MQEMContinuator<1, Eigen::Dynamic, 2> testmqem;
@@ -141,7 +141,7 @@ int main(int argc, char * argv[]) {
     Eigen::Matrix2cd rot;
     double theta;
     // Assign model spectral function
-    for (std::size_t i = 0; i < testmqem.realFreqGrid().size(); ++i) {
+    for (Eigen::Index i = 0; i < testmqem.realFreqGrid().size(); ++i) {
         theta = 2.0 * M_PI * testmqem.realFreqGrid()(i) * 0.05; theta *= theta;
         rot << std::cos(theta), 1i * std::sin(theta),
                1i * std::sin(theta), std::cos(theta);
@@ -162,7 +162,7 @@ int main(int argc, char * argv[]) {
     vars().setConstant(sig * sig * 2.0);
     
     std::normal_distribution<double> nrd(0.0, sig);
-    for (std::size_t i = 0; i < Niw; ++i) {
+    for (Eigen::Index i = 0; i < Niw; ++i) {
         rot << nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen), nrd(gen) + 1i * nrd(gen);
         func_mats[i] += rot;
     }
@@ -192,7 +192,7 @@ int main(int argc, char * argv[]) {
     // std::random_device rd;
     // std::cout << rd() << std::endl;
     
-    std::size_t nsite = 2;
+    Eigen::Index nsite = 2;
     double t = -1.0;
     double tz = -1.0;
     int q = 2;
@@ -207,21 +207,21 @@ int main(int argc, char * argv[]) {
     double density_goal = -1.0;
     double K = 1.0;
     
-    std::size_t nkx = 101;
-    std::size_t nky = 101;
-    std::size_t nbins4dos = 1001;
+    Eigen::Index nkx = 101;
+    Eigen::Index nky = 101;
+    Eigen::Index nbins4dos = 1001;
 
-    std::size_t nfcut = 1000;   // 1000
-    std::size_t ntau = 301;  // 1001
-    std::size_t ntau4eiwt = 0;
-    std::size_t nbins4S = 10001;   // 10001
+    Eigen::Index nfcut = 1000;   // 1000
+    Eigen::Index ntau = 301;  // 1001
+    Eigen::Index ntau4eiwt = 0;
+    Eigen::Index nbins4S = 10001;   // 10001
 
-    std::size_t markovchainlength = 100000000;    // 20000000
+    Eigen::Index markovchainlength = 100000000;    // 20000000
     double qmctimelimit = 8.0;  // Unit is minute
-    std::size_t measureperiod = 200;    // 200
-    std::size_t warmupsize = 10000;
+    Eigen::Index measureperiod = 200;    // 200
+    Eigen::Index warmupsize = 10000;
     std::string measurewhat("S");
-    std::size_t histmaxorder = 100;
+    Eigen::Index histmaxorder = 100;
     std::string magneticorder("paramagnetic");
     std::string verbosity("off");
     
@@ -231,7 +231,7 @@ int main(int argc, char * argv[]) {
     std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
     double density_error = 0.001;
-    std::size_t tailsize = 100;
+    Eigen::Index tailstart = 100;
     
     /*
     // For Pade interpolation
@@ -245,7 +245,7 @@ int main(int argc, char * argv[]) {
     int ncoefflens = 13;
     int mincoefflen = 10;
     int maxcoefflen = 34;
-    std::size_t nenergies = 201;
+    Eigen::Index nenergies = 201;
     double minenergy = -10.0;
     double maxenergy = 10.0;
     double delenergy = 0.01;
@@ -253,16 +253,19 @@ int main(int argc, char * argv[]) {
      */
     
     // For MQEM analytic continuation
+    double secant_tol = 0.001;
+    Eigen::Index secant_maxiter = 30;
+    double secant_damp = 0.1;
     double mat_inv_threshold = -1.0;
-    std::size_t n_lrealfreq = 10;
+    Eigen::Index n_lrealfreq = 10;
     Eigen::Array<double, 7, 1> midrealfreq_anchors_steps;
     midrealfreq_anchors_steps << -5.0, 0.1, -2.0, 0.05, 2.0, 0.1, 5.0;
-    std::size_t n_rrealfreq = 10;
+    Eigen::Index n_rrealfreq = 10;
     double pulay_mix = 0.01;
-    std::size_t pulay_histsize = 5;
-    std::size_t pulay_period = 3;
+    Eigen::Index pulay_histsize = 5;
+    Eigen::Index pulay_period = 3;
     double pulay_tol = 1e-6;
-    std::size_t pulay_maxiter = 500;
+    Eigen::Index pulay_maxiter = 500;
     //double gaussian_sig = 1.0;
     double alpha_maxfac = 100.0;
     double alpha_infofitfac = 0.05;
@@ -273,8 +276,8 @@ int main(int argc, char * argv[]) {
     double alpha_rmin = 0.7;
     double alpha_rmax = 2.0;
     double alpha_rscale = 0.8;
-    std::size_t alpha_fitsize = 9;
-    std::size_t alpha_capacity = 1000;
+    Eigen::Index alpha_fitsize = 9;
+    Eigen::Index alpha_capacity = 1000;
     bool alpha_cacheall = false;
     
     int proc_control = 0;
@@ -323,7 +326,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD);
     readxml_bcast(density_error, docroot, "numerical/selfConsistency/densityError", MPI_COMM_WORLD);
-    readxml_bcast(tailsize, docroot, "numerical/selfConsistency/selfEnergyTailSize", MPI_COMM_WORLD);
+    readxml_bcast(tailstart, docroot, "numerical/selfConsistency/selfEnergyTailStartIndex", MPI_COMM_WORLD);
     /*
     readxml_bcast(physonly, docroot, "numerical/PadeInterpolation/physicalSpectraOnly", MPI_COMM_WORLD, prank);
     readxml_bcast(ndatalens, docroot, "numerical/PadeInterpolation/numDataLengths", MPI_COMM_WORLD, prank);
@@ -341,6 +344,9 @@ int main(int argc, char * argv[]) {
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
     */
+    readxml_bcast(secant_maxiter, docroot, "numerical/MQEM/secantMaxIteration", MPI_COMM_WORLD);
+    readxml_bcast(secant_tol, docroot, "numerical/MQEM/secantTolerance", MPI_COMM_WORLD);
+    readxml_bcast(secant_damp, docroot, "numerical/MQEM/secantDamp", MPI_COMM_WORLD);
     readxml_bcast(mat_inv_threshold, docroot, "numerical/MQEM/matrixInvertibleThreshold", MPI_COMM_WORLD);
     readxml_bcast(n_lrealfreq, docroot, "numerical/MQEM/numLeftRealFrequencies", MPI_COMM_WORLD);
     std::string rfai;
@@ -375,7 +381,6 @@ int main(int argc, char * argv[]) {
     readxml_bcast(loc_corr, docroot, "processControl/localCorrelation", MPI_COMM_WORLD);
 
     if (prank == 0) std::cout << sep << std::endl;
-
     
     // Setup bare Hamiltonian
     auto H0 = std::make_shared<Dimer2DinMag>();
@@ -387,7 +392,7 @@ int main(int argc, char * argv[]) {
     
     H0->chemPot(mu_eff);   // Chemical potential of the noninterating system (in comparison with the interacting system) is formally the effective one.
     
-    // Note this constructor: if nc is of type int, on some computers it could be implicitely converted to MPI_Comm type, not std::size_t type,
+    // Note this constructor: if nc is of type int, on some computers it could be implicitely converted to MPI_Comm type, not Eigen::Index type,
     // and call another constructor, very dangerous
     SqMatArray22Xcd moments(2, 2, nsite);
     moments(0, 0) << 0.0, tz,
@@ -405,13 +410,13 @@ int main(int argc, char * argv[]) {
     H0->primVecs((Eigen::Matrix2d() << q, 0, 0, 1).finished());
     
     H0->type("dimer_mag_2d");   // general, bethe, bethe_dimer, dimer_mag_2d
-    H0->computeBands((ArrayXsizet(2) << nkx, nky).finished());
+    H0->computeBands((ArrayXindex(2) << nkx, nky).finished());
     H0->computeDOS(nbins4dos);
     
 //    std::array<double, 2> erange = {-2.0 * std::fabs(t), 2.0 * std::fabs(t)};
 //    Eigen::ArrayXd semicircle(nbins4dos);
 //    double energy;
-//    for (std::size_t ie = 0; ie < semicircle.size(); ++ie) {
+//    for (Eigen::Index ie = 0; ie < semicircle.size(); ++ie) {
 //        energy = (ie + 0.5) * (erange[1] - erange[0]) / semicircle.size() + erange[0];
 //        semicircle[ie] = sqrt(4.0 * t * t - energy * energy) / (2 * M_PI * t * t);
 //    }
@@ -466,6 +471,9 @@ int main(int argc, char * argv[]) {
 //    PadeApproximant2XXmpreal pade;
 //#endif
     MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> mqem;
+    mqem.parameters.at("secant_max_iter") = secant_maxiter;
+    mqem.parameters.at("secant_tol") = secant_tol;
+    mqem.parameters.at("secant_damp") = secant_damp;
     mqem.parameters.at("matrix_invertible_threshold") = mat_inv_threshold;
     mqem.parameters.at("Pulay_mixing_param") = pulay_mix;
     mqem.parameters.at("Pulay_history_size") = pulay_histsize;
@@ -514,13 +522,15 @@ int main(int argc, char * argv[]) {
         //           Eigen::ArrayXi::LinSpaced(nstartfreqs, minstartfreq, maxstartfreq),
         //           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
         Eigen::ArrayXd mats_freq = Eigen::ArrayXd::LinSpaced(selfendyn.dim1(), M_PI / beta, (2 * selfendyn.dim1() - 1) * M_PI / beta);
+        DMFTIterator::fitSelfEnMoms23(mats_freq, selfendyn, selfenvar, tailstart, selfenmom);  // Refit second and third moments of self-energy
+        if (prank == 0) printData("selfenergy_moms.txt", selfenmom);
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
         if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         mqem.computeRetardedFunc(selfenstatic);
         computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
-        for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
+        for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
         spectramastpart.allGather();
         if (prank == 0) {
             //printData("default_model.txt", mqem.defaultModel());
@@ -528,15 +538,15 @@ int main(int argc, char * argv[]) {
             printData("spectramatrix.txt", spectra);
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
-            std::cout << "Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
+            std::cout << "Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
         }
         
         //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
         sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
         if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
         if (prank == 0) {
-            std::cout << "sigmaxx = " << sigmaxx << std::endl;
-            if (computesigmaxy) std::cout << "sigmaxy = " << sigmaxy << std::endl;
+            std::cout << std::scientific << std::setprecision(5) << "sigmaxx = " << sigmaxx << std::endl;
+            if (computesigmaxy) std::cout << std::scientific << std::setprecision(5) << "sigmaxy = " << sigmaxy << std::endl;
         }
         
         MPI_Finalize();
@@ -548,7 +558,7 @@ int main(int argc, char * argv[]) {
     else if (proc_control == 2) {  // proc_control == 2 for only calculating curvature of misfit curve for MQEM
         if (prank == 0) {
             Eigen::ArrayX3d misfit;
-            std::size_t opt_alpha_ind;
+            Eigen::Index opt_alpha_ind;
             double opt_alpha;
             loadData("mqem_diagnosis.txt", misfit);
             MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
@@ -611,7 +621,7 @@ int main(int argc, char * argv[]) {
     dmft.parameters.at("convergence type") = converge_type;
     dmft.parameters.at("convergence criterion") = converge_criterion;
     dmft.parameters.at("local correlation") = loc_corr;
-    dmft.parameters.at("num_high_freq_tail") = tailsize;
+    dmft.parameters.at("high_freq_tail_start") = tailstart;
     
     
     
@@ -622,22 +632,22 @@ int main(int argc, char * argv[]) {
     auto tstart = std::chrono::high_resolution_clock::now();
     auto tend = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::ratio<60> > tdur;  // Unit is minutes
-//    std::array<std::size_t, 2> so;
+//    std::array<Eigen::Index, 2> so;
 //    std::complex<double> zeta, zetasq;
 //    double sgn;
     
     // Initialize self-energy and Green's functions
     if (ansatz == "insulator") {
         auto G0wmastpart = G0->fourierCoeffs().mastFlatPart();
-        std::array<std::size_t, 2> so;
+        std::array<Eigen::Index, 2> so;
         //if (loc_corr)
-        //    for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
+        //    for (Eigen::Index i = 0; i < G0wmastpart.size(); ++i) {
         //        so = G0wmastpart.global2dIndex(i);
         //        // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
         //        G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nc, nc) - H0dec->moments()(so[0], 0)).inverse();
         //    }
         //else
-        for (std::size_t i = 0; i < G0wmastpart.size(); ++i) {
+        for (Eigen::Index i = 0; i < G0wmastpart.size(); ++i) {
             so = G0wmastpart.global2dIndex(i);
             // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
             G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nsite, nsite) - H0->moments()(so[0], 0)).inverse();
@@ -664,7 +674,7 @@ int main(int argc, char * argv[]) {
         G0->invFourierTrans();
     }
 //    if (H0->dosType() == "semicircular") {
-//        for (std::size_t i = 0; i < G->fourierCoeffs().mastPartSize(); ++i) {
+//        for (Eigen::Index i = 0; i < G->fourierCoeffs().mastPartSize(); ++i) {
 //            so = G->fourierCoeffs().index2DinPart(i);  // Get the index in (spin, omega) space w.r.t. the full-sized data
 //            zeta = 1i * ((2 * so[1] + 1) * M_PI / beta) + H0->mu;
 //            zetasq = zeta * zeta + 1e-6i;
@@ -742,8 +752,8 @@ int main(int argc, char * argv[]) {
             printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
             // For testing
-            for (std::size_t s = 0; s < 2; ++s) {
-                for (std::size_t n = 0; n <= nfcut; ++n) {
+            for (Eigen::Index s = 0; s < 2; ++s) {
+                for (Eigen::Index n = 0; n <= nfcut; ++n) {
                     selfentail(s, n) = dmft.selfEnergyMoms()(s, 0) / (G0->matsubFreqs()(n) * 1i)
                     + dmft.selfEnergyMoms()(s, 1) / (-G0->matsubFreqs()(n) * G0->matsubFreqs()(n))
                     + dmft.selfEnergyMoms()(s, 2) / (-1i * G0->matsubFreqs()(n) * G0->matsubFreqs()(n) * G0->matsubFreqs()(n));
@@ -770,7 +780,7 @@ int main(int argc, char * argv[]) {
             mqem.computeSpectra(G->matsubFreqs(), dmft.dynSelfEnergy(), dmft.selfEnergyVar(), dmft.selfEnergyMoms());
             mqem.computeRetardedFunc(dmft.staticSelfEnergy());
             computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
-            for (std::size_t i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
+            for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
             spectramastpart.allGather();
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
@@ -780,7 +790,7 @@ int main(int argc, char * argv[]) {
                 printData("spectramatrix.txt", spectra);
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
-                std::cout << "    Optimal alpha for spin up: " << std::pow(10.0, mqem.optimalLog10alpha(0)) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
+                std::cout << "    Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
             }
             

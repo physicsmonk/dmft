@@ -13,6 +13,23 @@
 #include <indicators/cursor_control.hpp>
 #include "ct_aux_imp_solver.hpp"
 
+// Get underlying data type of Eigen::Index
+//#include <cstdint>
+//#include <climits>
+//#if SIZE_MAX == UCHAR_MAX
+//   #define my_MPI_SIZE_T MPI_UNSIGNED_CHAR
+//#elif SIZE_MAX == USHRT_MAX
+//   #define my_MPI_SIZE_T MPI_UNSIGNED_SHORT
+//#elif SIZE_MAX == UINT_MAX
+//   #define my_MPI_SIZE_T MPI_UNSIGNED
+//#elif SIZE_MAX == ULONG_MAX
+//   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG
+//#elif SIZE_MAX == ULLONG_MAX
+//   #define my_MPI_SIZE_T MPI_UNSIGNED_LONG_LONG
+//#else
+//   #error "What is happening here?"
+//#endif
+
 using namespace std::complex_literals;
 
 
@@ -36,7 +53,7 @@ std::pair<double, bool> NMatrix::tryInsertVertex(const vertex& v, const double b
     if (m_vertices.size() > 0) {
         std::array<Eigen::VectorXcd, 2> colt, inv_col;  // Columns to be inserted to the inverse matrices for up and down spins
         std::array<Eigen::RowVectorXcd, 2> inv_row;  // Rows to be inserted to the inverse matrices for up and down spins
-        std::size_t i;
+        Eigen::Index i;
         
         // Construct the columns and rows to be inserted to the inverse matrices
         for (s = 0; s < 2; ++s) {
@@ -109,7 +126,7 @@ std::pair<double, bool> NMatrix::tryInsertVertex(const vertex& v, const double b
     return acceptance;
 }
 
-std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const double barrier) {
+std::pair<double, bool> NMatrix::tryRemoveVertex(const Eigen::Index p, const double barrier) {
     std::pair<double, bool> acceptance(0.0, false);
     if (m_vertices.size() == 0) {
         return acceptance;
@@ -172,9 +189,9 @@ std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const doub
             }
             */
             for (s = 0; s < 2; ++s) {
-                m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).noalias() -= m_N[s](cut{m_vertices.size() - 1, p}, p) *
-                                                                                                  m_N[s](p, cut{m_vertices.size() - 1, p}) / m_N[s](p, p);
-                m_N[s] = m_N[s](cut{m_vertices.size() - 1, p}, cut{m_vertices.size() - 1, p}).eval();  // Call eval() to avoid aliasing issue
+                m_N[s](cut{static_cast<Eigen::Index>(m_vertices.size()) - 1, p}, cut{static_cast<Eigen::Index>(m_vertices.size()) - 1, p}).noalias() -=
+                m_N[s](cut{static_cast<Eigen::Index>(m_vertices.size()) - 1, p}, p) * m_N[s](p, cut{static_cast<Eigen::Index>(m_vertices.size()) - 1, p}) / m_N[s](p, p);
+                m_N[s] = m_N[s](cut{static_cast<Eigen::Index>(m_vertices.size() - 1), p}, cut{static_cast<Eigen::Index>(m_vertices.size()) - 1, p}).eval();  // Call eval() to avoid aliasing issue
             }
         }
         else if (m_vertices.size() == 1) {
@@ -193,7 +210,7 @@ std::pair<double, bool> NMatrix::tryRemoveVertex(const std::size_t p, const doub
     return acceptance;
 }
 
-std::pair<double, bool> NMatrix::tryShiftTau(const std::size_t p, const double tau, const double barrier) {
+std::pair<double, bool> NMatrix::tryShiftTau(const Eigen::Index p, const double tau, const double barrier) {
     std::pair<double, bool> acceptance(0.0, false);
     
     if (m_vertices.size() > 0) {
@@ -232,7 +249,7 @@ std::pair<double, bool> NMatrix::tryShiftTau(const std::size_t p, const double t
     return acceptance;
 }
 
-std::pair<double, bool> NMatrix::tryShiftSite(const std::size_t p, const std::size_t site, const double barrier) {
+std::pair<double, bool> NMatrix::tryShiftSite(const Eigen::Index p, const Eigen::Index site, const double barrier) {
     std::pair<double, bool> acceptance(0.0, false);
     
     if (m_vertices.size() > 0) {
@@ -272,7 +289,7 @@ std::pair<double, bool> NMatrix::tryShiftSite(const std::size_t p, const std::si
 }
 
 // Try flipping auxiliary spin; this has special simple formulae
-std::pair<double, bool> NMatrix::tryFlipAuxSpin(const std::size_t p, const double barrier) {
+std::pair<double, bool> NMatrix::tryFlipAuxSpin(const Eigen::Index p, const double barrier) {
     std::pair<double, bool> acceptance(0.0, false);
     
     if (m_vertices.size() > 0) {
@@ -297,7 +314,7 @@ std::pair<double, bool> NMatrix::tryFlipAuxSpin(const std::size_t p, const doubl
             Eigen::VectorXcd col(m_vertices.size());
             Eigen::RowVectorXcd row;
             std::complex<double> lam;
-//            std::size_t i;
+//            Eigen::Index i;
             
             for (s = 0; s < 2; ++s) {
                 lam = gam[s] / R[s];
@@ -352,9 +369,9 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
     assert(m_ptr2problem->G->fourierCoeffs().dim0() == m_ptr2problem->G0->fourierCoeffs().dim0());
     if (m_ptr2problem->G0->tauGridSizeOfExpiwt() < 2) throw std::invalid_argument("Tau grid size of expiwt array is less than 2 so cannot utilize pre-calculated exp(iwt) to measure Gc(iw)!");
     
-    const std::size_t nfcut = m_ptr2problem->G->freqCutoff();
+    const Eigen::Index nfcut = m_ptr2problem->G->freqCutoff();
     if (nfcut != m_ptr2problem->G0->freqCutoff()) throw std::range_error( "Frequency cutoffs of G and G0 do not match!" );
-    const std::size_t nc = m_ptr2problem->G->nSites();
+    const Eigen::Index nc = m_ptr2problem->G->nSites();
     if (nc != m_ptr2problem->G0->nSites()) throw std::range_error( "Numbers of sites of G and G0 do not match!" );
     const double beta = m_ptr2problem->G0->inverseTemperature();
     if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error( "Temperatures of G and G0 do not match!" );
@@ -362,20 +379,20 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
     Eigen::VectorXd eV_1(m_vertices.size());
     Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc), gc(nc, nc);
     int s;
-    std::size_t o, p;
+    Eigen::Index o, p;
     
-    Eigen::Array<std::size_t, Eigen::Dynamic, 1> tau_ind4eiwt(m_vertices.size());
+    Eigen::Array<Eigen::Index, Eigen::Dynamic, 1> tau_ind4eiwt(m_vertices.size());
     const double dtau_eiwt = beta / (m_ptr2problem->G0->tauGridSizeOfExpiwt() - 1);
     
     const int nrandmeasure = 10;
     Eigen::ArrayXXd randtaudiffs(m_vertices.size(), nrandmeasure), beta_randtaudiffs(m_vertices.size(), nrandmeasure), sgns(m_vertices.size(), nrandmeasure);
     int rm;
-    std::size_t x;
+    Eigen::Index x;
     std::array<Eigen::MatrixXcd, 2> gbeta;
     double rdt;
     
     // Mount tau to the nearest grid point of expiwt array to use pre-calculated exp(iwt)
-    for (p = 0; p < m_vertices.size(); ++p) tau_ind4eiwt(p) = static_cast<std::size_t>(m_vertices[p].tau / dtau_eiwt + 0.5);
+    for (p = 0; p < m_vertices.size(); ++p) tau_ind4eiwt(p) = static_cast<Eigen::Index>(m_vertices[p].tau / dtau_eiwt + 0.5);
     
     // Set random tau differences; same for up and down spins
     for (rm = 0; rm < nrandmeasure; ++rm) {
@@ -462,22 +479,22 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
 //    if (_problem->G0->tauGridSizeOfExpiwt() < _problem->G->nTauBins4selfEgf() + 1) {
 //        throw std::range_error("The number of tau bins of the pre-calculated exp(i*w*t) array is smaller than that of S so cannot use the exp(i*w*t) array to accurately measure S!");
 //    }
-    const std::size_t nc = m_ptr2problem->G->nSites();
+    const Eigen::Index nc = m_ptr2problem->G->nSites();
     if (nc != m_ptr2problem->G0->nSites()) throw std::range_error("Numbers of sites of G and G0 do not match!");
     const double beta = m_ptr2problem->G0->inverseTemperature();
     if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error("Temperatures of G and G0 do not match!");
     
-    const std::size_t nbins4S = m_ptr2problem->G->nTauBins4selfEnGF();
+    const Eigen::Index nbins4S = m_ptr2problem->G->nTauBins4selfEnGF();
     const double binsize4S = beta / nbins4S;
     // const double dtau4eiwt = beta / (_problem->G0->tauGridSizeOfExpiwt() - 1);
     Eigen::VectorXd eV_1(m_vertices.size());
     Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc);
     const int nrandmeasure = 10;
     Eigen::ArrayXXd randtaudiffs(m_vertices.size(), nrandmeasure), beta_randtaudiffs(m_vertices.size(), nrandmeasure), sgns(m_vertices.size(), nrandmeasure);
-    Eigen::Array<std::size_t, Eigen::Dynamic, Eigen::Dynamic> ibins4S(m_vertices.size(), nrandmeasure);
+    Eigen::Array<Eigen::Index, Eigen::Dynamic, Eigen::Dynamic> ibins4S(m_vertices.size(), nrandmeasure);
     int rm;
     double rdt;
-    std::size_t p, x;
+    Eigen::Index p, x;
     std::array<Eigen::MatrixXcd, 2> gbeta;
     
     // Set random tau differences; same for up and down spins
@@ -487,14 +504,14 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
             randtaudiffs(p, rm)  = m_vertices[p].tau - rdt;
             if (randtaudiffs(p, rm) < 0) {
                 sgns(p, rm) = -1.0;
-                // ibin4S = std::min(static_cast<std::size_t>(taudiff / binsize4S), nbins4S - 1);  // taudiff here is always non-negative
+                // ibin4S = std::min(static_cast<Eigen::Index>(taudiff / binsize4S), nbins4S - 1);  // taudiff here is always non-negative
                 // Note the rounded randtaudiffs is always less than beta, so this cast is always less than or equal to nbins4S - 1
-                ibins4S(p, rm) = static_cast<std::size_t>((randtaudiffs(p, rm) + beta) / binsize4S);
+                ibins4S(p, rm) = static_cast<Eigen::Index>((randtaudiffs(p, rm) + beta) / binsize4S);
                 beta_randtaudiffs(p, rm) = -randtaudiffs(p, rm);  // beta_randtaudiffs equals beta subtracting rounded randtaudiffs
             }
             else {
                 sgns(p, rm) = 1.0;
-                ibins4S(p, rm) = static_cast<std::size_t>(randtaudiffs(p, rm) / binsize4S);
+                ibins4S(p, rm) = static_cast<Eigen::Index>(randtaudiffs(p, rm) / binsize4S);
                 beta_randtaudiffs(p, rm) = beta - randtaudiffs(p, rm);   // beta_randtaudiffs equals beta subtracting rounded randtaudiffs
             }
         }
@@ -548,7 +565,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
 }
 
 std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqualProp() {
-    const std::size_t nc = m_ptr2problem->G0->nSites();
+    const Eigen::Index nc = m_ptr2problem->G0->nSites();
     const double beta = m_ptr2problem->G0->inverseTemperature();
     std::pair<int, std::pair<double, bool> > info;
     std::pair<double, bool> acceptance;
@@ -556,7 +573,7 @@ std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqu
     
     if (m_vertices.size() == 0) {
         // Try to insert a vertex
-        const vertex v = {m_urd(m_reng) * beta, static_cast<std::size_t>(m_urd(m_reng) * nc), static_cast<int>(m_urd(m_reng) * 2) * 2 - 1}; // auxiliary spin is -1 or 1
+        const vertex v = {m_urd(m_reng) * beta, static_cast<Eigen::Index>(m_urd(m_reng) * nc), static_cast<int>(m_urd(m_reng) * 2) * 2 - 1}; // auxiliary spin is -1 or 1
         
         acceptance = tryInsertVertex(v, barrier);
         info.first = 0;
@@ -566,14 +583,14 @@ std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqu
         
         if (propose < 1.0 / 3.0) {
             // Try to insert a vertex
-            const vertex v = {m_urd(m_reng) * beta, static_cast<std::size_t>(m_urd(m_reng) * nc), static_cast<int>(m_urd(m_reng) * 2) * 2 - 1};
+            const vertex v = {m_urd(m_reng) * beta, static_cast<Eigen::Index>(m_urd(m_reng) * nc), static_cast<int>(m_urd(m_reng) * 2) * 2 - 1};
             
             acceptance = tryInsertVertex(v, barrier);
             info.first = 0;
         }
         else if (propose < 2.0 / 3.0) {
             // Try to remove a vertex
-            const auto p = static_cast<std::size_t>(m_urd(m_reng) * m_vertices.size());
+            const auto p = static_cast<Eigen::Index>(m_urd(m_reng) * m_vertices.size());
             
             acceptance = tryRemoveVertex(p, barrier);
             info.first = 1;
@@ -581,7 +598,7 @@ std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqu
         else {
             // Try shift a vertex
             const auto shifttausite = std::any_cast<bool>(parameters["shift t&site"]);
-            const auto p = static_cast<std::size_t>(m_urd(m_reng) * m_vertices.size());
+            const auto p = static_cast<Eigen::Index>(m_urd(m_reng) * m_vertices.size());
             double cp = 1.0 / 3.0;
             if (nc == 1) {
                 cp = 0.5;
@@ -595,7 +612,7 @@ std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqu
             }
             else if (shifttausite && nc > 1 && w2s < 2.0 / 3.0) {
                 // Try shift site
-                auto site = static_cast<std::size_t>(m_urd(m_reng) * (nc - 1));
+                auto site = static_cast<Eigen::Index>(m_urd(m_reng) * (nc - 1));
                 if (site >= m_vertices[p].site) {
                     ++site;
                 }
@@ -636,13 +653,13 @@ CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> proble
     // Default the solver parameters; std::map just adds the element if it does not exist
     std::random_device rd;
     m_oldseed = rd() + problem->G->fourierCoeffs().processRank() * 137u;
-    parameters["markov chain length"] = static_cast<std::size_t>(20000000);
+    parameters["markov chain length"] = Eigen::Index(20000000);
     parameters["QMC time limit"] = 8.0;   // Unit is minute
-    parameters["#warm up steps"] = static_cast<std::size_t>(10000);
-    parameters["measure period"] = static_cast<std::size_t>(200);
+    parameters["#warm up steps"] = Eigen::Index(10000);
+    parameters["measure period"] = Eigen::Index(200);
     parameters["verbosity"] = std::string("progress_bar");   // Use std::string constructor to make the char array be of type std::string
     parameters["random seed"] = m_oldseed;
-    parameters["histogram max order"] = static_cast<std::size_t>(100);
+    parameters["histogram max order"] = Eigen::Index(100);
     parameters["shift t&site"] = false;
     parameters["does measure"] = true;
     parameters["measure what"] = std::string("S");
@@ -654,12 +671,14 @@ double CTAUXImpuritySolver::solve() {
     std::pair<int, std::pair<double, bool> > mstepinfo;
     double simpinterror = -1.0;
     
-    const auto neffstep_globtot = std::any_cast<std::size_t>(parameters.at("markov chain length"));
-    const auto warmup = std::any_cast<std::size_t>(parameters.at("#warm up steps"));
-    const auto measureperiod = std::any_cast<std::size_t>(parameters.at("measure period"));
+    const auto neffstep_globtot = std::any_cast<Eigen::Index>(parameters.at("markov chain length"));
+    const auto warmup = std::any_cast<Eigen::Index>(parameters.at("#warm up steps"));
+    const auto measureperiod = std::any_cast<Eigen::Index>(parameters.at("measure period"));
     
-    const std::size_t lsize = neffstep_globtot / m_ptr2problem->G->fourierCoeffs().processSize();
-    const std::size_t neffstep = (m_ptr2problem->G->fourierCoeffs().processRank() < m_ptr2problem->G->fourierCoeffs().processSize() - 1) ? lsize : lsize + neffstep_globtot % m_ptr2problem->G->fourierCoeffs().processSize();
+    //const Eigen::Index lsize = neffstep_globtot / m_ptr2problem->G->fourierCoeffs().processSize();
+    //const Eigen::Index neffstep = (m_ptr2problem->G->fourierCoeffs().processRank() < m_ptr2problem->G->fourierCoeffs().processSize() - 1) ? lsize : lsize + neffstep_globtot % m_ptr2problem->G->fourierCoeffs().processSize();
+    Eigen::Index neffstep, neffstepstart;  // second variable not used
+    mostEvenPart(neffstep_globtot, m_ptr2problem->G->fourierCoeffs().processSize(), m_ptr2problem->G->fourierCoeffs().processRank(), neffstep, neffstepstart);
     
     const auto verbosity = std::any_cast<std::string>(parameters.at("verbosity"));
     // Hide cursor
@@ -682,7 +701,7 @@ double CTAUXImpuritySolver::solve() {
         m_reng.seed(newseed);
         m_oldseed = newseed;
     }
-    m_histogram.resize(std::any_cast<std::size_t>(parameters.at("histogram max order")));  // No-op if sizes match
+    m_histogram.resize(std::any_cast<Eigen::Index>(parameters.at("histogram max order")));  // No-op if sizes match
     
     // Reset counters and vertex expansion
     reset();
@@ -715,7 +734,7 @@ double CTAUXImpuritySolver::solve() {
     std::chrono::duration<double, std::ratio<60> > qmcduration = qmcend - qmcbegin;  // Unit is minutes
     
     // QMC Markov random walk starts here
-    for (std::size_t step = 0; step < warmup + neffstep && qmcduration.count() <= qmcdurlim; ++step) {
+    for (Eigen::Index step = 0; step < warmup + neffstep && qmcduration.count() <= qmcdurlim; ++step) {
         // mstepinfo = move1markovStep();
         mstepinfo = move1markovStepEqualProp();
         
@@ -754,12 +773,12 @@ double CTAUXImpuritySolver::solve() {
         std::cout << std::setw(22) << "----------------------" << std::setw(16) << " #measurements: " << std::setw(15) << m_nmeasure << std::setw(22)
         << "----------------------" << std::endl;
     
-    // Combine counters on all processes
+    // Combine counters on all processes; MPI_AINT is the same type as ptrdiff_t, which is the default type of Eigen::Index
     MPI_Allreduce(MPI_IN_PLACE, &m_measuredfermisign, 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, &m_nmeasure, 1, my_MPI_SIZE_T, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, &m_nmarkovstep, 1, my_MPI_SIZE_T, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, &m_nmeasure, 1, MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, &m_nmarkovstep, 1, MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
     MPI_Allreduce(MPI_IN_PLACE, &m_avevertorder, 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, m_histogram.data(), static_cast<int>(m_histogram.size()), my_MPI_SIZE_T, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, m_histogram.data(), m_histogram.size(), MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
     m_measuredfermisign /= m_nmeasure;
     m_avevertorder /= m_nmeasure;
     
@@ -770,9 +789,9 @@ double CTAUXImpuritySolver::solve() {
     // Finalize measurement
     if (does_measure) {
         // Finalize the measurement of electron density
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densities().data(), static_cast<int>(m_ptr2problem->G->densities().size()), MPI_DOUBLE, MPI_SUM,
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densities().data(), m_ptr2problem->G->densities().size(), MPI_DOUBLE, MPI_SUM,
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densStdDev().data(), static_cast<int>(m_ptr2problem->G->densStdDev().size()), MPI_DOUBLE, MPI_SUM,
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densStdDev().data(), m_ptr2problem->G->densStdDev().size(), MPI_DOUBLE, MPI_SUM,
                       m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2problem->G->spinCorrelation), 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
         m_ptr2problem->G->densities() /= m_nmeasure * m_measuredfermisign;
