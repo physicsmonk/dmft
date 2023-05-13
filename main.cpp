@@ -428,7 +428,9 @@ int main(int argc, char * argv[]) {
     H0->bands(bds);
     if (prank == 0) {
         printData("bands.txt", bds.transpose());
+        std::cout << "Output bands.txt" << std::endl;
         printData("dos.txt", H0->dos());
+        std::cout << "Output dos.txt" << std::endl;
     }
     
     // Test
@@ -523,9 +525,15 @@ int main(int argc, char * argv[]) {
         //           Eigen::ArrayXi::LinSpaced(ncoefflens, mincoefflen, maxcoefflen), MPI_COMM_WORLD);
         Eigen::ArrayXd mats_freq = Eigen::ArrayXd::LinSpaced(selfendyn.dim1(), M_PI / beta, (2 * selfendyn.dim1() - 1) * M_PI / beta);
         DMFTIterator::fitSelfEnMoms23(mats_freq, selfendyn, selfenvar, tailstart, selfenmom);  // Refit second and third moments of self-energy
-        if (prank == 0) printData("selfenergy_moms.txt", selfenmom);
+        if (prank == 0) {
+            printData("selfenergy_moms.txt", selfenmom);
+            std::cout << "Output selfenergy_moms.txt" << std::endl;
+        }
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
-        if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
+        if (prank == 0) {
+            printData("real_freqs.txt", mqem.realFreqGrid());
+            std::cout << "Output real_freqs.txt" << std::endl;
+        }
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         mqem.computeRetardedFunc(selfenstatic);
@@ -535,8 +543,11 @@ int main(int argc, char * argv[]) {
         if (prank == 0) {
             //printData("default_model.txt", mqem.defaultModel());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
+            std::cout << "Output selfenergy_retarded.txt" << std::endl;
             printData("spectramatrix.txt", spectra);
+            std::cout << "Output spectramatrix.txt" << std::endl;
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
+            std::cout << "Output mqem_diagnosis.txt" << std::endl;
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
         }
@@ -563,6 +574,7 @@ int main(int argc, char * argv[]) {
             loadData("mqem_diagnosis.txt", misfit);
             MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
             printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
+            std::cout << "Output mqem_diagnosis.txt" << std::endl;
             misfit.col(2).maxCoeff<Eigen::PropagateNumbers>(&opt_alpha_ind);
             opt_alpha = std::pow(10.0, misfit(opt_alpha_ind, 0));
             std::cout << "Calculated curvature of misfit curve for spin up in MQEM using local fit size of " << alpha_fitsize << std::endl;
@@ -684,7 +696,10 @@ int main(int argc, char * argv[]) {
 //    }
     
     mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, midrealfreqs, n_rrealfreq);
-    if (prank == 0) printData("real_freqs.txt", mqem.realFreqGrid());
+    if (prank == 0) {
+        printData("real_freqs.txt", mqem.realFreqGrid());
+        std::cout << "Output real_freqs.txt" << std::endl;
+    }
     
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
@@ -736,8 +751,11 @@ int main(int argc, char * argv[]) {
         tdur = tend - tstart;
         if (prank == 0) {  // Output obtained result ASAP
             printData("histogram.txt", impsolver.vertexOrderHistogram());
+            std::cout << "Output histogram.txt" << std::endl;
             printData("G.txt", G->valsOnTauGrid());
+            std::cout << "Output G.txt" << std::endl;
             printData("Gmatsubara.txt", G->fourierCoeffs());
+            std::cout << "Output Gmatsubara.txt" << std::endl;
             std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
         }
         
@@ -746,11 +764,17 @@ int main(int argc, char * argv[]) {
         dmft.updateBathGF();
         if (prank == 0) {  // Output obtained result ASAP
             printData("G0.txt", G0->valsOnTauGrid());
+            std::cout << "Output G0.txt" << std::endl;
             printData("G0matsubara.txt", G0->fourierCoeffs());
+            std::cout << "Output G0matsubara.txt" << std::endl;
             printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            std::cout << "Output selfenergy_dyn.txt" << std::endl;
             printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
+            std::cout << "Output selfenergy_var.txt" << std::endl;
             printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            std::cout << "Output selfenergy_static.txt" << std::endl;
             printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
+            std::cout << "Output selfenergy_moms.txt" << std::endl;
             // For testing
             for (Eigen::Index s = 0; s < 2; ++s) {
                 for (Eigen::Index n = 0; n <= nfcut; ++n) {
@@ -760,6 +784,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             printData("selfenergy_tail.txt", selfentail);
+            std::cout << "Output selfenergy_tail.txt" << std::endl;
         }
         
         density = G->densities().sum();
@@ -787,8 +812,11 @@ int main(int argc, char * argv[]) {
             if (prank == 0) {  // Output obtained result ASAP
                 //printData("default_model.txt", mqem.defaultModel());
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
+                std::cout << "Output selfenergy_retarded.txt" << std::endl;
                 printData("spectramatrix.txt", spectra);
+                std::cout << "Output spectramatrix.txt" << std::endl;
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
+                std::cout << "Output mqem_diagnosis.txt" << std::endl;
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
                 std::cout << "    Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
                 //std::cout << "    #spectra = " << pade.nPhysSpectra()(0) << " (up), " << pade.nPhysSpectra()(1) << " (down)" << std::endl;
