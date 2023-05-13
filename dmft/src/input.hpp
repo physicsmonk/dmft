@@ -8,6 +8,8 @@
 #ifndef input_hpp
 #define input_hpp
 
+#include <cstdint>
+#include <climits>
 #include <iostream>
 #include <sstream>
 #include <cstring>
