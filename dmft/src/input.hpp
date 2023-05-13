@@ -105,12 +105,14 @@ bool readxml(T& data, pugi::xml_node docroot, const std::string& path)
     if constexpr (std::is_same<T, std::string>::value) data = text;
     else if (std::is_same<T, int>::value || std::is_same<T, bool>::value) data = std::stoi(text);
     else if (std::is_same<T, std::ptrdiff_t>::value) {
-#if PTRDIFF_MAX == LONG_MAX
+#if PTRDIFF_MAX == INT_MAX
+        data = std::stoi(text);
+#elif PTRDIFF_MAX == LONG_MAX
         data = std::stol(text);
 #elif PTRDIFF_MAX == LLONG_MAX
         data = std::stoll(text);
 #else
-#error "PTRDIFF_MAX is neither LONG_MAX nor LLONG_MAX"
+#error "PTRDIFF_MAX is not INT_MAX, LONG_MAX, or LLONG_MAX"
 #endif
     }
     else if (std::is_same<T, double>::value) data = std::stod(text);
