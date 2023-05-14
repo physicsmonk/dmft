@@ -183,8 +183,8 @@ PadeApproximant<_InnerRealType, _n0, _n1, _nm>& PadeApproximant<_InnerRealType, 
     }
     
     // set MPI communicator for data members
-    m_selfenR.mpiCommunicator(comm);   // For future mpi sum
-    m_spectramat.mpiCommunicator(comm);
+    m_selfenR.mpiComm(comm);   // For future mpi sum
+    m_spectramat.mpiComm(comm);
     
     // Test
     // std::cout << "Rank " << _prank << ": Check point 4: " << _napproxs << std::endl;
@@ -259,7 +259,7 @@ void PadeApproximant<_InnerRealType, _n0, _n1, _nm>::computeSpectra(const SqMatA
         }
     }
     
-    MPI_Allreduce(MPI_IN_PLACE, m_nphys.data(), m_nphys.size(), MPI_INT, MPI_SUM, m_selfenR.mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, m_nphys.data(), m_nphys.size(), MPI_INT, MPI_SUM, m_selfenR.mpiComm());
 //    _selfen.sumLocals2mastPart();
 //    std::array<Eigen::Index, 2> so;
 //    for (i = 0; i < _selfen.mastPartSize(); ++i) {

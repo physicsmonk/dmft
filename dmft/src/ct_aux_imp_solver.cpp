@@ -357,24 +357,17 @@ void NMatrix::setParams(const double gamma, const double K) {
 
 
 
-ImpurityProblem::ImpurityProblem(std::shared_ptr<const BareHamiltonian> H0_, std::shared_ptr<const BareGreenFunction> G0_, const double U_, const double K_, std::shared_ptr<GreenFunction> G_) : H0(H0_), G0(G0_), U(U_), K(K_), G(G_) { }
-
-
-
-
-
-
 // Measure and accumulate G(iw) corrections to G0(iw), Gc(iw), i.e., G(iw) = G0(iw) + Gc(iw). We directly accumulate Gc(iw) to variable Gw.
 void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
-    assert(m_ptr2problem->G->fourierCoeffs().dim0() == m_ptr2problem->G0->fourierCoeffs().dim0());
-    if (m_ptr2problem->G0->tauGridSizeOfExpiwt() < 2) throw std::invalid_argument("Tau grid size of expiwt array is less than 2 so cannot utilize pre-calculated exp(iwt) to measure Gc(iw)!");
+    assert(m_ptr2G->fourierCoeffs().dim0() == m_ptr2G0->fourierCoeffs().dim0());
+    if (m_ptr2G0->tauGridSizeOfExpiwt() < 2) throw std::invalid_argument("Tau grid size of expiwt array is less than 2 so cannot utilize pre-calculated exp(iwt) to measure Gc(iw)!");
     
-    const Eigen::Index nfcut = m_ptr2problem->G->freqCutoff();
-    if (nfcut != m_ptr2problem->G0->freqCutoff()) throw std::range_error( "Frequency cutoffs of G and G0 do not match!" );
-    const Eigen::Index nc = m_ptr2problem->G->nSites();
-    if (nc != m_ptr2problem->G0->nSites()) throw std::range_error( "Numbers of sites of G and G0 do not match!" );
-    const double beta = m_ptr2problem->G0->inverseTemperature();
-    if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error( "Temperatures of G and G0 do not match!" );
+    const Eigen::Index nfcut = m_ptr2G->freqCutoff();
+    if (nfcut != m_ptr2G0->freqCutoff()) throw std::range_error( "Frequency cutoffs of G and G0 do not match!" );
+    const Eigen::Index nc = m_ptr2G->nSites();
+    if (nc != m_ptr2G0->nSites()) throw std::range_error( "Numbers of sites of G and G0 do not match!" );
+    const double beta = m_ptr2G0->inverseTemperature();
+    if (std::fabs(beta - m_ptr2G->inverseTemperature()) > 1e-9) throw std::range_error( "Temperatures of G and G0 do not match!" );
     
     Eigen::VectorXd eV_1(m_vertices.size());
     Eigen::MatrixXcd M(m_vertices.size(), m_vertices.size()), G0l(nc, m_vertices.size()), G0r(m_vertices.size(), nc), MG(m_vertices.size(), nc), gc(nc, nc);
@@ -382,7 +375,7 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
     Eigen::Index o, p;
     
     Eigen::Array<Eigen::Index, Eigen::Dynamic, 1> tau_ind4eiwt(m_vertices.size());
-    const double dtau_eiwt = beta / (m_ptr2problem->G0->tauGridSizeOfExpiwt() - 1);
+    const double dtau_eiwt = beta / (m_ptr2G0->tauGridSizeOfExpiwt() - 1);
     
     const int nrandmeasure = 10;
     Eigen::ArrayXXd randtaudiffs(m_vertices.size(), nrandmeasure), beta_randtaudiffs(m_vertices.size(), nrandmeasure), sgns(m_vertices.size(), nrandmeasure);
@@ -423,48 +416,48 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
         for (o = 0; o <= nfcut; ++o) {
             // Construct the Green's function matrices
             for (p = 0; p < m_vertices.size(); ++p)
-                G0l.col(p) = m_ptr2problem->G0->fourierCoeffs()(s, o).col(m_vertices[p].site) * m_ptr2problem->G0->expiwt(tau_ind4eiwt(p), o);
+                G0l.col(p) = m_ptr2G0->fourierCoeffs()(s, o).col(m_vertices[p].site) * m_ptr2G0->expiwt(tau_ind4eiwt(p), o);
             for (x = 0; x < nc; ++x) {
                 for (p = 0; p < m_vertices.size(); ++p)  // Not using .row(p) to avoid tranversing not in order
-                    G0r(p, x) = m_ptr2problem->G0->fourierCoeffs()(s, o, m_vertices[p].site, x) / m_ptr2problem->G0->expiwt(tau_ind4eiwt(p), o);
+                    G0r(p, x) = m_ptr2G0->fourierCoeffs()(s, o, m_vertices[p].site, x) / m_ptr2G0->expiwt(tau_ind4eiwt(p), o);
             }
             MG.noalias() = M * G0r;
             gc.noalias() = (G0l * MG) / beta;
             // _problem->G->fourierCoeffs()(s, o) += fermi_sign * gc;
-            m_ptr2problem->G->fourierCoeffs()(s, o).noalias() += m_fermisign * gc;
-            //m_ptr2problem->G->fCoeffsVar()(s, o) += m_fermisign * gc.cwiseAbs2();  // Accumulate squared norm of sample for calculating variance later
+            m_ptr2G->fourierCoeffs()(s, o).noalias() += m_fermisign * gc;
+            //m_ptr2G->fCoeffsVar()(s, o) += m_fermisign * gc.cwiseAbs2();  // Accumulate squared norm of sample for calculating variance later
             
             // Note this line below for accumulating squared norm of sample for calculating variance later, where no Fermi sign is multiplied.
             // This is because the sampling is really according to the probability |p|, not p, so the variance should directly arises from this sampling
             // that is according to |p|:
             // VarG = <|dG|^2>_|p| = <|G|^2>_|p| / <sgn>_|p|^2 - |<G>_p|^2, where dG = G * sgn / <sgn>_|p| - <G>_p, so that <dG>_|p| = 0.
-            m_ptr2problem->G->fCoeffsVar()(s, o) += gc.cwiseAbs2();
+            m_ptr2G->fCoeffsVar()(s, o) += gc.cwiseAbs2();
         }
         
         // Measure G(beta-), using time translational invariance
         for (rm = 0; rm < nrandmeasure; ++rm) {
             for (p = 0; p < m_vertices.size(); ++p) {
-                for (x = 0; x < nc; ++x) G0l(x, p) = sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm));
+                for (x = 0; x < nc; ++x) G0l(x, p) = sgns(p, rm) * m_ptr2G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm));
             }
             for (x = 0; x < nc; ++x) {
-                for (p = 0; p < m_vertices.size(); ++p) G0r(p, x) = m_ptr2problem->G0->interpValAtExtendedTau(s, m_vertices[p].site, x, randtaudiffs(p, rm));
+                for (p = 0; p < m_vertices.size(); ++p) G0r(p, x) = m_ptr2G0->interpValAtExtendedTau(s, m_vertices[p].site, x, randtaudiffs(p, rm));
             }
             MG.noalias() = M * G0r;
             gbeta[s].noalias() += G0l * MG;
             //for (x = 0; x < nc; ++x) {
-            //    for (p = 0; p < m_vertices.size(); ++p) denssample(x) += std::real(sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
+            //    for (p = 0; p < m_vertices.size(); ++p) denssample(x) += std::real(sgns(p, rm) * m_ptr2G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
             //}
         }
         // Already added G0, for measuring spin correlation
-        gbeta[s].noalias() = m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
+        gbeta[s].noalias() = m_ptr2G0->valsOnTauGrid()(s, m_ptr2G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
         // Accumulate electron density and its variance
-        m_ptr2problem->G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
-        //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
-        m_ptr2problem->G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
+        m_ptr2G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
+        //m_ptr2G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
     }
     // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
     const double del = nc == 1 ? 1.0 : 0.0;
-    m_ptr2problem->G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
+    m_ptr2G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
     - 2.0 * gbeta[0](0, 0) * gbeta[1](nc - 1, nc - 1) + gbeta[1](0, 0) * gbeta[1](nc - 1, nc - 1) + (del - gbeta[1](0, nc - 1)) * gbeta[1](nc - 1, 0));
     
     m_measuredfermisign += m_fermisign;
@@ -474,17 +467,17 @@ void CTAUXImpuritySolver::measAccumGFfCoeffsCorr() {
 
 // Measure and accumulate S(tau)
 void CTAUXImpuritySolver::measAccumSelfEgf() {
-    assert(m_ptr2problem->G->fourierCoeffs().dim0() == m_ptr2problem->G0->fourierCoeffs().dim0());
+    assert(m_ptr2G->fourierCoeffs().dim0() == m_ptr2G0->fourierCoeffs().dim0());
     
 //    if (_problem->G0->tauGridSizeOfExpiwt() < _problem->G->nTauBins4selfEgf() + 1) {
 //        throw std::range_error("The number of tau bins of the pre-calculated exp(i*w*t) array is smaller than that of S so cannot use the exp(i*w*t) array to accurately measure S!");
 //    }
-    const Eigen::Index nc = m_ptr2problem->G->nSites();
-    if (nc != m_ptr2problem->G0->nSites()) throw std::range_error("Numbers of sites of G and G0 do not match!");
-    const double beta = m_ptr2problem->G0->inverseTemperature();
-    if (std::fabs(beta - m_ptr2problem->G->inverseTemperature()) > 1e-9) throw std::range_error("Temperatures of G and G0 do not match!");
+    const Eigen::Index nc = m_ptr2G->nSites();
+    if (nc != m_ptr2G0->nSites()) throw std::range_error("Numbers of sites of G and G0 do not match!");
+    const double beta = m_ptr2G0->inverseTemperature();
+    if (std::fabs(beta - m_ptr2G->inverseTemperature()) > 1e-9) throw std::range_error("Temperatures of G and G0 do not match!");
     
-    const Eigen::Index nbins4S = m_ptr2problem->G->nTauBins4selfEnGF();
+    const Eigen::Index nbins4S = m_ptr2G->nTauBins4selfEnGF();
     const double binsize4S = beta / nbins4S;
     // const double dtau4eiwt = beta / (_problem->G0->tauGridSizeOfExpiwt() - 1);
     Eigen::VectorXd eV_1(m_vertices.size());
@@ -528,7 +521,7 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
         
         for (rm = 0; rm < nrandmeasure; ++rm) {
             for (x = 0; x < nc; ++x) {
-                for (p = 0; p < m_vertices.size(); ++p) G0r(p, x) = m_ptr2problem->G0->interpValAtExtendedTau(s, m_vertices[p].site, x, randtaudiffs(p, rm));
+                for (p = 0; p < m_vertices.size(); ++p) G0r(p, x) = m_ptr2G0->interpValAtExtendedTau(s, m_vertices[p].site, x, randtaudiffs(p, rm));
             }
             MG.noalias() = M * G0r;
             
@@ -537,26 +530,26 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
             // we can absorb the sign into S.
             for (x = 0; x < nc; ++x) {
                 for (p = 0; p < m_vertices.size(); ++p) {
-                    m_ptr2problem->G->selfEnGF()(s, ibins4S(p, rm))(m_vertices[p].site, x) += (m_fermisign * sgns(p, rm) / (binsize4S * nrandmeasure)) * MG(p, x);
-                    //denssample(x) += std::real(sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
+                    m_ptr2G->selfEnGF()(s, ibins4S(p, rm))(m_vertices[p].site, x) += (m_fermisign * sgns(p, rm) / (binsize4S * nrandmeasure)) * MG(p, x);
+                    //denssample(x) += std::real(sgns(p, rm) * m_ptr2G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm)) * MG(p, x));
                 }
             }
             
             for (p = 0; p < m_vertices.size(); ++p) {
-                for (x = 0; x < nc; ++x) G0l(x, p) = sgns(p, rm) * m_ptr2problem->G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm));
+                for (x = 0; x < nc; ++x) G0l(x, p) = sgns(p, rm) * m_ptr2G0->interpValAtExtendedTau(s, x, m_vertices[p].site, beta_randtaudiffs(p, rm));
             }
             gbeta[s].noalias() += G0l * MG;
         }
         // Already added G0, for measuring spin correlation
-        gbeta[s].noalias() = m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
+        gbeta[s].noalias() = m_ptr2G0->valsOnTauGrid()(s, m_ptr2G0->tauGridSize() - 1) + gbeta[s] / nrandmeasure;
         // Accumulate electron density and its variance
-        m_ptr2problem->G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
-        //m_ptr2problem->G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
-        m_ptr2problem->G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
+        m_ptr2G->densities().col(s) += m_fermisign * gbeta[s].diagonal().real();
+        //m_ptr2G->elecDensStdDev().col(s) += m_fermisign * denssample.cwiseAbs2();
+        m_ptr2G->densStdDev().col(s) += gbeta[s].diagonal().cwiseAbs2();
     }
     // Accumulate spin correlation between sites 0 and nc - 1, so in single-site case, it is the on-site spin correlation
     const double del = nc == 1 ? 1.0 : 0.0;
-    m_ptr2problem->G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
+    m_ptr2G->spinCorrelation += m_fermisign * std::real(gbeta[0](0, 0) * gbeta[0](nc - 1, nc - 1) + (del - gbeta[0](0, nc - 1)) * gbeta[0](nc - 1, 0)
     - 2.0 * gbeta[0](0, 0) * gbeta[1](nc - 1, nc - 1) + gbeta[1](0, 0) * gbeta[1](nc - 1, nc - 1) + (del - gbeta[1](0, nc - 1)) * gbeta[1](nc - 1, 0));
     
     m_measuredfermisign += m_fermisign;
@@ -565,8 +558,8 @@ void CTAUXImpuritySolver::measAccumSelfEgf() {
 }
 
 std::pair<int, std::pair<double, bool> > CTAUXImpuritySolver::move1markovStepEqualProp() {
-    const Eigen::Index nc = m_ptr2problem->G0->nSites();
-    const double beta = m_ptr2problem->G0->inverseTemperature();
+    const Eigen::Index nc = m_ptr2G0->nSites();
+    const double beta = m_ptr2G0->inverseTemperature();
     std::pair<int, std::pair<double, bool> > info;
     std::pair<double, bool> acceptance;
     double barrier = m_urd(m_reng);
@@ -643,7 +636,9 @@ void CTAUXImpuritySolver::reset() {
     m_histogram.setZero();
 }
 
-CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> problem) : m_ptr2problem(problem), NMatrix(problem->G0, acosh(1 + problem->U * problem->G0->inverseTemperature() * problem->G0->nSites() / (2 * problem->K)), problem->K), m_urd(0.0, 1.0) {
+CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<const BareGreenFunction> G0, const double U, const double K,
+                                         std::shared_ptr<GreenFunction> G) : NMatrix(G0, acosh(1.0 + U * G0->inverseTemperature() * G0->nSites() / (2.0 * K)), K),
+m_ptr2H0(H0), m_ptr2G0(G0), m_U(U), m_K(K), m_ptr2G(G), m_urd(0.0, 1.0) {
     // reset counters and vertex expansion although not necessary because they are reset at the beginning of solve() function
     reset();
     
@@ -652,7 +647,7 @@ CTAUXImpuritySolver::CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> proble
     
     // Default the solver parameters; std::map just adds the element if it does not exist
     std::random_device rd;
-    m_oldseed = rd() + problem->G->fourierCoeffs().processRank() * 137u;
+    m_oldseed = rd() + G->fourierCoeffs().procRank() * 137u;
     parameters["markov chain length"] = Eigen::Index(20000000);
     parameters["QMC time limit"] = 8.0;   // Unit is minute
     parameters["#warm up steps"] = Eigen::Index(10000);
@@ -675,21 +670,21 @@ double CTAUXImpuritySolver::solve() {
     const auto warmup = std::any_cast<Eigen::Index>(parameters.at("#warm up steps"));
     const auto measureperiod = std::any_cast<Eigen::Index>(parameters.at("measure period"));
     
-    //const Eigen::Index lsize = neffstep_globtot / m_ptr2problem->G->fourierCoeffs().processSize();
-    //const Eigen::Index neffstep = (m_ptr2problem->G->fourierCoeffs().processRank() < m_ptr2problem->G->fourierCoeffs().processSize() - 1) ? lsize : lsize + neffstep_globtot % m_ptr2problem->G->fourierCoeffs().processSize();
+    //const Eigen::Index lsize = neffstep_globtot / m_ptr2G->fourierCoeffs().procSize();
+    //const Eigen::Index neffstep = (m_ptr2G->fourierCoeffs().procRank() < m_ptr2G->fourierCoeffs().procSize() - 1) ? lsize : lsize + neffstep_globtot % m_ptr2G->fourierCoeffs().procSize();
     Eigen::Index neffstep, neffstepstart;  // second variable not used
-    mostEvenPart(neffstep_globtot, m_ptr2problem->G->fourierCoeffs().processSize(), m_ptr2problem->G->fourierCoeffs().processRank(), neffstep, neffstepstart);
+    mostEvenPart(neffstep_globtot, m_ptr2G->fourierCoeffs().procSize(), m_ptr2G->fourierCoeffs().procRank(), neffstep, neffstepstart);
     
     const auto verbosity = std::any_cast<std::string>(parameters.at("verbosity"));
     // Hide cursor
-    if (verbosity == "progress_bar" && m_ptr2problem->G->fourierCoeffs().processRank() == 0) indicators::show_console_cursor(false);
+    if (verbosity == "progress_bar" && m_ptr2G->fourierCoeffs().procRank() == 0) indicators::show_console_cursor(false);
     
     // Create a progress bar
     indicators::BlockProgressBar bar{
         indicators::option::BarWidth{30},
         indicators::option::ForegroundColor{indicators::Color::green},
         indicators::option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}},
-        indicators::option::PrefixText{"    Markov walking on process " + std::to_string(m_ptr2problem->G->fourierCoeffs().processRank()) + " "},
+        indicators::option::PrefixText{"    Markov walking on process " + std::to_string(m_ptr2G->fourierCoeffs().procRank()) + " "},
         indicators::option::MaxProgress{warmup + neffstep},
         indicators::option::ShowElapsedTime{true},
         indicators::option::ShowRemainingTime{true}
@@ -710,16 +705,16 @@ double CTAUXImpuritySolver::solve() {
     const auto does_measure = std::any_cast<bool>(parameters.at("does measure"));
     const auto measure_what = std::any_cast<std::string>(parameters.at("measure what"));
     if (does_measure) {
-        m_ptr2problem->G->densities().setZero();
-        m_ptr2problem->G->densStdDev().setZero();
-        m_ptr2problem->G->fCoeffsVar()().setZero();
-        m_ptr2problem->G->spinCorrelation = 0.0;
-        if (measure_what == "S") m_ptr2problem->G->selfEnGF()().setZero();
-        else if (measure_what == "G") m_ptr2problem->G->fourierCoeffs()().setZero();
+        m_ptr2G->densities().setZero();
+        m_ptr2G->densStdDev().setZero();
+        m_ptr2G->fCoeffsVar()().setZero();
+        m_ptr2G->spinCorrelation = 0.0;
+        if (measure_what == "S") m_ptr2G->selfEnGF()().setZero();
+        else if (measure_what == "G") m_ptr2G->fourierCoeffs()().setZero();
         else throw std::invalid_argument("There are only two options for what to measure (S or G)!");
     }
     
-    if (verbosity == "on" && m_ptr2problem->G->fourierCoeffs().processRank() == 0) {
+    if (verbosity == "on" && m_ptr2G->fourierCoeffs().procRank() == 0) {
         std::cout << std::setw(20) << "--------------------" << std::setw(35) << " Markov movement from root process " << std::setw(20)
         << "--------------------" << std::endl;
         std::cout << std::setw(15) << "#Markov step" << std::setw(15) << "Move type" << std::setw(15) << "Accept rate" << std::setw(15) << "Is updated"
@@ -738,7 +733,7 @@ double CTAUXImpuritySolver::solve() {
         // mstepinfo = move1markovStep();
         mstepinfo = move1markovStepEqualProp();
         
-        if (verbosity == "on" && m_ptr2problem->G->fourierCoeffs().processRank() == 0) {
+        if (verbosity == "on" && m_ptr2G->fourierCoeffs().procRank() == 0) {
             std::cout << std::setw(15) << m_nmarkovstep << std::setw(15) << mstepinfo.first << std::setw(15) << mstepinfo.second.first << std::setw(15)
             << mstepinfo.second.second << std::setw(15) << m_vertices.size() << std::endl;
         }
@@ -758,62 +753,62 @@ double CTAUXImpuritySolver::solve() {
         qmcduration = qmcend - qmcbegin;
         
         // Update progress bar
-        if (verbosity == "progress_bar" && m_ptr2problem->G->fourierCoeffs().processRank() == 0) bar.tick();
+        if (verbosity == "progress_bar" && m_ptr2G->fourierCoeffs().procRank() == 0) bar.tick();
     }
     // QMC Markov random walk ends here
     
-    if (verbosity == "progress_bar" && m_ptr2problem->G->fourierCoeffs().processRank() == 0) {
+    if (verbosity == "progress_bar" && m_ptr2G->fourierCoeffs().procRank() == 0) {
         bar.set_option(indicators::option::PrefixText{"    Markov walking done ✔ "});
         // indicators::erase_line();  // Erase the completed bar. Don't do mark_as_completed because that will start a new line.
         bar.mark_as_completed();
         indicators::show_console_cursor(true);  // Show cursor
     }
     
-    if (verbosity == "on" && m_ptr2problem->G->fourierCoeffs().processRank() == 0)
+    if (verbosity == "on" && m_ptr2G->fourierCoeffs().procRank() == 0)
         std::cout << std::setw(22) << "----------------------" << std::setw(16) << " #measurements: " << std::setw(15) << m_nmeasure << std::setw(22)
         << "----------------------" << std::endl;
     
     // Combine counters on all processes; MPI_AINT is the same type as ptrdiff_t, which is the default type of Eigen::Index
-    MPI_Allreduce(MPI_IN_PLACE, &m_measuredfermisign, 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, &m_nmeasure, 1, MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, &m_nmarkovstep, 1, MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, &m_avevertorder, 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-    MPI_Allreduce(MPI_IN_PLACE, m_histogram.data(), m_histogram.size(), MPI_AINT, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
+    MPI_Allreduce(MPI_IN_PLACE, &m_measuredfermisign, 1, MPI_DOUBLE, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
+    MPI_Allreduce(MPI_IN_PLACE, &m_nmeasure, 1, MPI_AINT, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
+    MPI_Allreduce(MPI_IN_PLACE, &m_nmarkovstep, 1, MPI_AINT, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
+    MPI_Allreduce(MPI_IN_PLACE, &m_avevertorder, 1, MPI_DOUBLE, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
+    MPI_Allreduce(MPI_IN_PLACE, m_histogram.data(), m_histogram.size(), MPI_AINT, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
     m_measuredfermisign /= m_nmeasure;
     m_avevertorder /= m_nmeasure;
     
-    if (verbosity == "on" && m_ptr2problem->G->fourierCoeffs().processRank() == 0)
+    if (verbosity == "on" && m_ptr2G->fourierCoeffs().procRank() == 0)
         std::cout << std::setw(15) << "---------------" << std::setw(29) << " #global total measurements: " << std::setw(15) << m_nmeasure
         << std::setw(16) << "----------------" << std::endl;
     
     // Finalize measurement
     if (does_measure) {
         // Finalize the measurement of electron density
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densities().data(), m_ptr2problem->G->densities().size(), MPI_DOUBLE, MPI_SUM,
-                      m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, m_ptr2problem->G->densStdDev().data(), m_ptr2problem->G->densStdDev().size(), MPI_DOUBLE, MPI_SUM,
-                      m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2problem->G->spinCorrelation), 1, MPI_DOUBLE, MPI_SUM, m_ptr2problem->G->fourierCoeffs().mpiCommunicator());
-        m_ptr2problem->G->densities() /= m_nmeasure * m_measuredfermisign;
-        m_ptr2problem->G->densStdDev() = ((m_ptr2problem->G->densStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2problem->G->densities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
-        //for (s = 0; s < 2; ++s) m_ptr2problem->G->elecDensities().col(s) += m_ptr2problem->G0->valsOnTauGrid()(s, m_ptr2problem->G0->tauGridSize() - 1).diagonal().real();
-        m_ptr2problem->G->spinCorrelation /= m_nmeasure * m_measuredfermisign;
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2G->densities().data(), m_ptr2G->densities().size(), MPI_DOUBLE, MPI_SUM,
+                      m_ptr2G->fourierCoeffs().mpiComm());
+        MPI_Allreduce(MPI_IN_PLACE, m_ptr2G->densStdDev().data(), m_ptr2G->densStdDev().size(), MPI_DOUBLE, MPI_SUM,
+                      m_ptr2G->fourierCoeffs().mpiComm());
+        MPI_Allreduce(MPI_IN_PLACE, &(m_ptr2G->spinCorrelation), 1, MPI_DOUBLE, MPI_SUM, m_ptr2G->fourierCoeffs().mpiComm());
+        m_ptr2G->densities() /= m_nmeasure * m_measuredfermisign;
+        m_ptr2G->densStdDev() = ((m_ptr2G->densStdDev() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - m_ptr2G->densities().cwiseAbs2()) / (m_nmeasure - 1)).cwiseSqrt();
+        //for (s = 0; s < 2; ++s) m_ptr2G->elecDensities().col(s) += m_ptr2G0->valsOnTauGrid()(s, m_ptr2G0->tauGridSize() - 1).diagonal().real();
+        m_ptr2G->spinCorrelation /= m_nmeasure * m_measuredfermisign;
         
         // Use measured electron densities to compute G's high-frequency expansion coefficients
-        m_ptr2problem->G->computeMoments(*(m_ptr2problem->H0), m_ptr2problem->U);
+        m_ptr2G->computeMoments(*m_ptr2H0, m_U);
         
         if (measure_what == "S") {
             // Combine accumulated measurements of S on all processes and process them
-            m_ptr2problem->G->selfEnGF().allSum();   // All processes need the full-size S
-            m_ptr2problem->G->selfEnGF()() /= m_nmeasure * m_measuredfermisign;  // Average value of measured quantity
+            m_ptr2G->selfEnGF().allSum();   // All processes need the full-size S
+            m_ptr2G->selfEnGF()() /= m_nmeasure * m_measuredfermisign;  // Average value of measured quantity
             
             // Each process only evaluate G(iw) on its mastered imaginary partition; return an estimation of Simpson integration error
             // for obtaining electron densities
-            simpinterror = m_ptr2problem->G->evalFromSelfEnGF(*(m_ptr2problem->G0));
+            simpinterror = m_ptr2G->evalFromSelfEnGF(*(m_ptr2G0));
         }
         else if (measure_what == "G") {
-            auto Gwmastpart = m_ptr2problem->G->fourierCoeffs().mastFlatPart();
-            auto Gwvarmastpart = m_ptr2problem->G->fCoeffsVar().mastFlatPart();
+            auto Gwmastpart = m_ptr2G->fourierCoeffs().mastFlatPart();
+            auto Gwvarmastpart = m_ptr2G->fCoeffsVar().mastFlatPart();
             // Combine measurements on every processes. Each process only holds valid data on its mastered imaginary partition.
             Gwmastpart.sum2mastPart();
             Gwvarmastpart.sum2mastPart();
@@ -821,19 +816,19 @@ double CTAUXImpuritySolver::solve() {
             Gwmastpart() /= m_nmeasure * m_measuredfermisign;  // This is G's correction to G0
             //Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
             Gwvarmastpart() = (Gwvarmastpart() / (m_nmeasure * m_measuredfermisign * m_measuredfermisign) - Gwmastpart().cwiseAbs2()) / (m_nmeasure - 1);
-            Gwmastpart() += m_ptr2problem->G0->fourierCoeffs().mastFlatPart()();  // Add G0 to obtain G
+            Gwmastpart() += m_ptr2G0->fourierCoeffs().mastFlatPart()();  // Add G0 to obtain G
             
-            m_ptr2problem->G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
+            m_ptr2G->invFourierTrans();  // Not required for simulation, maybe required in future versions, but just for output for now
         }
         const auto magneticorder = std::any_cast<std::string>(parameters.at("magnetic order"));
-        if (magneticorder == "paramagnetic") m_ptr2problem->G->symmetrizeSpins(true);  // All data gathered first
+        if (magneticorder == "paramagnetic") m_ptr2G->symmetrizeSpins(true);  // All data gathered first
     }
     return simpinterror;  // -1 means not used Simpson integration and thus not estimate the error
 }
 
 void CTAUXImpuritySolver::updateInterPhysParams() {
-    double gamma = acosh(1 + m_ptr2problem->U * m_ptr2problem->G0->inverseTemperature() * m_ptr2problem->G0->nSites() / (2 * m_ptr2problem->K));
+    double gamma = acosh(1 + m_U * m_ptr2G0->inverseTemperature() * m_ptr2G0->nSites() / (2 * m_K));
     // Update inherited parameters
-    setParams(gamma, m_ptr2problem->K);
+    setParams(gamma, m_K);
 }
 

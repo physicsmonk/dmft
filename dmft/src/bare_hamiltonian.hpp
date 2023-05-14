@@ -199,14 +199,14 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
         const Eigen::Index nb_2 = nbands / 2;
         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(nb_2);
         Eigen::MatrixXcd fv;
-        m_HdimerMag2d.mpiCommunicator(m_comm);
+        m_HdimerMag2d.mpiComm(m_comm);
         m_HdimerMag2d.resize(nkt, nb_2, 2);  // Allocate resources for _HdimerMag2d, full-size data is needed by all processes
         auto Hmastpart = m_HdimerMag2d.mastDim0Part();  // Choose only partitioning the first dimension
         m_vdimerMag2d.resize(2, Hmastpart.dim0(), nb_2);   // No need to gather, so just allocate local-size data
         Eigen::Index m;
         int co;
         for (ik = 0; ik < Hmastpart.dim0(); ++ik) {
-            kVecAtIndex(ik + Hmastpart.start(), k);
+            kVecAtIndex(ik + Hmastpart.displ(), k);
             constructHamiltonian(k, H);  // Call the implemented method in derived classes
             // Block diagonalize w.r.t. the magnetic unit cell. The key is that the top-left and bottom-right blocks are Hermitian
             // (and they are the same) and that the top-right and bottom-left blocks are already identity matrices multiplied by a
@@ -255,7 +255,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
                           const SqMatArray<std::complex<double>, n0, 1, nm>& selfen_static, const Eigen::DenseBase<Derived>& energies,
                           SqMatArray<std::complex<double>, n0, n1, nm>& Gw) {
     const Eigen::Index nc = selfen_dyn.dimm();
-    Gw.mpiCommunicator(selfen_dyn.mpiCommunicator());
+    Gw.mpiComm(selfen_dyn.mpiComm());
     Gw.resize(selfen_dyn.dim0(), selfen_dyn.dim1(), nc);
     assert(selfen_dyn.dim1() == energies.size());
     const auto selfen_dyn_mastpart = selfen_dyn.mastFlatPart();
@@ -307,7 +307,8 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             //    }
             //    else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
                 wu = energies(so[1]) + H0.chemPot();
-                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist] - selfen_dyn_mastpart[i] - selfen_static[so[0]]).inverse();
+                for (ist = 0; ist < H0.hamDimerMag2d().size(); ++ist) Gwmastpart[i] += -(wu * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[ist]
+                                                                                         - selfen_dyn_mastpart[i] - selfen_static[so[0]]).inverse();
                 Gwmastpart[i] /= static_cast<double>(H0.hamDimerMag2d().size());
             }
         }

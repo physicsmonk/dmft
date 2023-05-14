@@ -70,26 +70,13 @@ public:
 };
 
 
-
-
-// Providing a node collecting all the ingredients of the impurity problem
-class ImpurityProblem {
-public:
-    std::shared_ptr<const BareHamiltonian> H0;
-    std::shared_ptr<const BareGreenFunction> G0;
-    double U;
-    double K;
-    std::shared_ptr<GreenFunction> G;
-    
-    ImpurityProblem(std::shared_ptr<const BareHamiltonian> H0_, std::shared_ptr<const BareGreenFunction> G0_, const double U_, const double K_, std::shared_ptr<GreenFunction> G_);
-};
-
-
-
-
 class CTAUXImpuritySolver : protected NMatrix {
 private:
-    std::shared_ptr<ImpurityProblem> m_ptr2problem;
+    std::shared_ptr<const BareHamiltonian> m_ptr2H0;
+    std::shared_ptr<const BareGreenFunction> m_ptr2G0;
+    double m_U;
+    double m_K;
+    std::shared_ptr<GreenFunction> m_ptr2G;
     unsigned int m_oldseed;  // Keep a copy of the old random number seed, to help determine whether to re-seed the random number engine
     
 protected:
@@ -112,7 +99,8 @@ public:
     
     void reset();
     
-    CTAUXImpuritySolver(std::shared_ptr<ImpurityProblem> problem);
+    CTAUXImpuritySolver(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<const BareGreenFunction> G0, const double U, const double K,
+                        std::shared_ptr<GreenFunction> G);
     
     double solve();
     

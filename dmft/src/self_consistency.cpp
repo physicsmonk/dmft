@@ -14,19 +14,16 @@ using namespace std::complex_literals;
 
 
 DMFTIterator::DMFTIterator(std::shared_ptr<const BareHamiltonian> H0, std::shared_ptr<BareGreenFunction> Gbath, std::shared_ptr<const GreenFunction> Gimp) :
-m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()),
-m_selfen_dyn(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_selfen_static(2, 1, Gimp->nSites()),
-m_selfen_moms(2, 3, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()),
-m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiCommunicator()), m_iter(0) {
+m_ptr2H0(H0), m_ptr2Gbath(Gbath), m_ptr2Gimp(Gimp), m_Glat(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()),
+m_selfen_dyn(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()), m_selfen_static(2, 1, Gimp->nSites()),
+m_selfen_moms(2, 3, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()),
+m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
     parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     parameters["local correlation"] = false;
     parameters["high_freq_tail_start"] = Eigen::Index(Gimp->freqCutoff() / 2);
-    // Compute moments of bath Green's function, which only depend on bare Hamiltonian
-    // and thus only need to be calculated once when bare Hamiltonian passed in.
-    m_ptr2Gbath->computeMoments(*m_ptr2H0);
 }
 
 // Update the bath Green's function using the current lattice Green's function and self-energy
@@ -39,6 +36,8 @@ void DMFTIterator::updateBathGF() {
     
     auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
     if (stepsize < 0 || stepsize > 1) throw std::invalid_argument("Step size for updating bath Green's function must be in [0, 1]!");
+    
+    m_ptr2Gbath->computeMoments(*m_ptr2H0);  // Compute moments of bath Green's function every time when updating it, because bare Hamiltonian could be changing
     
     auto Gbathmastpart = m_ptr2Gbath->fourierCoeffs().mastFlatPart();
     auto Glatmastpart = m_Glat.mastFlatPart();
@@ -185,9 +184,9 @@ void DMFTIterator::computeSelfEnMoms() {
     auto selfenmomspart = m_selfen_moms.mastDim0Part();
     Eigen::Index s;
     for (Eigen::Index sl = 0; sl < selfenmomspart.dim0(); ++sl) {
-        s = sl + selfenmomspart.start();
-        selfenmomspart(sl, 0).noalias() = -m_ptr2Gimp->moments()(s, 2) - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1)
-        + m_ptr2Gbath->moments()(s, 2) + m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1);
+        s = sl + selfenmomspart.displ();
+        selfenmomspart(sl, 0).noalias() = m_ptr2Gbath->moments()(s, 1) * m_ptr2Gbath->moments()(s, 1) + m_ptr2Gbath->moments()(s, 2)
+        - m_ptr2Gimp->moments()(s, 1) * m_ptr2Gimp->moments()(s, 1) - m_ptr2Gimp->moments()(s, 2);
     }
     fitSelfEnMoms23(m_ptr2Gimp->matsubFreqs(), m_selfen_dyn, m_selfen_var, tailstart, m_selfen_moms);  // m_selfen_moms all gathered in here
 }
@@ -268,24 +267,24 @@ std::pair<bool, double> DMFTIterator::checkConvergence() const {
     if (convergtype == "G0_average_error") {
         convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).squaredNorm();
         // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gbath->valsOnTauGrid().mpiComm());
         convergence.second = std::sqrt( convergence.second / (2 * m_ptr2Gbath->tauGridSize() * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
     }
     else if (convergtype == "G0_max_error") {
         convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).cwiseAbs().maxCoeff();
         // Find the global maximum difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gbath->valsOnTauGrid().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gbath->valsOnTauGrid().mpiComm());
     }
     else if (convergtype == "Gimp_Glat_average_error") {
         convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).squaredNorm();
         // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_SUM, m_ptr2Gimp->fourierCoeffs().mpiComm());
         convergence.second = std::sqrt( convergence.second / (2 * (m_ptr2Gimp->freqCutoff() + 1) * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
     }
     else {  // Default to Gimp_Glat_max_error
         convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).cwiseAbs().maxCoeff();
         // Find the global maximum difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiCommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiComm());
     }
     
     if (convergence.second < prec) convergence.first = true;

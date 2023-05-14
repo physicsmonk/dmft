@@ -227,7 +227,7 @@ template<typename SqMatArrType>
 class MastFlatPart {
 public:
     explicit MastFlatPart(SqMatArrType& sqmatarr) : m_sqmatarr(sqmatarr) {
-        //std::cout << "ctor" << std::endl;
+        mostEvenPart(sqmatarr.size(), sqmatarr.procSize(), sqmatarr.procRank(), m_size, m_displ);  // Flat partition
     }
     MastFlatPart(const MastFlatPart&) = default;  // Default copy and move constructors are good for reference member
     MastFlatPart(MastFlatPart&&) = default;
@@ -235,44 +235,45 @@ public:
     MastFlatPart& operator=(MastFlatPart&&) = delete;
     ~MastFlatPart() = default;
     
-    Eigen::Index size() const {return m_sqmatarr.m_mastsize_flat;}
-    Eigen::Index start() const {return m_sqmatarr.m_maststart_flat;}
+    Eigen::Index size() const {return m_size;}
+    Eigen::Index displ() const {return m_displ;}
+    Eigen::Index dimm() const {return m_sqmatarr.dimm();}
     
     std::array<Eigen::Index, 2> global2dIndex(Eigen::Index i) const {
-        assert(i < m_sqmatarr.m_mastsize_flat);
-        i += m_sqmatarr.m_maststart_flat;
+        assert(i < m_size);
+        i += m_displ;
         return std::array<Eigen::Index, 2>{i / m_sqmatarr.dim1(), i % m_sqmatarr.dim1()};
     }
     
     typename SqMatArrType::ColsBlockXpr operator()() {
-        return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_flat * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_flat * m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.middleCols(m_displ * m_sqmatarr.dimm(), m_size * m_sqmatarr.dimm());
     }
     typename SqMatArrType::ConstColsBlockXpr operator()() const {
-        return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_flat * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_flat * m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.middleCols(m_displ * m_sqmatarr.dimm(), m_size * m_sqmatarr.dimm());
     }
     typename SqMatArrType::template NColsBlockXpr<SqMatArrType::DimmAtCompileTime> operator[](const Eigen::Index i) {
-        assert(i < m_sqmatarr.m_mastsize_flat);
+        assert(i < m_size);
         //std::cout << "non-const" << std::endl;
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>((i + m_displ) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::template ConstNColsBlockXpr<SqMatArrType::DimmAtCompileTime> operator[](const Eigen::Index i) const {
-        assert(i < m_sqmatarr.m_mastsize_flat);
+        assert(i < m_size);
         //std::cout << "const" << std::endl;
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>((i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>((i + m_displ) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::Scalar& operator()(const Eigen::Index i, const Eigen::Index im0, const Eigen::Index im1) {
-        assert(i < m_sqmatarr.m_mastsize_flat && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
-        return m_sqmatarr.m_data(im0, (i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm() + im1);
+        assert(i < m_size && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
+        return m_sqmatarr.m_data(im0, (i + m_displ) * m_sqmatarr.dimm() + im1);
     }
     typename SqMatArrType::Scalar operator()(const Eigen::Index i, const Eigen::Index im0, const Eigen::Index im1) const {
-        assert(i < m_sqmatarr.m_mastsize_flat && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
-        return m_sqmatarr.m_data(im0, (i + m_sqmatarr.m_maststart_flat) * m_sqmatarr.dimm() + im1);
+        assert(i < m_size && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
+        return m_sqmatarr.m_data(im0, (i + m_displ) * m_sqmatarr.dimm() + im1);
     }
     
     // Sum-reduce _data on all local processes and the results are separately held in the mastered partition on each process
     void sum2mastPart() {
         const Eigen::Index nmsq = m_sqmatarr.dimm() * m_sqmatarr.dimm();
-        m_sqmatarr.sum2mastPart(m_sqmatarr.m_mastsize_flat * nmsq, m_sqmatarr.m_maststart_flat * nmsq);
+        m_sqmatarr.sum2mastPart(m_size * nmsq, m_displ * nmsq);
     }
     // Gather each piece governed by each local process and broadcast the result to all processes.
     // Note every process holds the full-sized _data, but it is assumed that each process governs
@@ -281,11 +282,12 @@ public:
     // run on every process is intact.
     void allGather() {
         const Eigen::Index nmsq = m_sqmatarr.dimm() * m_sqmatarr.dimm();
-        m_sqmatarr.allGather(m_sqmatarr.m_mastsize_flat * nmsq, m_sqmatarr.m_maststart_flat * nmsq);
+        m_sqmatarr.allGather(m_size * nmsq, m_displ * nmsq);
     }
     
 private:
     SqMatArrType& m_sqmatarr;
+    Eigen::Index m_size, m_displ;
 };
 
 /*
@@ -299,7 +301,7 @@ void MastFlatPart<SqMatArrType>::sum2mastPart() {
         // Get size and start of the destination process
         if (m_sqmatarr.m_prank == dest) {
             chunksize = m_sqmatarr.m_mastsize_flat * nmsq;
-            chunkstart = m_sqmatarr.m_maststart_flat * nmsq;
+            chunkstart = m_sqmatarr.m_mastdispl_flat * nmsq;
         }
         // Broadcast size and start of the destination process to all processes
         MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
@@ -328,7 +330,7 @@ void MastFlatPart<SqMatArrType>::allGather() {
         // Get size and start of the source process
         if (m_sqmatarr.m_prank == src) {
             chunksize = m_sqmatarr.m_mastsize_flat * nmsq;
-            chunkstart = m_sqmatarr.m_maststart_flat * nmsq;
+            chunkstart = m_sqmatarr.m_mastdispl_flat * nmsq;
         }
         // Broadcast size and start of the source process to all processes
         MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
@@ -345,73 +347,79 @@ void MastFlatPart<SqMatArrType>::allGather() {
 template<typename SqMatArrType>
 class MastDim0Part {
 public:
-    explicit MastDim0Part(SqMatArrType& sqmatarr) : m_sqmatarr(sqmatarr) {}
+    explicit MastDim0Part(SqMatArrType& sqmatarr) : m_sqmatarr(sqmatarr) {
+        mostEvenPart(sqmatarr.dim0(), sqmatarr.procSize(), sqmatarr.procRank(), m_size, m_displ);  // Partition only the first dimension
+    }
     MastDim0Part(const MastDim0Part&) = default;  // Default copy and move constructors are good for reference member
     MastDim0Part(MastDim0Part&&) = default;
     MastDim0Part& operator=(const MastDim0Part&) = delete;
     MastDim0Part& operator=(MastDim0Part&&) = delete;
     ~MastDim0Part() = default;
     
-    Eigen::Index dim0() const {return m_sqmatarr.m_mastsize_dim0;}
-    Eigen::Index start() const {return m_sqmatarr.m_maststart_dim0;}
+    Eigen::Index dim0() const {return m_size;}
+    Eigen::Index displ() const {return m_displ;}
+    Eigen::Index dim1() const {return m_sqmatarr.dim1();}
+    Eigen::Index dimm() const {return m_sqmatarr.dimm();}
     
     typename SqMatArrType::ColsBlockXpr operator()(void) {  // Colume number is already dynamic due to mastsize_dim0
-        return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.middleCols(m_displ * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_size * m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
     typename SqMatArrType::ConstColsBlockXpr operator()(void) const {  // Colume number is already dynamic due to mastsize_dim0
-        return m_sqmatarr.m_data.middleCols(m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.m_mastsize_dim0 * m_sqmatarr.dim1() * m_sqmatarr.dimm());
+        return m_sqmatarr.m_data.middleCols(m_displ * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_size * m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
     typename SqMatArrType::template NColsBlockXpr<SqMatArrType::Dim1mAtCompileTime> atDim0(const Eigen::Index i0) {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0);
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1mAtCompileTime>((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.dim1() * m_sqmatarr.dimm());
+        assert(i0 < m_size);
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1mAtCompileTime>((i0 + m_displ) * m_sqmatarr.dim1() * m_sqmatarr.dimm(),
+                                                                                       m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
     typename SqMatArrType::template ConstNColsBlockXpr<SqMatArrType::Dim1mAtCompileTime> atDim0(const Eigen::Index i0) const {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0);
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1mAtCompileTime>((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() * m_sqmatarr.dimm(), m_sqmatarr.dim1() * m_sqmatarr.dimm());
+        assert(i0 < m_size);
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::Dim1mAtCompileTime>((i0 + m_displ) * m_sqmatarr.dim1() * m_sqmatarr.dimm(),
+                                                                                       m_sqmatarr.dim1() * m_sqmatarr.dimm());
     }
     // Access each dim1 slice
     auto atDim1(const Eigen::Index i1) {
         assert(i1 < m_sqmatarr.dim1());
         //std::cout << "non-const version" << std::endl;
-        return m_sqmatarr.m_data(Eigen::all, typename SqMatArrType::slice_dim1{m_sqmatarr.m_mastsize_dim0, m_sqmatarr.dim1(), m_sqmatarr.dimm(), i1 + m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1()});
+        return m_sqmatarr.m_data(Eigen::all, typename SqMatArrType::slice_dim1{m_size, m_sqmatarr.dim1(), m_sqmatarr.dimm(), i1 + m_displ * m_sqmatarr.dim1()});
     }
     const auto atDim1(const Eigen::Index i1) const {
         assert(i1 < m_sqmatarr.dim1());
         //std::cout << "const version" << std::endl;
-        return m_sqmatarr.m_data(Eigen::all, typename SqMatArrType::slice_dim1{m_sqmatarr.m_mastsize_dim0, m_sqmatarr.dim1(), m_sqmatarr.dimm(), i1 + m_sqmatarr.m_maststart_dim0 * m_sqmatarr.dim1()});
+        return m_sqmatarr.m_data(Eigen::all, typename SqMatArrType::slice_dim1{m_size, m_sqmatarr.dim1(), m_sqmatarr.dimm(), i1 + m_displ * m_sqmatarr.dim1()});
     }
     // Return a view of the matrix whose rows are vectors along dim1 of every unit matrix element, at a given dim0 index
     auto dim1RowVecsAtDim0(const Eigen::Index i0) {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0);
+        assert(i0 < m_size);
         //return this->m_data(im0, Eigen::seqN(i0 * this->dim1() * this->dimm() + im1, this->dim1(), this->dimm()));
         return this->atDim0(i0).reshaped(m_sqmatarr.dimm() * m_sqmatarr.dimm(), m_sqmatarr.dim1());
     }
     const auto dim1RowVecsAtDim0(const Eigen::Index i0) const {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0);
+        assert(i0 < m_size);
         //return this->m_data(im0, Eigen::seqN(i0 * this->dim1() * this->dimm() + im1, this->dim1(), this->dimm()));
         return this->atDim0(i0).reshaped(m_sqmatarr.dimm() * m_sqmatarr.dimm(), m_sqmatarr.dim1());
     }
     typename SqMatArrType::template NColsBlockXpr<SqMatArrType::DimmAtCompileTime> operator()(const Eigen::Index i0, const Eigen::Index i1) {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1());
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        assert(i0 < m_size && i1 < m_sqmatarr.dim1());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>(((i0 + m_displ) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::template ConstNColsBlockXpr<SqMatArrType::DimmAtCompileTime> operator()(const Eigen::Index i0, const Eigen::Index i1) const {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1());
-        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>(((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
+        assert(i0 < m_size && i1 < m_sqmatarr.dim1());
+        return m_sqmatarr.m_data.template middleCols<SqMatArrType::DimmAtCompileTime>(((i0 + m_displ) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm(), m_sqmatarr.dimm());
     }
     typename SqMatArrType::Scalar& operator()(const Eigen::Index i0, const Eigen::Index i1, const Eigen::Index im0, const Eigen::Index im1) {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1() && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
-        return m_sqmatarr.m_data(im0, ((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm() + im1);
+        assert(i0 < m_size && i1 < m_sqmatarr.dim1() && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
+        return m_sqmatarr.m_data(im0, ((i0 + m_displ) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm() + im1);
     }
     typename SqMatArrType::Scalar operator()(const Eigen::Index i0, const Eigen::Index i1, const Eigen::Index im0, const Eigen::Index im1) const {
-        assert(i0 < m_sqmatarr.m_mastsize_dim0 && i1 < m_sqmatarr.dim1() && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
-        return m_sqmatarr.m_data(im0, ((i0 + m_sqmatarr.m_maststart_dim0) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm() + im1);
+        assert(i0 < m_size && i1 < m_sqmatarr.dim1() && im0 < m_sqmatarr.dimm() && im1 < m_sqmatarr.dimm());
+        return m_sqmatarr.m_data(im0, ((i0 + m_displ) * m_sqmatarr.dim1() + i1) * m_sqmatarr.dimm() + im1);
     }
     
     // Sum-reduce _data on all local processes and the results are separately held in the mastered partition on each process
     void sum2mastPart() {
         const Eigen::Index dim1nmsq = m_sqmatarr.dim1() * m_sqmatarr.dimm() * m_sqmatarr.dimm();
-        m_sqmatarr.sum2mastPart(m_sqmatarr.m_mastsize_dim0 * dim1nmsq, m_sqmatarr.m_maststart_dim0 * dim1nmsq);
+        m_sqmatarr.sum2mastPart(m_size * dim1nmsq, m_displ * dim1nmsq);
     }
     // Gather each piece governed by each local process and broadcast the result to all processes.
     // Note every process holds the full-sized _data, but it is assumed that each process governs
@@ -420,11 +428,12 @@ public:
     // run on every process is intact.
     void allGather() {
         const Eigen::Index dim1nmsq = m_sqmatarr.dim1() * m_sqmatarr.dimm() * m_sqmatarr.dimm();
-        m_sqmatarr.allGather(m_sqmatarr.m_mastsize_dim0 * dim1nmsq, m_sqmatarr.m_maststart_dim0 * dim1nmsq);
+        m_sqmatarr.allGather(m_size * dim1nmsq, m_displ * dim1nmsq);
     }
     
 private:
     SqMatArrType& m_sqmatarr;
+    Eigen::Index m_size, m_displ;
 };
 
 /*
@@ -438,7 +447,7 @@ void MastDim0Part<SqMatArrType>::sum2mastPart() {
         // Get size and start of the destination process
         if (m_sqmatarr.m_prank == dest) {
             chunksize = m_sqmatarr.m_mastsize_dim0 * dim1nmsq;
-            chunkstart = m_sqmatarr.m_maststart_dim0 * dim1nmsq;
+            chunkstart = m_sqmatarr.m_mastdispl_dim0 * dim1nmsq;
         }
         // Broadcast size and start of the destination process to all processes
         MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, dest, m_sqmatarr.m_comm);
@@ -467,7 +476,7 @@ void MastDim0Part<SqMatArrType>::allGather() {
         // Get size and start of the source process
         if (m_sqmatarr.m_prank == src) {
             chunksize = m_sqmatarr.m_mastsize_dim0 * dim1nmsq;
-            chunkstart = m_sqmatarr.m_maststart_dim0 * dim1nmsq;
+            chunkstart = m_sqmatarr.m_mastdispl_dim0 * dim1nmsq;
         }
         // Broadcast size and start of the source process to all processes
         MPI_Bcast(&chunksize, 1, my_MPI_SIZE_T, src, m_sqmatarr.m_comm);
@@ -490,11 +499,6 @@ class SqMatArray : public SqMatArrayStorage<_Scalar, _n0, _n1, _nm> {
     friend class MastFlatPart;
     template<typename SqMatArrType>
     friend class MastDim0Part;
-
-    void mpiImagPart() {
-        mostEvenPart(this->size(), m_psize, m_prank, m_mastsize_flat, m_maststart_flat);  // Flat partition
-        mostEvenPart(this->dim0(), m_psize, m_prank, m_mastsize_dim0, m_maststart_dim0);  // Partition only the first dimension
-    }
     
 public:
     typedef _Scalar Scalar;
@@ -511,11 +515,10 @@ public:
     
     explicit SqMatArray(const MPI_Comm& comm = MPI_COMM_SELF) : m_comm(comm) {
         MPI_Comm_size(comm, &m_psize); MPI_Comm_rank(comm, &m_prank); MPI_Comm_test_inter(comm, &m_is_inter);
-        mpiImagPart();
     }
-    SqMatArray(const Eigen::Index n0, const Eigen::Index n1, const Eigen::Index nm, const MPI_Comm& comm = MPI_COMM_SELF) : SqMatArrayStorage<_Scalar, _n0, _n1, _nm>(n0, n1, nm), m_comm(comm) {
+    SqMatArray(const Eigen::Index n0, const Eigen::Index n1, const Eigen::Index nm, const MPI_Comm& comm = MPI_COMM_SELF) :
+    SqMatArrayStorage<_Scalar, _n0, _n1, _nm>(n0, n1, nm), m_comm(comm) {
         MPI_Comm_size(comm, &m_psize); MPI_Comm_rank(comm, &m_prank); MPI_Comm_test_inter(comm, &m_is_inter);
-        mpiImagPart();
     }
     SqMatArray(const SqMatArray&) = default;
     SqMatArray(SqMatArray&&) = default;
@@ -523,14 +526,13 @@ public:
     SqMatArray& operator=(SqMatArray&&) = default;
     ~SqMatArray() = default;
     
-    const MPI_Comm& mpiCommunicator(void) const {return m_comm;}
-    void mpiCommunicator(const MPI_Comm& comm) {
+    const MPI_Comm& mpiComm(void) const {return m_comm;}
+    void mpiComm(const MPI_Comm& comm) {
         m_comm = comm;
         MPI_Comm_size(comm, &m_psize); MPI_Comm_rank(comm, &m_prank); MPI_Comm_test_inter(comm, &m_is_inter);
-        mpiImagPart();
     }
-    int processSize() const {return m_psize;}
-    int processRank() const {return m_prank;}
+    int procSize() const {return m_psize;}
+    int procRank() const {return m_prank;}
     
     // Expose the underlying Eigen::Matrix object for global manipulation (should not do resize)
     //typename SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::DataType& operator()() {return this->m_data;}
@@ -614,21 +616,13 @@ public:
     MastDim0Part<SqMatArray> mastDim0Part() {return MastDim0Part<SqMatArray>(*this);}
     const MastDim0Part<const SqMatArray> mastDim0Part() const {return MastDim0Part<const SqMatArray>(*this);}
     
-    // Override SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::resize(n0, n1, nm) to include re-partitioning.
-    // The base resize method doesn't need to be virtual because one doesn't want to refer to this class by the base storage class
-    void resize(const Eigen::Index n0, const Eigen::Index n1, const Eigen::Index nm) {
-        const Eigen::Index oldsize = this->size();
-        SqMatArrayStorage<_Scalar, _n0, _n1, _nm>::resize(n0, n1, nm);
-        if (this->size() != oldsize) mpiImagPart();
-    }
-    
     void allSum();   // allSum-reduce the whole m_data on all local processes
     void broadcast(const int rank);   // Broadcast the whole m_data on process "rank" to other processes
     
 protected:
+    // Need these MPI related variables because this class itself needs some MPI operations such as all-sum
     MPI_Comm m_comm;
     int m_psize, m_prank, m_is_inter;
-    Eigen::Index m_mastsize_flat, m_maststart_flat, m_mastsize_dim0, m_maststart_dim0;
     
     struct slice_dim1 {
         Eigen::Index size() const {return n0 * nm;}
@@ -637,8 +631,8 @@ protected:
     };
     
     // Helper functions for friend classes
-    void sum2mastPart(const int localsize, const int localstart);
-    void allGather(const int localsize, const int localstart);
+    void sum2mastPart(const int localsize, const int localdispl);
+    void allGather(const int localsize, const int localdispl);
 };
 
 template<typename _Scalar, int _n0, int _n1, int _nm>
@@ -661,7 +655,7 @@ void SqMatArray<_Scalar, _n0, _n1, _nm>::broadcast(const int rank) {
 }
 
 template<typename _Scalar, int _n0, int _n1, int _nm>
-void SqMatArray<_Scalar, _n0, _n1, _nm>::sum2mastPart(const int localsize, const int localstart) {
+void SqMatArray<_Scalar, _n0, _n1, _nm>::sum2mastPart(const int localsize, const int localdispl) {
     static_assert(std::is_same<_Scalar, double>::value || std::is_same<_Scalar, std::complex<double> >::value);
     if (m_is_inter) throw std::invalid_argument("MPI communicator is an intercommunicator prohibiting in-place Reduce!");
     int chunksize, chunkstart;
@@ -669,7 +663,7 @@ void SqMatArray<_Scalar, _n0, _n1, _nm>::sum2mastPart(const int localsize, const
         // Broadcast size and start of the destination process to all processes
         if (m_prank == dest) {
             chunksize = localsize;
-            chunkstart = localstart;
+            chunkstart = localdispl;
         }
         MPI_Bcast(&chunksize, 1, MPI_INT, dest, m_comm);
         MPI_Bcast(&chunkstart, 1, MPI_INT, dest, m_comm);
@@ -690,12 +684,12 @@ void SqMatArray<_Scalar, _n0, _n1, _nm>::sum2mastPart(const int localsize, const
 }
 
 template<typename _Scalar, int _n0, int _n1, int _nm>
-void SqMatArray<_Scalar, _n0, _n1, _nm>::allGather(const int localsize, const int localstart) {
+void SqMatArray<_Scalar, _n0, _n1, _nm>::allGather(const int localsize, const int localdispl) {
     static_assert(std::is_same<_Scalar, double>::value || std::is_same<_Scalar, std::complex<double> >::value);
     int *recvcounts = new int[m_psize];
     int *displs = new int[m_psize];
     recvcounts[m_prank] = localsize;
-    displs[m_prank] = localstart;
+    displs[m_prank] = localdispl;
     MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, recvcounts, 1, MPI_INT, m_comm);
     MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, displs, 1, MPI_INT, m_comm);
     if constexpr (std::is_same<_Scalar, double>::value)

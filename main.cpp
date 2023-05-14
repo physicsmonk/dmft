@@ -501,7 +501,6 @@ int main(int argc, char * argv[]) {
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd spectra;
-    auto spectramastpart = spectra.mastFlatPart();
     //Eigen::ArrayXcd en_idel;
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
@@ -539,7 +538,7 @@ int main(int argc, char * argv[]) {
                 }
             }
             printData("selfenergy_tail.txt", selfentail);
-            std::cout << "    Output selfenergy_tail.txt" << std::endl;
+            std::cout << "Output selfenergy_tail.txt" << std::endl;
         }
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
         if (prank == 0) {
@@ -550,6 +549,7 @@ int main(int argc, char * argv[]) {
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         mqem.computeRetardedFunc(selfenstatic);
         computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
+        auto spectramastpart = spectra.mastFlatPart();
         for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
         spectramastpart.allGather();
         if (prank == 0) {
@@ -619,17 +619,17 @@ int main(int argc, char * argv[]) {
     //usleep(1000 * prank);
     //std::this_thread::sleep_for(std::chrono::milliseconds(prank));
     //std::cout << "rank " << prank << " of " << psize << ": mastered size = " << G->fourierCoeffs().mastFlatPart().size() << ", mastered start = "
-    // << G->fourierCoeffs().mastFlatPart().start() << std::endl;
+    // << G->fourierCoeffs().mastFlatPart().displ() << std::endl;
     //MPI_Barrier(MPI_COMM_WORLD);
     //sleep(1);   // Wait 1 s
     //std::this_thread::sleep_for(std::chrono::seconds(1));
     //if (prank == 0) std::cout << sep << std::endl;
 
-    auto impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
+    //auto impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
     //if (loc_corr) impproblem = std::make_shared<ImpurityProblem>(H0dec, G0, U, K, G);
     //else impproblem = std::make_shared<ImpurityProblem>(H0, G0, U, K, G);
 
-    CTAUXImpuritySolver impsolver(impproblem);
+    CTAUXImpuritySolver impsolver(H0, G0, U, K, G);
     impsolver.parameters.at("markov chain length") = markovchainlength;
     impsolver.parameters.at("QMC time limit") = qmctimelimit;
     impsolver.parameters.at("#warm up steps") = warmupsize;
@@ -660,8 +660,10 @@ int main(int argc, char * argv[]) {
 //    std::complex<double> zeta, zetasq;
 //    double sgn;
     
-    // Initialize self-energy and Green's functions
+    // Initialize self-energy and Green's functions; Bare Green's function data consists of imaginary time values, Fourier coefficients, and moments (not including
+    // imaginary times, Matsubara frequencies, and cubic spline). Therefore, must set these 3 data to set bare Green's function.
     if (ansatz == "insulator") {
+        G0->computeMoments(*H0);
         auto G0wmastpart = G0->fourierCoeffs().mastFlatPart();
         std::array<Eigen::Index, 2> so;
         //if (loc_corr)
@@ -686,6 +688,7 @@ int main(int argc, char * argv[]) {
         dmft.updateBathGF();
     }
     else {  // Read in initial G0 from file, can be used to do continuation calculations
+        G0->computeMoments(*H0);
         if (prank == 0) {
             std::ifstream fin("G0matsubara.txt");
             if (fin.is_open()) {
@@ -814,6 +817,7 @@ int main(int argc, char * argv[]) {
             mqem.computeSpectra(G->matsubFreqs(), dmft.dynSelfEnergy(), dmft.selfEnergyVar(), dmft.selfEnergyMoms());
             mqem.computeRetardedFunc(dmft.staticSelfEnergy());
             computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
+            auto spectramastpart = spectra.mastFlatPart();
             for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
             spectramastpart.allGather();
             tend = std::chrono::high_resolution_clock::now();
@@ -866,7 +870,7 @@ int main(int argc, char * argv[]) {
         }
         
         if (density_goal >= 0.0 && converg.first) {
-            // Newton's iteration for finding root of n(mu_eff) - n_goal = 0
+            // Secant iteration for finding root of n(mu_eff) - n_goal = 0
             H0->chemPot(mu_eff - (mu_eff - mueff_old) / (density - density_old) * (density - density_goal));
             mueff_old = mu_eff;
             density_old = density;

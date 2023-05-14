@@ -202,15 +202,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     Eigen::Index na, nrecord, trial, s, max_slope_id;
     std::pair<bool, Eigen::Index> cvg;
     
-    m_D.mpiCommunicator(Gw.mpiCommunicator());
-    m_log_normD.mpiCommunicator(Gw.mpiCommunicator());
     computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
-    if (Gw.processRank() == 0) {
+    if (Gw.procRank() == 0) {
         printData("default_model.txt", m_D);
         std::cout << "Output default_model.txt" << std::endl;
     }
     
-    m_A.mpiCommunicator(Gw.mpiCommunicator());
+    m_A.mpiComm(Gw.mpiComm());
     m_A.resize(Gw.dim0(), m_omega.size(), Gw.dimm());
     
     const auto Gwpart = Gw.mastDim0Part();
@@ -224,10 +222,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     m_opt_alpha_id.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
-    if (verbose && Gw.processRank() == 0) std::cout << std::scientific << std::setprecision(3);
+    if (verbose && Gw.procRank() == 0) std::cout << std::scientific << std::setprecision(3);
     for (Eigen::Index sl = 0; sl < Gwpart.dim0(); ++sl) {
         m_pulay_mix_param = std::any_cast<double>(parameters.at("Pulay_mixing_param"));
-        s = sl + Gwpart.start();
+        s = sl + Gwpart.displ();
         m0trace = mom(s, 0).trace().real();
         // Initialize quantities
         na = 0;
@@ -242,7 +240,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         m_opt_alpha_id(sl) = 0;
         logchi2 = std::log10(misfit(Gw, Gwvar, s));
         m_misfit_curve[sl].resize(acapacity, Eigen::NoChange);
-        if (verbose && Gw.processRank() == 0) std::cout << "------ MQEM: decreasing alpha for spin " << s << " ------" << std::endl
+        if (verbose && Gw.procRank() == 0) std::cout << "------ MQEM: decreasing alpha for spin " << s << " ------" << std::endl
             << "    stepID log10alpha log10chi^2   stepSize      slope #PulayIter #PulayFail" << std::endl;
         do {
             if (trial > amaxtrial) {
@@ -280,7 +278,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 ++nrecord;
             }
             
-            if (verbose && Gw.processRank() == 0) std::cout << std::setw(10) << na << " " << std::setw(10) << loga << " " << std::setw(10) << logchi2
+            if (verbose && Gw.procRank() == 0) std::cout << std::setw(10) << na << " " << std::setw(10) << loga << " " << std::setw(10) << logchi2
                 << " " << std::setw(10) << dloga << " " << std::setw(10) << slope << " " << std::setw(10) << cvg.second
                 << " " << std::setw(10) << trial << std::endl;
             
@@ -301,7 +299,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             ++na;
             trial = 0;
         } while ((slope > astopslope || loga > logainfofit) && dloga > astopstep && nrecord < acapacity);
-        if (verbose && Gw.processRank() == 0) {
+        if (verbose && Gw.procRank() == 0) {
             std::cout << "------ Stopped due to ";
             if (slope <= astopslope) std::cout << "small slope";
             else if (dloga <= astopstep) std::cout << "small step";
@@ -336,7 +334,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
 
 template <int _n0, int _n1, int _nm>
 void MQEMContinuator<_n0, _n1, _nm>::computeRetardedFunc() {
-    m_G_retarded.mpiCommunicator(m_A.mpiCommunicator());
+    m_G_retarded.mpiComm(m_A.mpiComm());
     m_G_retarded.resize(m_A.dim0(), m_A.dim1(), m_A.dimm());
     auto GRpart = m_G_retarded.mastDim0Part();
     auto Apart = m_A.mastDim0Part();
@@ -660,6 +658,7 @@ template <int n_mom>
 void MQEMContinuator<_n0, _n1, _nm>::momentConstraints(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &moms,
                                                        const Eigen::Index s, const SqMatArray<std::complex<double>, 1, n_mom, _nm> &mu,
                                                        SqMatArray<std::complex<double>, 1, n_mom, _nm> &residue) {
+    residue.resize(1, moms.dim1(), moms.dimm());
     Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > ces(moms.dimm());
     for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
         m_log_normD(s, n) = mu[0] + mu[1] * m_omega(n) - mu[2] * m_omega(n) * m_omega(n);  // Not necessarilly Hermitian during iteration
@@ -671,7 +670,6 @@ void MQEMContinuator<_n0, _n1, _nm>::momentConstraints(const SqMatArray<std::com
     residue[2] = (m_D.dim1RowVecsAtDim0(s) * m_intw2A).reshaped(moms.dimm(), moms.dimm()) - moms(s, 2);
 }
 
-// MPI communicators of m_D and m_log_normD must be set before
 template <int _n0, int _n1, int _nm>
 template <int n_mom>
 bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &moms) {
@@ -682,8 +680,11 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
+    const auto momspart = moms.mastDim0Part();
     //double fac, m0trace;
+    m_D.mpiComm(moms.mpiComm());
     m_D.resize(moms.dim0(), m_omega.size(), moms.dimm());
+    m_log_normD.mpiComm(moms.mpiComm());
     m_log_normD.resize(moms.dim0(), m_omega.size(), moms.dimm());
     auto Dpart = m_D.mastDim0Part();
     auto logDpart = m_log_normD.mastDim0Part();
@@ -699,18 +700,18 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     bool converged = true;
     Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > ces(moms.dimm());
     
-    if (verbose && m_D.processRank() == 0) std::cout << std::scientific << std::setprecision(3);
+    if (verbose && m_D.procRank() == 0) std::cout << std::scientific << std::setprecision(3);
     for (Eigen::Index sl = 0; sl < Dpart.dim0(); ++sl) {
-        s = sl + Dpart.start();
-        if (verbose && m_D.processRank() == 0) {
+        s = sl + Dpart.displ();
+        if (verbose && m_D.procRank() == 0) {
             std::cout << "------ MQEM: computing default model for spin " << s << " ------" << std::endl;
             std::cout << "iter    residue" << std::endl;
         }
-        //m0trace = mom(s + Dpart.start(), 0).trace().real();  // Trace must be real
-        //es.compute(mom(s + Dpart.start(), 0));
+        //m0trace = mom(s + Dpart.displ(), 0).trace().real();  // Trace must be real
+        //es.compute(mom(s + Dpart.displ(), 0));
         //for (Eigen::Index j = 0; j < m_D.dim1(); ++j) {
         //    fac = std::exp(-m_omega(j) * m_omega(j) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
-        //    Dpart(s, j) = mom(s + Dpart.start(), 0) * fac;
+        //    Dpart(s, j) = mom(s + Dpart.displ(), 0) * fac;
         //    logDpart(s, j) = es.eigenvectors() * (es.eigenvalues().array() * fac / m0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
         //}
         // Initialize
@@ -723,10 +724,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         //mu[0].setRandom();
         //mu[1].setRandom();
         //mu[2] = Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm()) / (2.0 * sigma1 * sigma1);
-        mu[2] = 0.5 * moms(s, 0) * moms(s, 0) * (moms(s, 2) * moms(s, 0) - moms(s, 1) * moms(s, 1)).inverse();
-        mu[1] = 2.0 * mu[2] * moms(s, 1) * moms(s, 0).inverse();
+        mu[2] = 0.5 * momspart(sl, 0) * momspart(sl, 0) * (momspart(sl, 2) * momspart(sl, 0) - momspart(sl, 1) * momspart(sl, 1)).inverse();
+        mu[1] = 2.0 * mu[2] * momspart(sl, 1) * momspart(sl, 0).inverse();
         ces.compute(mu[2]);
-        mu[0].noalias() = moms(s, 0) * ces.eigenvectors() * (ces.eigenvalues() / M_PI).cwiseSqrt().asDiagonal() * ces.eigenvectors().inverse();
+        mu[0].noalias() = momspart(sl, 0) * ces.eigenvectors() * (ces.eigenvalues() / M_PI).cwiseSqrt().asDiagonal() * ces.eigenvectors().inverse();
         ces.compute(mu[0]);
         mu[0].noalias() = ces.eigenvectors() * ces.eigenvalues().array().log().matrix().asDiagonal() * ces.eigenvectors().inverse() - 0.25 * mu[1] * mu[1] * mu[2].inverse();
         mu_old() = mu().cwiseProduct(Eigen::Matrix<std::complex<double>, _nm, nm3>::Random(moms.dimm(), moms.dimm() * 3) * 0.1
@@ -744,7 +745,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             momentConstraints(moms, s, mu, residue);
             
             err = residue().template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients; propagate nan
-            if (verbose && m_D.processRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << err << std::endl;  // For testing
+            if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << err << std::endl;  // For testing
             if (!std::isfinite(err)) {
                 stoptype = 2;
                 converged = false;
@@ -770,9 +771,9 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             
             ++iter;
         }
-        tmp = std::log(moms(s, 0).trace()) * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());
+        tmp = std::log(momspart(sl, 0).trace()) * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());
         for (Eigen::Index n = 0; n < m_D.dim1(); ++n) logDpart(sl, n) -= tmp;  // Renormalize logD
-        if (verbose && m_D.processRank() == 0) {  // For testing
+        if (verbose && m_D.procRank() == 0) {  // For testing
             std::cout << "------ Stopped due to ";
             if (stoptype == 0) std::cout << "convergence";
             else if (stoptype == 1) std::cout << "full iteration";
@@ -927,7 +928,7 @@ double MQEMContinuator<_n0, _n1, _nm>::dHMaxMag(const Eigen::MatrixBase<Derived>
     SqMatArray<typename OtherDerived::Scalar, 1, OtherDerived::ColsAtCompileTime, _nm> dH(1, dA.cols(), static_cast<Eigen::Index>(std::sqrt(dA.rows()) + 0.5));
     dH.dim1RowVecsAtDim0(0).noalias() = AK * m_K_raw_Hc;
     for (Eigen::Index i = 0; i < dH.dim1(); ++i) dH[i] += dH[i].adjoint().eval();
-    return std::sqrt(dH().cwiseAbs2().maxCoeff());
+    return dH().template lpNorm<Eigen::Infinity>();
 }
 
 template <int _n0, int _n1, int _nm>
