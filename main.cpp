@@ -503,6 +503,8 @@ int main(int argc, char * argv[]) {
     SqMatArray2XXcd spectra;
     auto spectramastpart = spectra.mastFlatPart();
     //Eigen::ArrayXcd en_idel;
+    // For testing
+    SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
         SqMatArray2XXcd selfendyn(2, nfcut + 1, nsite, MPI_COMM_WORLD);
@@ -528,6 +530,16 @@ int main(int argc, char * argv[]) {
         if (prank == 0) {
             printData("selfenergy_moms.txt", selfenmom);
             std::cout << "Output selfenergy_moms.txt" << std::endl;
+            // For testing
+            for (Eigen::Index s = 0; s < 2; ++s) {
+                for (Eigen::Index n = 0; n <= nfcut; ++n) {
+                    selfentail(s, n) = selfenmom(s, 0) / (mats_freq(n) * 1i)
+                    + selfenmom(s, 1) / (-mats_freq(n) * mats_freq(n))
+                    + selfenmom(s, 2) / (-1i * mats_freq(n) * mats_freq(n) * mats_freq(n));
+                }
+            }
+            printData("selfenergy_tail.txt", selfentail);
+            std::cout << "    Output selfenergy_tail.txt" << std::endl;
         }
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
         if (prank == 0) {
@@ -700,9 +712,6 @@ int main(int argc, char * argv[]) {
         printData("real_freqs.txt", mqem.realFreqGrid());
         std::cout << "Output real_freqs.txt" << std::endl;
     }
-    
-    // For testing
-    SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
     
     bool computesigma;
     double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
