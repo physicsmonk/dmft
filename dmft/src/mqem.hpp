@@ -222,7 +222,11 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     m_opt_alpha_id.resize(Gwpart.dim0());
     m_misfit_curve.resize(Gwpart.dim0());
     Apart() = Dpart();  // Initialize m_A
-    if (verbose && Gw.procRank() == 0) std::cout << std::scientific << std::setprecision(3);
+    std::ostringstream ostr;
+    if (verbose && Gw.procRank() == 0) {
+        ostr.copyfmt(std::cout);
+        std::cout << std::scientific << std::setprecision(3);
+    }
     for (Eigen::Index sl = 0; sl < Gwpart.dim0(); ++sl) {
         m_pulay_mix_param = std::any_cast<double>(parameters.at("Pulay_mixing_param"));
         s = sl + Gwpart.displ();
@@ -329,6 +333,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
     }
     Apart.allGather();
+    std::cout.copyfmt(ostr);
     return converged;  // Each process return its own convergence status
 }
 
@@ -700,7 +705,11 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     bool converged = true;
     Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > ces(moms.dimm());
     
-    if (verbose && m_D.procRank() == 0) std::cout << std::scientific << std::setprecision(3);
+    std::ostringstream ostr;
+    if (verbose && m_D.procRank() == 0) {
+        ostr.copyfmt(std::cout);
+        std::cout << std::scientific << std::setprecision(3);
+    }
     for (Eigen::Index sl = 0; sl < Dpart.dim0(); ++sl) {
         s = sl + Dpart.displ();
         if (verbose && m_D.procRank() == 0) {
@@ -787,6 +796,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     }
     Dpart.allGather();
     logDpart.allGather();
+    std::cout.copyfmt(ostr);
     return converged;  // Each process return its own convergence status
 }
 
