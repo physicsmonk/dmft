@@ -59,10 +59,12 @@ public:
     const Eigen::VectorXd& realFreqIntVector() const {return m_intA;}
     Eigen::Index optimalAlphaIndex(const Eigen::Index slocal) const {return m_opt_alpha_id(slocal);}
     double optimalLog10alpha(const Eigen::Index slocal) const {return m_misfit_curve[slocal](m_opt_alpha_id(slocal), 0);}
-    const Eigen::ArrayX3d& diagnosis(const Eigen::Index slocal) const {return m_misfit_curve[slocal];}
+    const Eigen::ArrayX4d& diagnosis(const Eigen::Index slocal) const {return m_misfit_curve[slocal];}
     // Argument curvature will be filled with solution after execution; its const-ness will be cast away inside the function; see Eigen library manual
     template <typename Derived, typename OtherDerived>
     static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const Eigen::Index n_fitpts = 5);
+    template <typename Derived, typename OtherDerived>
+    static Eigen::Vector<typename Derived::Scalar, 4> fitFDFunc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& fitted);
     
 private:
     static constexpr int nm2 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * _nm;
@@ -76,7 +78,7 @@ private:
     Eigen::Matrix<std::complex<double>, _n1, Eigen::Dynamic> m_K, m_K_raw_Hc;
     Eigen::MatrixXd m_Kp;
     Eigen::VectorXd m_intA, m_intwA, m_intw2A;
-    std::vector<Eigen::ArrayX3d> m_misfit_curve;  // Use std::vector because each Eigen::ArrayX2d could have different length
+    std::vector<Eigen::ArrayX4d> m_misfit_curve;  // Use std::vector because each Eigen::ArrayX4d could have different length
     
     template <typename T>
     static T a_side_coeff(const double ub, const double ue, const T x, const double omega0) {
@@ -150,7 +152,7 @@ private:
         parameters["alpha_step_scale"] = 0.95;
         parameters["alpha_capacity"] = Eigen::Index(1000);
         parameters["alpha_cache_all"] = false;
-        parameters["alpha_curvature_fit_size"] = Eigen::Index(5);
+        //parameters["alpha_curvature_fit_size"] = Eigen::Index(5);
         parameters["verbose"] = true;
     }
     template <int n_mom>
@@ -193,13 +195,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
     const auto acapacity = std::any_cast<Eigen::Index>(parameters.at("alpha_capacity"));
     const auto acacheall = std::any_cast<bool>(parameters.at("alpha_cache_all"));
-    const auto afitsize = std::any_cast<Eigen::Index>(parameters.at("alpha_curvature_fit_size"));
+    //const auto afitsize = std::any_cast<Eigen::Index>(parameters.at("alpha_curvature_fit_size"));
     const double eps = 1e-10;
     if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
     
     double m0trace, varmin, logainfofit, loga, logchi2, logchi2_old, dloga, dloga_fac, dAr, dH, slope;
-    Eigen::Index na, nrecord, trial, s, max_slope_id;
+    Eigen::Index na, nrecord, trial, s;
     std::pair<bool, Eigen::Index> cvg;
     
     computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
@@ -312,6 +314,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             std::cout << " ------" << std::endl;
         }
         m_misfit_curve[sl].conservativeResize(nrecord, Eigen::NoChange);  // Get size right
+        /*
         if (nrecord >= afitsize) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
             //m_misfit_curve[s](0, 2) = std::nan("initial");
             //m_misfit_curve[s](1, 2) = std::nan("initial");
@@ -331,9 +334,13 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
         }
         else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
+         */
+        fitFDFunc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].template rightCols<2>());
+        m_misfit_curve[sl].col(3).maxCoeff(&(m_opt_alpha_id(sl)));
+        Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
     }
     Apart.allGather();
-    std::cout.copyfmt(ostr);
+    if (verbose && Gw.procRank() == 0) std::cout.copyfmt(ostr);
     return converged;  // Each process return its own convergence status
 }
 
@@ -686,7 +693,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     const auto momspart = moms.mastDim0Part();
-    //double fac, m0trace;
+    double logm0trace;
     m_D.mpiComm(moms.mpiComm());
     m_D.resize(moms.dim0(), m_omega.size(), moms.dimm());
     m_log_normD.mpiComm(moms.mpiComm());
@@ -697,13 +704,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     Eigen::Matrix<std::complex<double>, _nm, nm3> Y(moms.dimm(), moms.dimm() * 3), S(moms.dimm(), moms.dimm() * 3);
     Eigen::Matrix<std::complex<double>, nm3, nm3> B(moms.dimm() * 3, moms.dimm() * 3);
     Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<std::complex<double>, _nm, nm3> > decomp(moms.dimm(), moms.dimm() * 3);
-    Eigen::Matrix<std::complex<double>, _nm, _nm> tmp(moms.dimm(), moms.dimm());
     //const double sigma0 = 1.0;
-    double err;
     Eigen::Index s, iter;
     int stoptype;
     bool converged = true;
     Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > ces(moms.dimm());
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > es(moms.dimm());
     
     std::ostringstream ostr;
     if (verbose && m_D.procRank() == 0) {
@@ -753,14 +759,14 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             momentConstraints(moms, s, mu_old, residue_old);
             momentConstraints(moms, s, mu, residue);
             
-            err = residue().template lpNorm<Eigen::Infinity>();  // Maximum of absolute values of coefficients; propagate nan
-            if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << err << std::endl;  // For testing
-            if (!std::isfinite(err)) {
+            // For testing
+            if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << residue().template lpNorm<Eigen::Infinity>() << std::endl;
+            if (!residue().array().isFinite().all()) {
                 stoptype = 2;
                 converged = false;
                 break;
             }
-            else if (err < tol) {
+            else if ((residue().array().abs() < tol).all()) {
                 stoptype = 0;
                 break;
             }
@@ -770,7 +776,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
                 break;
             }
             
-            // Secant method generalized for nonlinear matrix equations; update mu as a whole by approximating derivative with least square solution
+            // Secant method generalized for nonlinear matrix equations; update mu as a whole by approximating Jacobian with least square solution
             Y = residue() - residue_old();
             decomp.compute(Y);
             B = decomp.solve(S);
@@ -780,8 +786,17 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             
             ++iter;
         }
-        tmp = std::log(momspart(sl, 0).trace()) * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());
-        for (Eigen::Index n = 0; n < m_D.dim1(); ++n) logDpart(sl, n) -= tmp;  // Renormalize logD
+        // Check positive definiteness of mu[2]
+        es.compute((mu[2] + mu[2].adjoint()) / 2.0);
+        if ((es.eigenvalues().array() <= 0.0).any()) throw std::runtime_error("MQEMContinuator::computeDefaultModel: calculated mu[2] is not positive definite");
+        
+        logm0trace = std::log(momspart(sl, 0).trace().real());
+        for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
+            logDpart(sl, n) = (logDpart(sl, n) + logDpart(sl, n).adjoint().eval()) / 2.0;  // Make calculated default model Hermitian anyway
+            es.compute(logDpart(sl, n));
+            Dpart(sl, n) = es.eigenvectors() * es.eigenvalues().array().exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
+            logDpart(sl, n) -= logm0trace * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());  // Renormalize logD
+        }
         if (verbose && m_D.procRank() == 0) {  // For testing
             std::cout << "------ Stopped due to ";
             if (stoptype == 0) std::cout << "convergence";
@@ -789,14 +804,14 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             else if (stoptype == 2) std::cout << "divergence";
             std::cout << " ------" << std::endl;
             std::cout << "mu = " << std::endl;
-            std::cout << mu << std::endl;
+            std::cout << mu << std::endl;  // mu is left as is, not made Hermitian
             std::cout << "residue = " << std::endl;
             std::cout << residue << std::endl;
         }
     }
     Dpart.allGather();
     logDpart.allGather();
-    std::cout.copyfmt(ostr);
+    if (verbose && m_D.procRank() == 0) std::cout.copyfmt(ostr);
     return converged;  // Each process return its own convergence status
 }
 
@@ -1006,6 +1021,62 @@ void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived
                                           (curve(i, 0) - centerx) * dy - (curve(i, 1) - centery) * dx);
         }
     }
+}
+
+// Fit curve to Fermi-Dirac function, f(x, a) = a0 / (1 + exp(a2 * x + a3)) + a1, which has 4 parameters.
+template <int _n0, int _n1, int _nm>
+template <typename Derived, typename OtherDerived>
+Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFDFunc(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived>& fitted) {
+    typedef typename Derived::Scalar Scalar;
+    Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> Jac(curve.rows(), 4);
+    Eigen::Vector<Scalar, Derived::RowsAtCompileTime> dy(curve.rows());
+    Eigen::Vector<Scalar, 4> a, da;
+    Eigen::Index max_iter = 100;
+    double tol = 1e-4, damp = 0.1;
+    Eigen::Index iter = 0;
+    Scalar tmp;
+    Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> > decomp(curve.rows(), 4);
+    
+    // Initialize fitting parameter
+    a(0) = curve(Eigen::last, 1) - curve(0, 1);
+    a(1) = curve(0, 1);
+    a(2) = 12.0 / (curve(0, 0) - curve(Eigen::last, 0));
+    a(3) = -6.0 * (curve(0, 0) + curve(Eigen::last, 0)) / (curve(0, 0) - curve(Eigen::last, 0));
+    while (true) {
+        for (Eigen::Index i = 0; i < Jac.rows(); ++i) {
+            // Assemble Jacobian matrix df/da
+            tmp = std::exp(a(2) * curve(i, 0) + a(3));
+            Jac(i, 0) = 1.0 / (1.0 + tmp);
+            Jac(i, 1) = 1.0;
+            Jac(i, 2) = -a(0) * Jac(i, 0) * Jac(i, 0) * tmp * curve(i, 0);
+            Jac(i, 3) = -a(0) * Jac(i, 0) * Jac(i, 0) * tmp;
+            // Assemble residue vector
+            dy(i) = curve(i, 1) - a(0) * Jac(i, 0) - a(1);
+        }
+        // Solve normal equations
+        decomp.compute(Jac);
+        da = decomp.solve(dy);
+        
+        if (!Jac.array().isFinite().all() || !dy.array().isFinite().all() || !da.array().isFinite().all())
+            throw std::runtime_error("MQEMContinuator::fitFDFunc: fitting diverged");
+        else if ((da.array().abs() < tol).all()) break;
+        else if (iter == max_iter) throw std::runtime_error("MQEMContinuator::fitFDFunc: fitting not converged within maximum iterations");
+        
+        a += damp * da;
+        ++iter;
+    }
+    
+    Eigen::DenseBase<OtherDerived>& fitted_ = const_cast<Eigen::DenseBase<OtherDerived>&>(fitted);  // Make curvature writable by casting away its const-ness
+    fitted_.derived().resize(curve.rows(), 2);  // Resize the derived object
+    
+    // Calculate second derivative of fitted Fermi-Dirac function
+    for (Eigen::Index i = 0; i < fitted_.rows(); ++i) {
+        tmp = std::exp(a(2) * curve(i, 0) + a(3));
+        fitted_(i, 0) = a(0) / (1.0 + tmp) + a(1);  // Fitted FD function
+        fitted_(i, 1) = a(0) * a(2) * a(2) * tmp * (tmp - 1.0) / ((1.0 + tmp) * (1.0 + tmp) * (1.0 + tmp));  // Second derivative
+    }
+    
+    return a;
 }
 
 typedef MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> MQEMContinuator2XX;

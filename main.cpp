@@ -276,7 +276,7 @@ int main(int argc, char * argv[]) {
     double alpha_rmin = 0.7;
     double alpha_rmax = 2.0;
     double alpha_rscale = 0.8;
-    Eigen::Index alpha_fitsize = 9;
+    //Eigen::Index alpha_fitsize = 9;
     Eigen::Index alpha_capacity = 1000;
     bool alpha_cacheall = false;
     
@@ -370,7 +370,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD);
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD);
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD);
-    readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD);
+    //readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD);
     readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD);
     readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD);
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
@@ -492,7 +492,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_step_min_ratio") = alpha_rmin;
     mqem.parameters.at("alpha_step_max_ratio") = alpha_rmax;
     mqem.parameters.at("alpha_step_scale") = alpha_rscale;
-    mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
+    //mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
     mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
     
@@ -580,17 +580,15 @@ int main(int argc, char * argv[]) {
     }
     else if (proc_control == 2) {  // proc_control == 2 for only calculating curvature of misfit curve for MQEM
         if (prank == 0) {
-            Eigen::ArrayX3d misfit;
+            Eigen::ArrayX4d misfit;
             Eigen::Index opt_alpha_ind;
-            double opt_alpha;
             loadData("mqem_diagnosis.txt", misfit);
-            MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
+            //MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
+            std::cout << MQEMContinuator2XX::fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()) << std::endl;
             printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
-            misfit.col(2).maxCoeff<Eigen::PropagateNumbers>(&opt_alpha_ind);
-            opt_alpha = std::pow(10.0, misfit(opt_alpha_ind, 0));
-            std::cout << "Calculated curvature of misfit curve for spin up in MQEM using local fit size of " << alpha_fitsize << std::endl;
-            std::cout << "Optimal alpha for spin up: " << opt_alpha << " at " << opt_alpha_ind << std::endl;
+            misfit.col(3).maxCoeff(&opt_alpha_ind);
+            std::cout << "Optimal log10(alpha) for spin up: " << misfit(opt_alpha_ind, 0) << " at " << opt_alpha_ind << std::endl;
         }
         MPI_Finalize();
         auto stop = std::chrono::high_resolution_clock::now();
