@@ -128,6 +128,7 @@ private:
     }
     
     void initParams() {
+        parameters["simple_default_model"] = false;
         parameters["secant_max_iter"] = Eigen::Index(30);
         parameters["secant_tol"] = 0.001;
         parameters["secant_damp"] = 0.5;
@@ -251,7 +252,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         do {
             if (trial > amaxtrial) {
                 converged = false;
-                std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) at dim0 " << s << std::endl;
+                std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) for spin " << s << std::endl;
                 break;
             }
             if (cvg.first) A_old() = Apart.atDim0(sl);
@@ -259,7 +260,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             if (!cvg.first) {  // Solve diverged
                 if (na == 0) {  // Initial solve
                     converged = false;
-                    std::cout << "MQEM computeSpectra: solving for initial alpha diverged at dim0 " << s << std::endl;
+                    std::cout << "MQEM computeSpectra: solving for initial alpha diverged for spin " << s << std::endl;
                     break;
                 }
                 Apart.atDim0(sl) = A_old();  // Restore initial guess
@@ -685,21 +686,40 @@ void MQEMContinuator<_n0, _n1, _nm>::momentConstraints(const SqMatArray<std::com
 template <int _n0, int _n1, int _nm>
 template <int n_mom>
 bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &moms) {
+    const auto simplemodel = std::any_cast<bool>(parameters.at("simple_default_model"));
     static constexpr int nm3 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * 3;
     if (moms.dim1() < 3) throw std::range_error("MQEMContinuator::computeDefaultModel: number of provided moments less than 3");
     const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
-    const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("secant_max_iter"));
-    const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
-    const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
-    const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     const auto momspart = moms.mastDim0Part();
-    double logm0trace, err, err_old;
+    double fac, logm0trace;
     m_D.mpiComm(moms.mpiComm());
     m_D.resize(moms.dim0(), m_omega.size(), moms.dimm());
     m_log_normD.mpiComm(moms.mpiComm());
     m_log_normD.resize(moms.dim0(), m_omega.size(), moms.dimm());
     auto Dpart = m_D.mastDim0Part();
     auto logDpart = m_log_normD.mastDim0Part();
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > es(moms.dimm());
+    
+    if (simplemodel) {
+        for (Eigen::Index sl = 0; sl < Dpart.dim0(); ++sl) {
+            logm0trace = momspart(sl, 0).trace().real();  // Notice this is not log
+            es.compute(momspart(sl, 0));
+            for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
+                fac = std::exp(-m_omega(n) * m_omega(n) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
+                Dpart(sl, n) = momspart(sl, 0) * fac;
+                logDpart(sl, n).noalias() = es.eigenvectors() * (es.eigenvalues().array() * fac / logm0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+            }
+        }
+        Dpart.allGather();
+        logDpart.allGather();
+        return true;
+    }
+    
+    const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("secant_max_iter"));
+    const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
+    const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
+    const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
+    double err, err_old;
     SqMatArray<std::complex<double>, 1, 3, _nm> mu(1, 3, moms.dimm()), mu_old(1, 3, moms.dimm()), residue(1, 3, moms.dimm()), residue_old(1, 3, moms.dimm());
     Eigen::Matrix<std::complex<double>, _nm, nm3> Y(moms.dimm(), moms.dimm() * 3), S(moms.dimm(), moms.dimm() * 3);
     Eigen::Matrix<std::complex<double>, nm3, nm3> B(moms.dimm() * 3, moms.dimm() * 3);
@@ -709,7 +729,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     int stoptype;
     bool converged = true;
     Eigen::ComplexEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > ces(moms.dimm());
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix<std::complex<double>, _nm, _nm> > es(moms.dimm());
     
     std::ostringstream ostr;
     if (verbose && m_D.procRank() == 0) {
@@ -819,10 +838,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             es.compute(momspart(sl, 0));
             for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
                 fac = std::exp(-m_omega(n) * m_omega(n) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
-                Dpart(s, n) = momspart(sl, 0) * fac;
-                logDpart(s, n).noalias() = es.eigenvectors() * (es.eigenvalues().array() * fac / logm0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+                Dpart(sl, n) = momspart(sl, 0) * fac;
+                logDpart(sl, n).noalias() = es.eigenvectors() * (es.eigenvalues().array() * fac / logm0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
             }
-            std::cout << "Calculated mu[2] was not positive definite; degraded to simple Gaussian with standard deviation " << sigma << std::endl;
+            std::cout << "Calculated mu[2] for spin " << s << " was not positive definite; degraded to simple Gaussian with standard deviation " << sigma << std::endl;
         }
     }
     Dpart.allGather();

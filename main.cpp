@@ -253,6 +253,7 @@ int main(int argc, char * argv[]) {
      */
     
     // For MQEM analytic continuation
+    bool simple_default_model = false;
     double secant_tol = 0.001;
     Eigen::Index secant_maxiter = 30;
     double secant_damp = 0.1;
@@ -344,6 +345,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(delenergy, docroot, "numerical/PadeInterpolation/energyGridSize.delta", MPI_COMM_WORLD, prank);
     readxml_bcast(mpprec, docroot, "numerical/PadeInterpolation/internalPrecision", MPI_COMM_WORLD, prank);
     */
+    readxml_bcast(simple_default_model, docroot, "numerical/MQEM/simpleDefaultModel", MPI_COMM_WORLD);
     readxml_bcast(secant_maxiter, docroot, "numerical/MQEM/secantMaxIteration", MPI_COMM_WORLD);
     readxml_bcast(secant_tol, docroot, "numerical/MQEM/secantTolerance", MPI_COMM_WORLD);
     readxml_bcast(secant_damp, docroot, "numerical/MQEM/secantDamp", MPI_COMM_WORLD);
@@ -473,6 +475,7 @@ int main(int argc, char * argv[]) {
 //    PadeApproximant2XXmpreal pade;
 //#endif
     MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> mqem;
+    mqem.parameters.at("simple_default_model") = simple_default_model;
     mqem.parameters.at("secant_max_iter") = secant_maxiter;
     mqem.parameters.at("secant_tol") = secant_tol;
     mqem.parameters.at("secant_damp") = secant_damp;
