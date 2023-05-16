@@ -139,7 +139,7 @@ private:
         parameters["Pulay_tolerance"] = 1e-5;
         parameters["Pulay_max_iteration"] = Eigen::Index(500);
         //parameters["Pulay_exp_limit"] = 300.0;
-        //parameters["Gaussian_sigma"] = 1.5;
+        parameters["Gaussian_sigma"] = 1.5;
         parameters["alpha_max_fac"] = 10.0;
         parameters["alpha_info_fit_fac"] = 0.05;
         parameters["alpha_init_fraction"] = 0.01;
@@ -675,7 +675,7 @@ void MQEMContinuator<_n0, _n1, _nm>::momentConstraints(const SqMatArray<std::com
     for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
         m_log_normD(s, n) = mu[0] + mu[1] * m_omega(n) - mu[2] * m_omega(n) * m_omega(n);  // Not necessarilly Hermitian during iteration
         ces.compute(m_log_normD(s, n));
-        m_D(s, n) = ces.eigenvectors() * ces.eigenvalues().array().exp().matrix().asDiagonal() * ces.eigenvectors().inverse();
+        m_D(s, n).noalias() = ces.eigenvectors() * ces.eigenvalues().array().exp().matrix().asDiagonal() * ces.eigenvectors().inverse();
     }
     residue[0] = (m_D.dim1RowVecsAtDim0(s) * m_intA).reshaped(moms.dimm(), moms.dimm()) - moms(s, 0);
     residue[1] = (m_D.dim1RowVecsAtDim0(s) * m_intwA).reshaped(moms.dimm(), moms.dimm()) - moms(s, 1);
@@ -687,7 +687,7 @@ template <int n_mom>
 bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::complex<double>, _n0, n_mom, _nm> &moms) {
     static constexpr int nm3 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * 3;
     if (moms.dim1() < 3) throw std::range_error("MQEMContinuator::computeDefaultModel: number of provided moments less than 3");
-    //const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
+    const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
     const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("secant_max_iter"));
     const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
@@ -722,13 +722,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             std::cout << "------ MQEM: computing default model for spin " << s << " ------" << std::endl;
             std::cout << "iter    residue" << std::endl;
         }
-        //m0trace = mom(s + Dpart.displ(), 0).trace().real();  // Trace must be real
-        //es.compute(mom(s + Dpart.displ(), 0));
-        //for (Eigen::Index j = 0; j < m_D.dim1(); ++j) {
-        //    fac = std::exp(-m_omega(j) * m_omega(j) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
-        //    Dpart(s, j) = mom(s + Dpart.displ(), 0) * fac;
-        //    logDpart(s, j) = es.eigenvectors() * (es.eigenvalues().array() * fac / m0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
-        //}
         // Initialize
         iter = 0;
         //mu_old[0] = (moms(s, 0).diagonal().array() / sigma0 * M_SQRT1_2 * 0.5 * M_2_SQRTPI).log().matrix().asDiagonal();
@@ -786,17 +779,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             
             ++iter;
         }
-        // Check positive definiteness of mu[2]
-        es.compute((mu[2] + mu[2].adjoint()) / 2.0);
-        if ((es.eigenvalues().array() <= 0.0).any()) throw std::runtime_error("MQEMContinuator::computeDefaultModel: calculated mu[2] is not positive definite");
-        
-        logm0trace = std::log(momspart(sl, 0).trace().real());
-        for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
-            logDpart(sl, n) = (logDpart(sl, n) + logDpart(sl, n).adjoint().eval()) / 2.0;  // Make calculated default model Hermitian anyway
-            es.compute(logDpart(sl, n));
-            Dpart(sl, n) = es.eigenvectors() * es.eigenvalues().array().exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
-            logDpart(sl, n) -= logm0trace * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());  // Renormalize logD
-        }
         if (verbose && m_D.procRank() == 0) {  // For testing
             std::cout << "------ Stopped due to ";
             if (stoptype == 0) std::cout << "convergence";
@@ -807,6 +789,28 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             std::cout << mu << std::endl;  // mu is left as is, not made Hermitian
             std::cout << "residue = " << std::endl;
             std::cout << residue << std::endl;
+        }
+        
+        logm0trace = std::log(momspart(sl, 0).trace().real());
+        for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
+            logDpart(sl, n) = (logDpart(sl, n) + logDpart(sl, n).adjoint().eval()) / 2.0;  // Make calculated default model Hermitian anyway
+            es.compute(logDpart(sl, n));
+            Dpart(sl, n).noalias() = es.eigenvectors() * es.eigenvalues().array().exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
+            logDpart(sl, n) -= logm0trace * Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm());  // Renormalize logD
+        }
+        
+        // Check positive definiteness of mu[2], if not, degrade to the simple Gaussian
+        es.compute((mu[2] + mu[2].adjoint()) / 2.0);
+        if ((es.eigenvalues().array() <= 0.0).any()) {
+            double fac;
+            logm0trace = momspart(sl, 0).trace().real();  // Notice this is not log
+            es.compute(momspart(sl, 0));
+            for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
+                fac = std::exp(-m_omega(n) * m_omega(n) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
+                Dpart(s, n) = momspart(sl, 0) * fac;
+                logDpart(s, n).noalias() = es.eigenvectors() * (es.eigenvalues().array() * fac / logm0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
+            }
+            std::cout << "Calculated mu[2] was not positive definite; degraded to simple Gaussian with standard deviation " << sigma << std::endl;
         }
     }
     Dpart.allGather();

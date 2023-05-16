@@ -480,7 +480,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("Pulay_mixing_param") = pulay_mix;
     mqem.parameters.at("Pulay_history_size") = pulay_histsize;
     mqem.parameters.at("Pulay_period") = pulay_period;
-    //mqem.parameters.at("Gaussian_sigma") = gaussian_sig;
+    mqem.parameters.at("Gaussian_sigma") = U / 2.0;
     mqem.parameters.at("alpha_max_fac") = alpha_maxfac;
     mqem.parameters.at("alpha_info_fit_fac") = alpha_infofitfac;
     mqem.parameters.at("alpha_init_fraction") = alpha_initfrac;
