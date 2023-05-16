@@ -693,7 +693,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     const auto momspart = moms.mastDim0Part();
-    double logm0trace;
+    double logm0trace, err, err_old;
     m_D.mpiComm(moms.mpiComm());
     m_D.resize(moms.dim0(), m_omega.size(), moms.dimm());
     m_log_normD.mpiComm(moms.mpiComm());
@@ -752,19 +752,26 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             momentConstraints(moms, s, mu_old, residue_old);
             momentConstraints(moms, s, mu, residue);
             
-            // For testing
-            if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << residue().template lpNorm<Eigen::Infinity>() << std::endl;
+            err_old = residue_old().template lpNorm<Eigen::Infinity>();
+            err = residue().template lpNorm<Eigen::Infinity>();
+            
+            if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << err << std::endl;  // For testing
             if (!residue().array().isFinite().all()) {
-                stoptype = 2;
+                stoptype = 3;
                 converged = false;
                 break;
             }
-            else if ((residue().array().abs() < tol).all()) {
+            else if (err < tol) {
                 stoptype = 0;
                 break;
             }
-            else if (iter == max_iter) {
+            else if (err > err_old) {
                 stoptype = 1;
+                converged = false;
+                break;
+            }
+            else if (iter == max_iter) {
+                stoptype = 2;
                 converged = false;
                 break;
             }
@@ -782,8 +789,9 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         if (verbose && m_D.procRank() == 0) {  // For testing
             std::cout << "------ Stopped due to ";
             if (stoptype == 0) std::cout << "convergence";
-            else if (stoptype == 1) std::cout << "full iteration";
-            else if (stoptype == 2) std::cout << "divergence";
+            else if (stoptype == 1) std::cout << "increasing residue";
+            else if (stoptype == 2) std::cout << "full iteration";
+            else if (stoptype == 3) std::cout << "divergence";
             std::cout << " ------" << std::endl;
             std::cout << "mu = " << std::endl;
             std::cout << mu << std::endl;  // mu is left as is, not made Hermitian
@@ -793,6 +801,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         
         logm0trace = std::log(momspart(sl, 0).trace().real());
         for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
+            if (stoptype == 1) logDpart(sl, n) = mu_old[0] + mu_old[1] * m_omega(n) - mu_old[2] * m_omega(n) * m_omega(n);  // Use solution with smallest residue
             logDpart(sl, n) = (logDpart(sl, n) + logDpart(sl, n).adjoint().eval()) / 2.0;  // Make calculated default model Hermitian anyway
             es.compute(logDpart(sl, n));
             Dpart(sl, n).noalias() = es.eigenvectors() * es.eigenvalues().array().exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
@@ -800,7 +809,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         }
         
         // Check positive definiteness of mu[2], if not, degrade to the simple Gaussian
-        es.compute((mu[2] + mu[2].adjoint()) / 2.0);
+        if (stoptype == 1)
+            es.compute((mu_old[2] + mu_old[2].adjoint()) / 2.0);
+        else
+            es.compute((mu[2] + mu[2].adjoint()) / 2.0);
         if ((es.eigenvalues().array() <= 0.0).any()) {
             double fac;
             logm0trace = momspart(sl, 0).trace().real();  // Notice this is not log
