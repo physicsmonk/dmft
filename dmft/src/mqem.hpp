@@ -1066,7 +1066,7 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
     Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> Jac(curve.rows(), 4);
     Eigen::Vector<Scalar, Derived::RowsAtCompileTime> dy(curve.rows());
     Eigen::Vector<Scalar, 4> a, da;
-    Eigen::Index max_iter = 100;
+    Eigen::Index max_iter = 500;
     double tol = 1e-4, damp = 0.1;
     Eigen::Index iter = 0;
     Scalar tmp;
