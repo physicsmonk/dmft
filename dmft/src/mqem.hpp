@@ -152,7 +152,7 @@ private:
         parameters["alpha_step_max_ratio"] = 2.0;
         parameters["alpha_step_scale"] = 0.95;
         parameters["alpha_capacity"] = Eigen::Index(1000);
-        parameters["alpha_cache_all"] = false;
+        parameters["alpha_cache_all"] = true;
         //parameters["alpha_curvature_fit_size"] = Eigen::Index(5);
         parameters["verbose"] = true;
     }

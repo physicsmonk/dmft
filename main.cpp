@@ -279,7 +279,7 @@ int main(int argc, char * argv[]) {
     double alpha_rscale = 0.8;
     //Eigen::Index alpha_fitsize = 9;
     Eigen::Index alpha_capacity = 1000;
-    bool alpha_cacheall = false;
+    bool alpha_cacheall = true;
     
     int proc_control = 0;
     bool computesigmaxy = true;
