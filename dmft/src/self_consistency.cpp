@@ -110,7 +110,6 @@ void DMFTIterator::fitSelfEnMoms23(const Eigen::DenseBase<Derived>& matsfreqs, c
     Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX2d> decomp(2 * n_hftail, 2);
     Eigen::CompleteOrthogonalDecomposition<Eigen::MatrixX4d> decomp_off(4 * n_hftail, 4);
     Eigen::Vector4d sol;
-    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> es(ns);
     for (Eigen::Index n = 0; n < n_hftail; ++n) {
         ng = n + tailstart;
         // For real part of diagonal element of Matsubara self-energy
