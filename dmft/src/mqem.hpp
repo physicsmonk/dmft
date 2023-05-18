@@ -715,6 +715,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         return true;
     }
     
+    for (Eigen::Index sl = 0; sl < Dpart.dim0(); ++sl) {
+        es.compute(momspart(sl, 2), Eigen::EigenvaluesOnly);
+        if ((es.eigenvalues().array() < 0.0).any())
+            throw std::runtime_error("MQEMContinuator::computeDefaultModel: third moment of self-energy is not positive semi-definite; try to lower the tail's starting index for fitting the moments");
+    }
+    
     const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("secant_max_iter"));
     const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));

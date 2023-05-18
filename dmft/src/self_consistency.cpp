@@ -170,9 +170,6 @@ void DMFTIterator::fitSelfEnMoms23(const Eigen::DenseBase<Derived>& matsfreqs, c
                 momspart(s, 2, j, i) = std::conj(momspart(s, 2, i, j));
             }
         }
-        es.compute(momspart(s, 2), Eigen::EigenvaluesOnly);
-        if ((es.eigenvalues().array() < 0.0).any())
-            throw std::runtime_error("DMFTIterator::fitSelfEnMoms23: fitted third moment of self-energy is not positive semi-definite; try to lower the tail's starting index");
     }
     momspart.allGather();
 }
