@@ -250,11 +250,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         if (verbose && Gw.procRank() == 0) std::cout << "------ MQEM: decreasing alpha for spin " << s << " ------" << std::endl
             << "    stepID log10alpha log10chi^2   stepSize      slope #PulayIter #PulayFail" << std::endl;
         do {
-            if (trial > amaxtrial) {
-                converged = false;
-                std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) for spin " << s << std::endl;
-                break;
-            }
             if (cvg.first) A_old() = Apart.atDim0(sl);
             cvg = periodicPulaySolve(mats_freq, Gw, Gwvar, mom, std::pow(10.0, loga - dloga), s);  // m_A updated in here
             if (!cvg.first) {  // Solve diverged
@@ -268,7 +263,12 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
                 //parameters.at("Pulay_period") = std::any_cast<Eigen::Index>(parameters.at("Pulay_period")) + 1;
                 m_pulay_mix_param *= rmin;
                 ++trial;
-                continue;
+                if (trial > amaxtrial) {
+                    converged = false;
+                    std::cout << "MQEM computeSpectra: maximum number of trials reached (diverged) for spin " << s << std::endl;
+                    break;
+                }
+                else continue;
             }
             // Solve converged
             loga -= dloga;
@@ -725,6 +725,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     const auto tol = std::any_cast<double>(parameters.at("secant_tol"));
     const auto damp = std::any_cast<double>(parameters.at("secant_damp"));
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
+    //const Eigen::Index max_inc_residue = 100;
     double err, err_old;
     SqMatArray<std::complex<double>, 1, 3, _nm> mu(1, 3, moms.dimm()), mu_old(1, 3, moms.dimm()), residue(1, 3, moms.dimm()), residue_old(1, 3, moms.dimm());
     Eigen::Matrix<std::complex<double>, _nm, nm3> Y(moms.dimm(), moms.dimm() * 3), S(moms.dimm(), moms.dimm() * 3);
@@ -749,6 +750,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         }
         // Initialize
         iter = 0;
+        //n_inc_residue = 0;
         //mu_old[0] = (moms(s, 0).diagonal().array() / sigma0 * M_SQRT1_2 * 0.5 * M_2_SQRTPI).log().matrix().asDiagonal();
         //mu_old[1].setZero();
         //mu_old[2] = Eigen::Matrix<double, _nm, _nm>::Identity(moms.dimm(), moms.dimm()) / (2.0 * sigma0 * sigma0);
@@ -791,9 +793,14 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
                 break;
             }
             else if (err > err_old) {
+                //++n_inc_residue;
+                //mu() = mu_old() + damp * (S + 0.1 * Eigen::Matrix<std::complex<double>, _nm, nm3>::Random(moms.dimm(), moms.dimm() * 3));
+                //if (n_inc_residue > max_inc_residue) {
                 stoptype = 1;
                 converged = false;
                 break;
+                //}
+                //else continue;
             }
             else if (iter == max_iter) {
                 stoptype = 2;
@@ -809,6 +816,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             mu_old() = mu();
             mu() += damp * S;
             
+            //n_inc_residue = 0;
             ++iter;
         }
         if (verbose && m_D.procRank() == 0) {  // For testing
