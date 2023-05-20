@@ -141,6 +141,7 @@ private:
         parameters["Pulay_max_iteration"] = Eigen::Index(500);
         //parameters["Pulay_exp_limit"] = 300.0;
         parameters["Gaussian_sigma"] = 1.5;
+        parameters["Gaussian_shift"] = 0.0;
         parameters["alpha_max_fac"] = 10.0;
         parameters["alpha_info_fit_fac"] = 0.05;
         parameters["alpha_init_fraction"] = 0.01;
@@ -690,6 +691,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     static constexpr int nm3 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * 3;
     if (moms.dim1() < 3) throw std::range_error("MQEMContinuator::computeDefaultModel: number of provided moments less than 3");
     const auto sigma = std::any_cast<double>(parameters.at("Gaussian_sigma"));
+    const auto shift = std::any_cast<double>(parameters.at("Gaussian_shift"));
     const auto momspart = moms.mastDim0Part();
     double fac, logm0trace;
     m_D.mpiComm(moms.mpiComm());
@@ -705,7 +707,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             logm0trace = momspart(sl, 0).trace().real();  // Notice this is not log
             es.compute(momspart(sl, 0));
             for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
-                fac = std::exp(-m_omega(n) * m_omega(n) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
+                fac = std::exp(-(m_omega(n) - shift) * (m_omega(n) - shift) / (2.0 * sigma * sigma)) / sigma * M_SQRT1_2 * 0.5 * M_2_SQRTPI;
                 Dpart(sl, n) = momspart(sl, 0) * fac;
                 logDpart(sl, n).noalias() = es.eigenvectors() * (es.eigenvalues().array() * fac / logm0trace).log().matrix().asDiagonal() * es.eigenvectors().adjoint();
             }
