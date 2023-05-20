@@ -877,6 +877,7 @@ int main(int argc, char * argv[]) {
             mueff_old = mu_eff;
             density_old = density;
             mu_eff = H0->chemPot();
+            mqem.parameters.at("Gaussian_shift") = -mu_eff;
             if (prank == 0) std::cout << "Adjusted effective chemical potential by " << mu_eff - mueff_old << " to " << mu_eff << std::endl;
         }
     } while (cond_computed_times < n_computecond && dmft.numIterations() < nitmax);  // Main iteration stops here
