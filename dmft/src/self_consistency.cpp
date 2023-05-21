@@ -20,7 +20,7 @@ m_selfen_moms(2, 3, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()),
 m_selfen_var(2, Gimp->freqCutoff() + 1, Gimp->nSites(), Gimp->fourierCoeffs().mpiComm()), m_iter(0) {
     // Default parameters
     parameters["G0 update step size"] = 1.0;
-    parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
+    //parameters["convergence type"] = std::string("Gimp_Glat_max_error");  // Or "Gimp_Glat_average_error", "G0_..."
     parameters["convergence criterion"] = 0.005;
     parameters["local correlation"] = false;
     parameters["high_freq_tail_start"] = Eigen::Index(Gimp->freqCutoff() / 2);
@@ -31,8 +31,8 @@ void DMFTIterator::updateBathGF() {
     //++m_iter;
     
     // First record old bath Green's function in imaginary-time space for corresponding cases
-    const auto convergtype = std::any_cast<std::string>(parameters.at("convergence type"));
-    if (convergtype == "G0_average_error" || convergtype == "G0_max_error") m_G0old = m_ptr2Gbath->valsOnTauGrid();
+    //const auto convergtype = std::any_cast<std::string>(parameters.at("convergence type"));
+    //if (convergtype == "G0_average_error" || convergtype == "G0_max_error") m_G0old = m_ptr2Gbath->valsOnTauGrid();
     
     auto stepsize = std::any_cast<double>(parameters.at("G0 update step size"));
     if (stepsize < 0 || stepsize > 1) throw std::invalid_argument("Step size for updating bath Green's function must be in [0, 1]!");
@@ -256,10 +256,10 @@ void DMFTIterator::updateLatticeGF() {
 }
 
 std::pair<bool, double> DMFTIterator::checkConvergence() const {
-    const auto convergtype = std::any_cast<std::string>(parameters.at("convergence type"));
+    //const auto convergtype = std::any_cast<std::string>(parameters.at("convergence type"));
     const auto prec = std::any_cast<double>(parameters.at("convergence criterion"));
     std::pair<bool, double> convergence(false, 0.0);
-    
+    /*
     if (convergtype == "G0_average_error") {
         convergence.second = (m_ptr2Gbath->valsOnTauGrid().mastFlatPart()() - m_G0old.mastFlatPart()()).squaredNorm();
         // Sum the accumulated squared norms on all processes to obtain the complete squared norm for Green's function difference
@@ -278,10 +278,11 @@ std::pair<bool, double> DMFTIterator::checkConvergence() const {
         convergence.second = std::sqrt( convergence.second / (2 * (m_ptr2Gimp->freqCutoff() + 1) * m_ptr2Gimp->nSites() * m_ptr2Gimp->nSites()) );
     }
     else {  // Default to Gimp_Glat_max_error
-        convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).cwiseAbs().maxCoeff();
-        // Find the global maximum difference
-        MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiComm());
-    }
+     */
+    convergence.second = (m_ptr2Gimp->fourierCoeffs().mastFlatPart()() - m_Glat.mastFlatPart()()).lpNorm<Eigen::Infinity>();  // Max absolute value
+    // Find the global maximum difference
+    MPI_Allreduce(MPI_IN_PLACE, &convergence.second, 1, MPI_DOUBLE, MPI_MAX, m_ptr2Gimp->fourierCoeffs().mpiComm());
+    //}
     
     if (convergence.second < prec) convergence.first = true;
     

@@ -228,7 +228,7 @@ int main(int argc, char * argv[]) {
     std::string ansatz("metal");
     int nitmax = 20;
     double G0stepsize = 1.0;
-    std::string converge_type("Gimp_Glat_max_error");
+    //std::string converge_type("Gimp_Glat_max_error");
     double converge_criterion = 0.005;
     double density_error = 0.001;
     Eigen::Index tailstart = 100;
@@ -324,7 +324,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(ansatz, docroot, "numerical/selfConsistency/ansatz", MPI_COMM_WORLD);
     readxml_bcast(nitmax, docroot, "numerical/selfConsistency/maxIteration", MPI_COMM_WORLD);
     readxml_bcast(G0stepsize, docroot, "numerical/selfConsistency/stepSizeForUpdateG0", MPI_COMM_WORLD);
-    readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
+    //readxml_bcast(converge_type, docroot, "numerical/selfConsistency/convergeType", MPI_COMM_WORLD);
     readxml_bcast(converge_criterion, docroot, "numerical/selfConsistency/convergeCriterion", MPI_COMM_WORLD);
     readxml_bcast(density_error, docroot, "numerical/selfConsistency/densityError", MPI_COMM_WORLD);
     readxml_bcast(tailstart, docroot, "numerical/selfConsistency/selfEnergyTailStartIndex", MPI_COMM_WORLD);
@@ -644,7 +644,7 @@ int main(int argc, char * argv[]) {
     
     DMFTIterator dmft(H0, G0, G);
     dmft.parameters.at("G0 update step size") = G0stepsize;
-    dmft.parameters.at("convergence type") = converge_type;
+    //dmft.parameters.at("convergence type") = converge_type;
     dmft.parameters.at("convergence criterion") = converge_criterion;
     dmft.parameters.at("local correlation") = loc_corr;
     dmft.parameters.at("high_freq_tail_start") = tailstart;
@@ -756,7 +756,13 @@ int main(int argc, char * argv[]) {
     do {
         dmft.incrementIter();
         
-        if (prank == 0) std::cout << "DMFT iteration " << dmft.numIterations() << ":" << std::endl;
+        if (prank == 0) {
+            std::cout << "DMFT iteration " << dmft.numIterations() << ":" << std::endl;
+            printData("G0.txt", G0->valsOnTauGrid());
+            std::cout << "    Output G0.txt" << std::endl;
+            printData("G0matsubara.txt", G0->fourierCoeffs());
+            std::cout << "    Output G0matsubara.txt" << std::endl;
+        }
         
         if (prank == 0) std::cout << "    Impurity solver starts solving..." << std::endl;
         tstart = std::chrono::high_resolution_clock::now();
@@ -774,13 +780,7 @@ int main(int argc, char * argv[]) {
         }
         
         dmft.approxSelfEnergy();
-        dmft.updateLatticeGF();
-        dmft.updateBathGF();
         if (prank == 0) {  // Output obtained result ASAP
-            printData("G0.txt", G0->valsOnTauGrid());
-            std::cout << "    Output G0.txt" << std::endl;
-            printData("G0matsubara.txt", G0->fourierCoeffs());
-            std::cout << "    Output G0matsubara.txt" << std::endl;
             printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
             std::cout << "    Output selfenergy_dyn.txt" << std::endl;
             printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
@@ -801,8 +801,10 @@ int main(int argc, char * argv[]) {
             std::cout << "    Output selfenergy_tail.txt" << std::endl;
         }
         
+        dmft.updateLatticeGF();
+        
         density = G->densities().sum();
-        converg = dmft.checkConvergence();
+        converg = dmft.checkConvergence();  // Only use G and Glat at the same step
         computesigma = converg.first;
         if (density_goal >= 0.0) computesigma = computesigma && std::abs(density - density_goal) < density_error;
         computesigma = computesigma || dmft.numIterations() == nitmax;
@@ -871,6 +873,15 @@ int main(int argc, char * argv[]) {
             fiter << std::endl;
         }
         
+        if (cond_computed_times == n_computecond) break;
+        else if (dmft.numIterations() == nitmax) {
+            if (prank == 0) {
+                fiter << sep << std::endl;
+                fiter << ">>>>>> DMFT self-consistency iteration did not converge! <<<<<<" << std::endl;
+            }
+            break;
+        }
+        
         if (density_goal >= 0.0 && converg.first) {
             // Secant iteration for finding root of n(mu_eff) - n_goal = 0
             H0->chemPot(mu_eff - (mu_eff - mueff_old) / (density - density_old) * (density - density_goal));
@@ -880,11 +891,10 @@ int main(int argc, char * argv[]) {
             mqem.parameters.at("Gaussian_shift") = -mu_eff;
             if (prank == 0) std::cout << "Adjusted effective chemical potential by " << mu_eff - mueff_old << " to " << mu_eff << std::endl;
         }
-    } while (cond_computed_times < n_computecond && dmft.numIterations() < nitmax);  // Main iteration stops here
-    if (!converg.first && prank == 0) {
-        fiter << sep << std::endl;
-        fiter << ">>>>>> DMFT self-consistency iteration did not converge! <<<<<<" << std::endl;
-    }
+        
+        dmft.updateBathGF();
+    } while (true);  // Main iteration stops here
+    
     if (prank == 0) {
         fiter.close();
         std::cout << sep << std::endl;

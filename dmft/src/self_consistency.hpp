@@ -23,7 +23,7 @@ private:
     std::shared_ptr<const GreenFunction> m_ptr2Gimp;
     
 protected:
-    SqMatArray2XXcd m_G0old;  // A copy of old G0 in imaginary-time space
+    //SqMatArray2XXcd m_G0old;  // A copy of old G0 in imaginary-time space
     SqMatArray2XXcd m_Glat;  // This is the lattice Green's function in Matsubara frequency space (differing from the canonical definition by a minus sign)
     SqMatArray2XXcd m_selfen_dyn;    // Dynamic part of self-energy
     SqMatArray21Xcd m_selfen_static;  // Static part of self-energy
