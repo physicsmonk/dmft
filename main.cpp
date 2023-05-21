@@ -588,7 +588,7 @@ int main(int argc, char * argv[]) {
             Eigen::Index opt_alpha_ind;
             loadData("mqem_diagnosis.txt", misfit);
             //MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
-            std::cout << MQEMContinuator2XX::fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()) << std::endl;
+            std::cout << "Fitted parameters of FD function: " << MQEMContinuator2XX::fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()).transpose() << std::endl;
             printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
             misfit.col(3).maxCoeff(&opt_alpha_ind);
