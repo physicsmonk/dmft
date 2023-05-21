@@ -339,6 +339,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         }
         else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
          */
+        //fitCubicSpline(m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(0, Eigen::fix<2>)),
+        //               m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(2, Eigen::fix<2>)));  // Note reversed order
         fitFDFunc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].template rightCols<2>());
         m_misfit_curve[sl].col(3).maxCoeff(&(m_opt_alpha_id(sl)));
         Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
