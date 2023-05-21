@@ -1129,6 +1129,9 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
         tmp = std::exp(a(2) * curve(i, 0) + a(3));
         fitted_(i, 0) = a(0) / (1.0 + tmp) + a(1);  // Fitted FD function
         fitted_(i, 1) = a(0) * a(2) * a(2) * tmp * (tmp - 1.0) / ((1.0 + tmp) * (1.0 + tmp) * (1.0 + tmp));  // Second derivative
+        tmp = -a(0) * a(2) * tmp / ((1.0 + tmp) * (1.0 + tmp));  // First derivative
+        tmp = std::sqrt(1.0 + tmp * tmp);
+        fitted_(i, 1) /= tmp * tmp * tmp;  // Curvature
     }
     
     return a;
