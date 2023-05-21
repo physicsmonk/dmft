@@ -101,9 +101,13 @@ void CubicSplineMat<_ScalarT, _n0, _n1, _nm>::build(const Eigen::Array<double, _
             for (im0 = 0; im0 < y->dimm(); ++im0) {
                 B(0, flatIndex(i0, im0, im1)) = -Gmoms(i0, 2, im0, im1);
                 for (ix = 1; ix < np - 1; ++ix) {
-                    B(ix, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(ix + 1) - (*x)(ix - 1)) * (((*y)(i0, ix + 1, im0, im1) - (*y)(i0, ix, im0, im1)) / ((*x)(ix + 1) - (*x)(ix)) - ((*y)(i0, ix, im0, im1) - (*y)(i0, ix - 1, im0, im1)) / ((*x)(ix) - (*x)(ix - 1)));
+                    B(ix, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(ix + 1) - (*x)(ix - 1))
+                    * (((*y)(i0, ix + 1, im0, im1) - (*y)(i0, ix, im0, im1)) / ((*x)(ix + 1) - (*x)(ix))
+                       - ((*y)(i0, ix, im0, im1) - (*y)(i0, ix - 1, im0, im1)) / ((*x)(ix) - (*x)(ix - 1)));
                 }
-                B(np - 1, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(1) - (*x)(0)) * (Gmoms(i0, 1, im0, im1) - ((*y)(i0, 1, im0, im1) - (*y)(i0, 0, im0, im1)) / ((*x)(1) - (*x)(0)) - ((*y)(i0, np - 1, im0, im1) - (*y)(i0, np - 2, im0, im1)) / ((*x)(np - 1) - (*x)(np - 2)));
+                B(np - 1, flatIndex(i0, im0, im1)) = 6.0 / ((*x)(1) - (*x)(0)) *
+                (Gmoms(i0, 1, im0, im1) - ((*y)(i0, 1, im0, im1) - (*y)(i0, 0, im0, im1)) / ((*x)(1) - (*x)(0))
+                 - ((*y)(i0, np - 1, im0, im1) - (*y)(i0, np - 2, im0, im1)) / ((*x)(np - 1) - (*x)(np - 2)));
             }
         }
     }

@@ -65,6 +65,8 @@ public:
     static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const Eigen::Index n_fitpts = 5);
     template <typename Derived, typename OtherDerived>
     static Eigen::Vector<typename Derived::Scalar, 4> fitFDFunc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& fitted);
+    template <typename Derived, typename OtherDerived>
+    static void fitCubicSpline(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& deriv_curv);
     
 private:
     static constexpr int nm2 = _nm == Eigen::Dynamic ? Eigen::Dynamic : _nm * _nm;
@@ -1128,6 +1130,57 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
     }
     
     return a;
+}
+
+// Fit curve to cubic spline with not-a-knot boundary condition; first row of deriv_curv stores fitted first derivative, second row stores fitted curvature
+template <int _n0, int _n1, int _nm>
+template <typename Derived, typename OtherDerived>
+void MQEMContinuator<_n0, _n1, _nm>::fitCubicSpline(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived> &deriv_curv) {
+    const Eigen::Index np = curve.rows();
+    if (np < 3) throw std::range_error("MQEMContinuator::fitCubicSpline: #points to fit is less than 3");
+    
+    typedef typename Derived::Scalar Scalar;
+    // Coefficient matrix, always real; At the beginning fill the diagonal part
+    Eigen::Matrix<double, Derived::RowsAtCompileTime, Derived::RowsAtCompileTime> A =
+    2.0 * Eigen::Matrix<double, Derived::RowsAtCompileTime, Derived::RowsAtCompileTime>::Identity(np, np);
+    // Vector for the rhs values
+    Eigen::Vector<Scalar, Derived::RowsAtCompileTime> b(np);
+    
+    // Construct the coefficient matrix and vector of the linear equations for the second derivative of the cubic spline S"(x)
+    // First row, for the boundary condition y'''_1(x_1) = y'''_2(x_1), i.e., (M_1 - M_0) / h_1 = (M_2 - M_1) / h_2
+    // => -M_0 + (h_2 + h_1) / h_2 * M_1 - h_1 / h_2 * M_2 = 0
+    A(0, 0) = -1.0;
+    A(0, 1) = (curve(2, 0) - curve(0, 0)) / (curve(2, 0) - curve(1, 0));
+    A(0, 2) = -(curve(1, 0) - curve(0, 0)) / (curve(2, 0) - curve(1, 0));
+    b(0) = 0.0;
+    // Middle part
+    for (Eigen::Index i = 1; i < np - 1; ++i) {
+        A(i, i - 1) = (curve(i, 0) - curve(i - 1, 0)) / (curve(i + 1, 0) - curve(i - 1, 0));
+        A(i, i + 1) = 1.0 - A(i, i - 1);
+        b(i) = 6.0 / (curve(i + 1, 0) - curve(i - 1, 0)) * ((curve(i + 1, 1) - curve(i, 1)) / (curve(i + 1, 0) - curve(i, 0))
+                                                            - (curve(i, 1) - curve(i - 1, 1)) / (curve(i, 0) - curve(i - 1, 0)));
+    }
+    // Last row, for the boundary condition y'''_(n-1)(x_(n-1)) = y'''_n(x_(n-1)), i.e., (M_(n-1) - M_(n-2)) / h_(n-1) = (M_n - M_(n-1)) / h_n
+    // => -M_(n-2) + (h_n + h_(n-1)) / h_n * M_(n-1) - h_(n-1) / h_n * M_n = 0 (n = np - 1)
+    A(np - 1, np - 3) = -1.0;
+    A(np - 1, np - 2) = (curve(np - 1, 0) - curve(np - 3, 0)) / (curve(np - 1, 0) - curve(np - 2, 0));
+    A(np - 1, np - 1) = (curve(np - 2, 0) - curve(np - 3, 0)) / (curve(np - 1, 0) - curve(np - 2, 0));
+    b(np - 1) = 0.0;
+    
+    Eigen::DenseBase<OtherDerived>& deriv_curv_ = const_cast<Eigen::DenseBase<OtherDerived>&>(deriv_curv);  // Make curvature writable by casting away its const-ness
+    deriv_curv_.derived().resize(np, 2);  // Resize the derived object
+    
+    // Solve for the second derivatives
+    Eigen::ColPivHouseholderQR<Eigen::Matrix<double, Derived::RowsAtCompileTime, Derived::RowsAtCompileTime> > dec(A);
+    deriv_curv_.col(1) = dec.solve(b);
+    
+    // Calculate first derivatives
+    deriv_curv_(0, 0) = deriv_curv_(1, 1) * (curve(1, 0) - curve(0, 0)) / 2.0 + (curve(1, 1) - curve(0, 1)) / (curve(1, 0) - curve(0, 0))
+    - (deriv_curv_(1, 1) - deriv_curv_(0, 1)) * (curve(1, 0) - curve(0, 0)) / 6.0;
+    for (Eigen::Index i = 1; i < np; ++i) deriv_curv_(i, 0) = deriv_curv_(i, 1) * (curve(i, 0) - curve(i - 1, 0)) / 2.0
+        + (curve(i, 1) - curve(i - 1, 1)) / (curve(i, 0) - curve(i - 1, 0))
+        - (deriv_curv_(i, 1) - deriv_curv_(i - 1, 1)) * (curve(i, 0) - curve(i - 1, 0)) / 6.0;
+    deriv_curv_.col(1).array() /= (1.0 + deriv_curv_.col(0).array().square()).sqrt().cube();  // This is curvature
 }
 
 typedef MQEMContinuator<2, Eigen::Dynamic, Eigen::Dynamic> MQEMContinuator2XX;
