@@ -53,7 +53,7 @@ void BareHamiltonian::computeDOS(const Eigen::Index nbins) {
     int is_inter;
     MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
-    if (m_bands.size() == 0) throw std::range_error("Cannot compute DOS because bands have not been computed!");
+    if (m_bands.rows() == 0) throw std::range_error("Cannot compute DOS because bands have not been computed!");
     
     Eigen::Index ie, ib, ik;
     const double binsize = (m_erange[1] - m_erange[0]) / nbins;
