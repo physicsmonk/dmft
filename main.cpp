@@ -504,7 +504,8 @@ int main(int argc, char * argv[]) {
     if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
-    SqMatArray2XXcd spectra;
+    SqMatArray2XXcd spectra, A0;
+    Eigen::Index id0freq;
     //Eigen::ArrayXcd en_idel;
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
@@ -545,9 +546,10 @@ int main(int argc, char * argv[]) {
             std::cout << "Output selfenergy_tail.txt" << std::endl;
         }
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
+        mqem.realFreqGrid().abs().minCoeff(&id0freq);
         if (prank == 0) {
             printData("real_freqs.txt", mqem.realFreqGrid());
-            std::cout << "Output real_freqs.txt" << std::endl;
+            std::cout << "Output real_freqs.txt; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
         }
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
@@ -556,12 +558,15 @@ int main(int argc, char * argv[]) {
         auto spectramastpart = spectra.mastFlatPart();
         for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
         spectramastpart.allGather();
+        compute0FreqSpectrum(*H0, mqem.retardedFunc(), id0freq, A0);
         if (prank == 0) {
             //printData("default_model.txt", mqem.defaultModel());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             std::cout << "Output selfenergy_retarded.txt" << std::endl;
             printData("spectramatrix.txt", spectra);
             std::cout << "Output spectramatrix.txt" << std::endl;
+            printData("spectra0freq.txt", A0);
+            std::cout << "Output spectra0freq.txt" << std::endl;
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
@@ -713,9 +718,10 @@ int main(int argc, char * argv[]) {
 //    }
     
     mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, midrealfreqs, n_rrealfreq);
+    mqem.realFreqGrid().abs().minCoeff(&id0freq);
     if (prank == 0) {
         printData("real_freqs.txt", mqem.realFreqGrid());
-        std::cout << "Output real_freqs.txt" << std::endl;
+        std::cout << "Output real_freqs.txt; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
     }
     
     bool computesigma;
@@ -824,6 +830,7 @@ int main(int argc, char * argv[]) {
             auto spectramastpart = spectra.mastFlatPart();
             for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
             spectramastpart.allGather();
+            compute0FreqSpectrum(*H0, mqem.retardedFunc(), id0freq, A0);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) {  // Output obtained result ASAP
@@ -832,6 +839,8 @@ int main(int argc, char * argv[]) {
                 std::cout << "    Output selfenergy_retarded.txt" << std::endl;
                 printData("spectramatrix.txt", spectra);
                 std::cout << "    Output spectramatrix.txt" << std::endl;
+                printData("spectra0freq.txt", A0);
+                std::cout << "    Output spectra0freq.txt" << std::endl;
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    Output mqem_diagnosis.txt" << std::endl;
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
