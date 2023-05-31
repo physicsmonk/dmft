@@ -13,6 +13,8 @@
 //#include "mpreal.h"
 #include "gf_data_wrapper.hpp"
 
+using namespace std::complex_literals;
+
 
 // Base class for user-defined bare Hamiltonians. Users want to implement the virtual method
 // constructHamiltonian in derived classes to construct any Hamiltonian matrix they want.
