@@ -352,22 +352,22 @@ template <int n0, int n1, int nm>
 void compute0FreqSpectrum(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::Index id0,
                           SqMatArray<std::complex<double>, n0, n1, nm>& A0) {
     A0.mpiComm(selfen.mpiComm());
+    const Eigen::Index nk = H0.kGridSizes().prod();
+    A0.resize(selfen.dim0(), nk, selfen.dimm());
+    auto A0part = A0.mastFlatPart();
     std::array<Eigen::Index, 2> sk;
     
     if (H0.type() == "dimer_mag_2d") {
-        A0.resize(selfen.dim0(), H0.hamDimerMag2d().size(), selfen.dimm());
-        auto A0part = A0.mastFlatPart();
         for (Eigen::Index i = 0; i < A0part.size(); ++i) {
             sk = A0part.global2dIndex(i);
-            A0part[i] = -(H0.chemPot() * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()[i] - selfen(sk[0], id0)).inverse();
+            A0part[i].setZero();
+            for (Eigen::Index m = 0; m < H0.hamDimerMag2d().dim1(); ++m)
+                A0part[i] += -(H0.chemPot() * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(sk[1], m) - selfen(sk[0], id0)).inverse();
             A0part[i] = (A0part[i] - A0part[i].adjoint().eval()) / (2i * M_PI);
         }
         A0part.allGather();
     }
     else {
-        const Eigen::Index nk = H0.kGridSizes().prod();
-        A0.resize(selfen.dim0(), nk, selfen.dimm());
-        auto A0part = A0.mastFlatPart();
         Eigen::VectorXd k;
         Eigen::MatrixXcd H;
         for (Eigen::Index i = 0; i < A0part.size(); ++i) {
