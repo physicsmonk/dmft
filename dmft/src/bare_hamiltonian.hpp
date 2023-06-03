@@ -57,7 +57,8 @@ public:
         return ix * m_nk(1) + iy;
     }
     
-    void kVecAtIndex(Eigen::Index ik, Eigen::VectorXd& k) const;  // Calculate the ik-th k vector
+    template <typename Derived>
+    void kVecAtIndex(Eigen::Index ik, const Eigen::MatrixBase<Derived>& k) const;  // Calculate the ik-th k vector
     
     void setMPIcomm(const MPI_Comm& comm);
     
@@ -115,6 +116,32 @@ public:
     void moments(SqMatArray22Xcd&& mmts) {m_moments = mmts;}  // Set moments by moving
     const SqMatArray22Xcd& moments() const {return m_moments;}   // Return moments
 };
+
+template <typename Derived>
+void BareHamiltonian::kVecAtIndex(Eigen::Index ik, const Eigen::MatrixBase<Derived>& k) const {
+//    if (_K.rows() == 1) k = static_cast<double>(ik) / _nk(0) * _K.col(0);
+//    else if (_K.rows() == 2) {
+//        const Eigen::Index ix = ik / _nk(1);
+//        const Eigen::Index iy = ik % _nk(1);
+//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1);
+//    }
+//    else if (_K.rows() == 3) {
+//        const Eigen::Index nk12 = _nk(1) * _nk(2);
+//        const Eigen::Index ix = ik / nk12;
+//        const Eigen::Index iy = (ik % nk12) / _nk(2);
+//        const Eigen::Index iz = (ik % nk12) % _nk(2);
+//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1) + static_cast<double>(iz) / _nk(2) * _K.col(2);
+//    }
+    Eigen::MatrixBase<Derived>& k_ = const_cast<Eigen::MatrixBase<Derived>&>(k);
+    Eigen::VectorXd kfrac(m_K.cols());
+    Eigen::Index nkv = m_nk.prod();
+    for (Eigen::Index n = 0; n < m_K.cols(); ++n) {
+        nkv /= m_nk(n);
+        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n) - 0.5;
+        ik %= nkv;
+    }
+    k_ = (m_K * kfrac.asDiagonal()).rowwise().sum();
+}
 
 // Set unit cell vectors and record basic info
 template <typename Derived>
@@ -341,15 +368,18 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
 }
 
 template <int n0, int n1, int nm, typename Derived>
-void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen,
-                          const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, n0, n1, nm>& Gw) {
+void computeSpectraW(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen,
+                          const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, n0, n1, nm>& Aw) {
     SqMatArray<std::complex<double>, n0, 1, nm> selfenstatic(selfen.dim0(), 1, selfen.dimm());
     selfenstatic().setZero();
-    computeLattGFfCoeffs(H0, selfen, selfenstatic, energies, Gw);
+    computeLattGFfCoeffs(H0, selfen, selfenstatic, energies, Aw);
+    auto Awpart = Aw.mastFlatPart();
+    for (Eigen::Index i = 0; i < Awpart.size(); ++i) Awpart[i] = (Awpart[i] - Awpart[i].adjoint().eval()) / (2i * M_PI);
+    Awpart.allGather();
 }
 
 template <int n0, int n1, int nm>
-void compute0FreqSpectrum(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::Index id0,
+void computeSpectraKW0(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::Index id0,
                           SqMatArray<std::complex<double>, n0, n1, nm>& A0) {
     A0.mpiComm(selfen.mpiComm());
     const Eigen::Index nk = H0.kGridSizes().prod();
@@ -365,7 +395,6 @@ void compute0FreqSpectrum(const BareHamiltonian& H0, const SqMatArray<std::compl
                 A0part[i] += -(H0.chemPot() * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(sk[1], m) - selfen(sk[0], id0)).inverse();
             A0part[i] = (A0part[i] - A0part[i].adjoint().eval()) / (2i * M_PI);
         }
-        A0part.allGather();
     }
     else {
         Eigen::VectorXd k;
@@ -378,8 +407,46 @@ void compute0FreqSpectrum(const BareHamiltonian& H0, const SqMatArray<std::compl
                           - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm()) - selfen(sk[0], id0)).inverse();
             A0part[i] = (A0part[i] - A0part[i].adjoint().eval()) / (2i * M_PI);
         }
-        A0part.allGather();
     }
+    A0part.allGather();
+}
+
+// n1 dimension of A first runs over energy and then k points
+template <int n0, int n1, int nm, typename Derived, typename OtherDerived>
+void computeSpectraKW(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::DenseBase<Derived>& energies,
+                     const Eigen::DenseBase<OtherDerived>& kids, SqMatArray<std::complex<double>, n0, n1, nm>& Akw) {
+    Akw.mpiComm(selfen.mpiComm());
+    Akw.resize(selfen.dim0(), energies.size() * kids.size(), selfen.dimm());
+    auto Akwpart = Akw.mastFlatPart();
+    std::array<Eigen::Index, 2> swk;
+    Eigen::Index iw, ik;
+    
+    if (H0.type() == "dimer_mag_2d") {
+        for (Eigen::Index i = 0; i < Akwpart.size(); ++i) {
+            swk = Akwpart.global2dIndex(i);
+            iw = swk[1] % energies.size();
+            ik = swk[1] / energies.size();
+            Akwpart[i].setZero();
+            for (Eigen::Index m = 0; m < H0.hamDimerMag2d().dim1(); ++m)
+                Akwpart[i] += -((energies(iw) + H0.chemPot()) * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(kids(ik), m) - selfen(swk[0], iw)).inverse();
+            Akwpart[i] = (Akwpart[i] - Akwpart[i].adjoint().eval()) / (2i * M_PI);
+        }
+    }
+    else {
+        Eigen::VectorXd k;
+        Eigen::MatrixXcd H;
+        for (Eigen::Index i = 0; i < Akwpart.size(); ++i) {
+            swk = Akwpart.global2dIndex(i);
+            iw = swk[1] % energies.size();
+            ik = swk[1] / energies.size();
+            H0.kVecAtIndex(ik, k);
+            H0.constructHamiltonian(k, H);
+            Akwpart[i] = -((energies(iw) + H0.chemPot()) * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm())
+                          - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm()) - selfen(swk[0], iw)).inverse();
+            Akwpart[i] = (Akwpart[i] - Akwpart[i].adjoint().eval()) / (2i * M_PI);
+        }
+    }
+    Akwpart.allGather();
 }
 
 

@@ -504,11 +504,17 @@ int main(int argc, char * argv[]) {
     if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
-    SqMatArray2XXcd spectra, A0;
+    SqMatArray2XXcd Aw, A0, Akw;
+    const Eigen::Index nkmin = std::min(nkx, nky);
+    ArrayXindex kidpath(nkx / 2 + nky / 2 + nkmin / 2 + 3);
     Eigen::Index id0freq;
     //Eigen::ArrayXcd en_idel;
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
+    
+    for (Eigen::Index i = 0; i <= nkx / 2; ++i) kidpath(i) = H0->flatIndex(nkx / 2 - i, nky / 2);  // Gamma -> X
+    for (Eigen::Index i = 0; i <= nky / 2; ++i) kidpath(nkx / 2 + 1 + i) = H0->flatIndex(0, nky / 2 - i);  // X -> M
+    for (Eigen::Index i = 0; i <= nkmin / 2; ++i) kidpath(nkx / 2 + nky / 2 + 2 + i) = H0->flatIndex(i * nkx / nkmin, i * nky / nkmin);  // M -> Gamma
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
         SqMatArray2XXcd selfendyn(2, nfcut + 1, nsite, MPI_COMM_WORLD);
@@ -554,19 +560,19 @@ int main(int argc, char * argv[]) {
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
         mqem.computeRetardedFunc(selfenstatic);
-        computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
-        auto spectramastpart = spectra.mastFlatPart();
-        for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
-        spectramastpart.allGather();
-        compute0FreqSpectrum(*H0, mqem.retardedFunc(), id0freq, A0);
+        computeSpectraW(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), Aw);
+        computeSpectraKW0(*H0, mqem.retardedFunc(), id0freq, A0);
+        computeSpectraKW(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), kidpath, Akw);
         if (prank == 0) {
             //printData("default_model.txt", mqem.defaultModel());
             printData("selfenergy_retarded.txt", mqem.retardedFunc());
             std::cout << "Output selfenergy_retarded.txt" << std::endl;
-            printData("spectramatrix.txt", spectra);
+            printData("spectraw.txt", Aw);
             std::cout << "Output spectramatrix.txt" << std::endl;
-            printData("spectra0freq.txt", A0);
+            printData("spectrakw0.txt", A0);
             std::cout << "Output spectra0freq.txt" << std::endl;
+            printData("spectrakw.txt", Akw);
+            std::cout << "Output spectrakw.txt" << std::endl;
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
@@ -826,21 +832,21 @@ int main(int argc, char * argv[]) {
             //pade.computeSpectra(dmft.staticSelfEnergy(), *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
             mqem.computeSpectra(G->matsubFreqs(), dmft.dynSelfEnergy(), dmft.selfEnergyVar(), dmft.selfEnergyMoms());
             mqem.computeRetardedFunc(dmft.staticSelfEnergy());
-            computeLattGFfCoeffs(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), spectra);
-            auto spectramastpart = spectra.mastFlatPart();
-            for (Eigen::Index i = 0; i < spectramastpart.size(); ++i) spectramastpart[i] = (spectramastpart[i] - spectramastpart[i].adjoint().eval()) / (2i * M_PI);
-            spectramastpart.allGather();
-            compute0FreqSpectrum(*H0, mqem.retardedFunc(), id0freq, A0);
+            computeSpectraW(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), Aw);
+            computeSpectraKW0(*H0, mqem.retardedFunc(), id0freq, A0);
+            computeSpectraKW(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), kidpath, Akw);
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) {  // Output obtained result ASAP
                 //printData("default_model.txt", mqem.defaultModel());
                 printData("selfenergy_retarded.txt", mqem.retardedFunc());
                 std::cout << "    Output selfenergy_retarded.txt" << std::endl;
-                printData("spectramatrix.txt", spectra);
-                std::cout << "    Output spectramatrix.txt" << std::endl;
-                printData("spectra0freq.txt", A0);
-                std::cout << "    Output spectra0freq.txt" << std::endl;
+                printData("spectraw.txt", Aw);
+                std::cout << "    Output spectraw.txt" << std::endl;
+                printData("spectrakw0.txt", A0);
+                std::cout << "    Output spectrakw0.txt" << std::endl;
+                printData("spectrakw.txt", Akw);
+                std::cout << "    Output spectrakw.txt" << std::endl;
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    Output mqem_diagnosis.txt" << std::endl;
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;

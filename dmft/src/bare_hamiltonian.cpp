@@ -10,31 +10,6 @@
 #include "bare_hamiltonian.hpp"
 
 
-
-void BareHamiltonian::kVecAtIndex(Eigen::Index ik, Eigen::VectorXd& k) const {
-//    if (_K.rows() == 1) k = static_cast<double>(ik) / _nk(0) * _K.col(0);
-//    else if (_K.rows() == 2) {
-//        const Eigen::Index ix = ik / _nk(1);
-//        const Eigen::Index iy = ik % _nk(1);
-//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1);
-//    }
-//    else if (_K.rows() == 3) {
-//        const Eigen::Index nk12 = _nk(1) * _nk(2);
-//        const Eigen::Index ix = ik / nk12;
-//        const Eigen::Index iy = (ik % nk12) / _nk(2);
-//        const Eigen::Index iz = (ik % nk12) % _nk(2);
-//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1) + static_cast<double>(iz) / _nk(2) * _K.col(2);
-//    }
-    Eigen::VectorXd kfrac(m_K.cols());
-    Eigen::Index nkv = m_nk.prod();
-    for (Eigen::Index n = 0; n < m_K.cols(); ++n) {
-        nkv /= m_nk(n);
-        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n) - 0.5;
-        ik %= nkv;
-    }
-    k = (m_K * kfrac.asDiagonal()).rowwise().sum();
-}
-
 void BareHamiltonian::setMPIcomm(const MPI_Comm& comm) {
     m_comm = comm;
     MPI_Comm_size(comm, &m_psize);
