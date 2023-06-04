@@ -393,7 +393,7 @@ void computeSpectraKW0(const BareHamiltonian& H0, const SqMatArray<std::complex<
             A0part[i].setZero();
             for (Eigen::Index m = 0; m < H0.hamDimerMag2d().dim1(); ++m)
                 A0part[i] += -(H0.chemPot() * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(sk[1], m) - selfen(sk[0], id0)).inverse();
-            A0part[i] = (A0part[i] - A0part[i].adjoint().eval()) / (2i * M_PI);
+            A0part[i] = (A0part[i] - A0part[i].adjoint().eval()) / (static_cast<double>(H0.hamDimerMag2d().dim1()) * 2i * M_PI);
         }
     }
     else {
@@ -429,7 +429,7 @@ void computeSpectraKW(const BareHamiltonian& H0, const SqMatArray<std::complex<d
             Akwpart[i].setZero();
             for (Eigen::Index m = 0; m < H0.hamDimerMag2d().dim1(); ++m)
                 Akwpart[i] += -((energies(iw) + H0.chemPot()) * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(kids(ik), m) - selfen(swk[0], iw)).inverse();
-            Akwpart[i] = (Akwpart[i] - Akwpart[i].adjoint().eval()) / (2i * M_PI);
+            Akwpart[i] = (Akwpart[i] - Akwpart[i].adjoint().eval()) / (static_cast<double>(H0.hamDimerMag2d().dim1()) * 2i * M_PI);
         }
     }
     else {
@@ -439,7 +439,7 @@ void computeSpectraKW(const BareHamiltonian& H0, const SqMatArray<std::complex<d
             swk = Akwpart.global2dIndex(i);
             iw = swk[1] % energies.size();
             ik = swk[1] / energies.size();
-            H0.kVecAtIndex(ik, k);
+            H0.kVecAtIndex(kids(ik), k);
             H0.constructHamiltonian(k, H);
             Akwpart[i] = -((energies(iw) + H0.chemPot()) * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm())
                           - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm()) - selfen(swk[0], iw)).inverse();
