@@ -239,10 +239,8 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk, const Ei
     
     // Fill bands along paths
     m_bandpath.resize(m_bands.rows(), kidpath.cols());
-    for (Eigen::Index ik = 0; ik < kidpath.cols(); ++ik) {
-        m_bandpath.col(ik) = m_bands.col(flatIndex(kidpath.col(ik)));
-        m_bandpath(Eigen::seq(m_K.rows(), Eigen::last), Eigen::all) -= m_mu;
-    }
+    for (Eigen::Index ik = 0; ik < kidpath.cols(); ++ik) m_bandpath.col(ik) = m_bands.col(flatIndex(kidpath.col(ik)));
+    m_bandpath(Eigen::seq(m_K.rows(), Eigen::last), Eigen::all) -= m_mu;
     
     // Calculate the block diagonal Hamiltonian for the special case of 2D dimer Hubbard model in magnetic field
     if (m_type == "dimer_mag_2d") {
