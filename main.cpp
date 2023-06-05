@@ -207,8 +207,8 @@ int main(int argc, char * argv[]) {
     double density_goal = -1.0;
     double K = 1.0;
     
-    Eigen::Index nkx = 101;
-    Eigen::Index nky = 101;
+    Eigen::Array<Eigen::Index, 2, 1> nk;
+    nk << 101, 101;
     Eigen::Index nbins4dos = 1001;
 
     Eigen::Index nfcut = 1000;   // 1000
@@ -307,8 +307,8 @@ int main(int argc, char * argv[]) {
     readxml_bcast(mu_eff, docroot, "physical/effectiveChemicalPotential", MPI_COMM_WORLD);
     readxml_bcast(density_goal, docroot, "physical/density", MPI_COMM_WORLD);
     readxml_bcast(nbins4dos, docroot, "numerical/bareDOS/numBins", MPI_COMM_WORLD);
-    readxml_bcast(nkx, docroot, "numerical/bareDOS/numBins.numkx", MPI_COMM_WORLD);
-    readxml_bcast(nky, docroot, "numerical/bareDOS/numBins.numky", MPI_COMM_WORLD);
+    readxml_bcast(nk(0), docroot, "numerical/bareDOS/numBins.numkx", MPI_COMM_WORLD);
+    readxml_bcast(nk(1), docroot, "numerical/bareDOS/numBins.numky", MPI_COMM_WORLD);
     readxml_bcast(nfcut, docroot, "numerical/GreenFunction/frequencyCutoff", MPI_COMM_WORLD);
     readxml_bcast(ntau, docroot, "numerical/GreenFunction/tauGridSize", MPI_COMM_WORLD, prank);
     readxml_bcast(ntau4eiwt, docroot, "numerical/GreenFunction/tauGridSizeOfExpiwt", MPI_COMM_WORLD);
@@ -412,7 +412,14 @@ int main(int argc, char * argv[]) {
     H0->primVecs((Eigen::Matrix2d() << q, 0, 0, 1).finished());
     
     H0->type("dimer_mag_2d");   // general, bethe, bethe_dimer, dimer_mag_2d
-    H0->computeBands((ArrayXindex(2) << nkx, nky).finished());
+    
+    const Eigen::Index nkmin = nk.minCoeff();
+    Eigen::Array<Eigen::Index, 2, Eigen::Dynamic> kidpath(2, nk(0) / 2 + nk(1) / 2 + nkmin / 2 + 3);
+    for (Eigen::Index i = 0; i <= nk(0) / 2; ++i) kidpath.col(i) << nk(0) / 2 - i, nk(1) / 2;  // Gamma -> X
+    for (Eigen::Index i = 0; i <= nk(1) / 2; ++i) kidpath.col(nk(0) / 2 + 1 + i) << 0, nk(1) / 2 - i;  // X -> M
+    for (Eigen::Index i = 0; i <= nkmin / 2; ++i) kidpath.col(nk(0) / 2 + nk(1) / 2 + 2 + i) << i * nk(0) / nkmin, i * nk(1) / nkmin;  // M -> Gamma
+    
+    H0->computeBands(nk, kidpath);
     H0->computeDOS(nbins4dos);
     
 //    std::array<double, 2> erange = {-2.0 * std::fabs(t), 2.0 * std::fabs(t)};
@@ -426,10 +433,8 @@ int main(int argc, char * argv[]) {
     // H0->setDOS(erange, semicircle);
 //    H0->setDOS(erange, semicircle);
     
-    Eigen::ArrayXXd bds;
-    H0->bands(bds);
     if (prank == 0) {
-        printData("bands.txt", bds.transpose());
+        printData("bands.txt", H0->bands().transpose());
         std::cout << "Output bands.txt" << std::endl;
         printData("dos.txt", H0->dos());
         std::cout << "Output dos.txt" << std::endl;
@@ -505,16 +510,10 @@ int main(int argc, char * argv[]) {
     
     double sigmaxx = 0.0, sigmaxy = 0.0;
     SqMatArray2XXcd Aw, A0, Akw;
-    const Eigen::Index nkmin = std::min(nkx, nky);
-    ArrayXindex kidpath(nkx / 2 + nky / 2 + nkmin / 2 + 3);
     Eigen::Index id0freq;
     //Eigen::ArrayXcd en_idel;
     // For testing
     SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
-    
-    for (Eigen::Index i = 0; i <= nkx / 2; ++i) kidpath(i) = H0->flatIndex(nkx / 2 - i, nky / 2);  // Gamma -> X
-    for (Eigen::Index i = 0; i <= nky / 2; ++i) kidpath(nkx / 2 + 1 + i) = H0->flatIndex(0, nky / 2 - i);  // X -> M
-    for (Eigen::Index i = 0; i <= nkmin / 2; ++i) kidpath(nkx / 2 + nky / 2 + 2 + i) = H0->flatIndex(i * nkx / nkmin, i * nky / nkmin);  // M -> Gamma
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
         SqMatArray2XXcd selfendyn(2, nfcut + 1, nsite, MPI_COMM_WORLD);

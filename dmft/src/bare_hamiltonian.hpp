@@ -27,7 +27,7 @@ private:
     Eigen::MatrixXd m_K;  // Stores reciprocal primative vectors in columns
     ArrayXindex m_nk;   // Numbers of k-points along each reciprocal primative vector
     std::array<double, 2> m_erange;   // Energy range of the band structure
-    Eigen::ArrayXXd m_bands;  // Stores energy bands; index is of (energy, (kx, ky, kz))
+    Eigen::ArrayXXd m_bands, m_bandpath;  // Stores energy bands; index is of (energy, (kx, ky, kz))
     // Block diagonalized Hamiltonian for the special case, 2D dimer Hubbard model in magnetic fields. First index runs over k-vectors (ky major)
     // and the second index runs over the eigenvalue space of the block diagonalization.
     SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2> m_HdimerMag2d;
@@ -56,9 +56,46 @@ public:
         if (m_a.cols() != 2) throw std::bad_function_call();
         return ix * m_nk(1) + iy;
     }
-    
     template <typename Derived>
-    void kVecAtIndex(Eigen::Index ik, const Eigen::MatrixBase<Derived>& k) const;  // Calculate the ik-th k vector
+    Eigen::Index flatIndex(const Eigen::DenseBase<Derived>& idvec) const {
+        Eigen::Index id = idvec(0);
+        for (Eigen::Index j = 1; j < idvec.size(); ++j) id = id * m_nk(j) + idvec(j);
+        return id;
+    }
+    
+    template <typename Derived, typename OtherDerived>
+    void kVecAtIdVec(const Eigen::ArrayBase<Derived>& idvec, const Eigen::MatrixBase<OtherDerived>& k) const {
+        Eigen::MatrixBase<OtherDerived>& k_ = const_cast<Eigen::MatrixBase<OtherDerived>&>(k);
+        k_ = (m_K * (idvec.template cast<double>() / m_nk.cast<double>() - 0.5).matrix().asDiagonal()).rowwise().sum();
+    }
+    template <typename Derived>
+    void kVecAtFlatId(Eigen::Index id, const Eigen::MatrixBase<Derived>& k) const {  // Calculate the ik-th k vector
+        //    if (_K.rows() == 1) k = static_cast<double>(ik) / _nk(0) * _K.col(0);
+        //    else if (_K.rows() == 2) {
+        //        const Eigen::Index ix = ik / _nk(1);
+        //        const Eigen::Index iy = ik % _nk(1);
+        //        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1);
+        //    }
+        //    else if (_K.rows() == 3) {
+        //        const Eigen::Index nk12 = _nk(1) * _nk(2);
+        //        const Eigen::Index ix = ik / nk12;
+        //        const Eigen::Index iy = (ik % nk12) / _nk(2);
+        //        const Eigen::Index iz = (ik % nk12) % _nk(2);
+        //        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1) + static_cast<double>(iz) / _nk(2) * _K.col(2);
+        //    }
+        //Eigen::MatrixBase<Derived>& k_ = const_cast<Eigen::MatrixBase<Derived>&>(k);
+        //Eigen::VectorXd kfrac(m_K.cols());
+        ArrayXindex idvec(m_K.cols());
+        Eigen::Index nkv = m_nk.prod();
+        for (Eigen::Index n = 0; n < m_K.cols(); ++n) {  // Disassemble flat index into index vector
+            nkv /= m_nk(n);
+            //kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n) - 0.5;
+            idvec(n) = id / nkv;
+            id %= nkv;
+        }
+        //k_ = (m_K * kfrac.asDiagonal()).rowwise().sum();
+        kVecAtIdVec(idvec, k);
+    }
     
     void setMPIcomm(const MPI_Comm& comm);
     
@@ -69,8 +106,8 @@ public:
     virtual void constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const;
     virtual void constructFermiVelocities(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const;
     
-    template <typename Derived>
-    void computeBands(const Eigen::DenseBase<Derived>& nk);
+    template <typename Derived, typename OtherDerived>
+    void computeBands(const Eigen::DenseBase<Derived>& nk, const Eigen::DenseBase<OtherDerived>& kidpath);
     
     void computeDOS(const Eigen::Index nbins);
     
@@ -81,20 +118,7 @@ public:
     void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
     const Eigen::ArrayX2d& dos() const {return m_dos;}   // Return DOS
     
-    const Eigen::ArrayXXd& bands(Eigen::ArrayXXd& fullbands) const {
-        const auto count = static_cast<int>(m_bands.size());
-        const auto displ = static_cast<int>(m_bands.rows() * m_klocalstart);
-        Eigen::ArrayXi counts, displs;
-        if (m_prank == 0) {
-            counts.resize(m_psize);
-            displs.resize(m_psize);
-            fullbands.resize(m_bands.rows(), m_nk.prod());
-        }
-        MPI_Gather(&count, 1, MPI_INT, counts.data(), 1, MPI_INT, 0, m_comm);
-        MPI_Gather(&displ, 1, MPI_INT, displs.data(), 1, MPI_INT, 0, m_comm);
-        MPI_Gatherv(m_bands.data(), count, MPI_DOUBLE, fullbands.data(), counts.data(), displs.data(), MPI_DOUBLE, 0, m_comm);
-        return m_bands;
-    }
+    const Eigen::ArrayXXd& bands() const {return m_bandpath;}
     
     const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return m_HdimerMag2d;}
     const SqMatArray2XXcd& fermiVdimerMag2d() const {return m_vdimerMag2d;}
@@ -117,31 +141,6 @@ public:
     const SqMatArray22Xcd& moments() const {return m_moments;}   // Return moments
 };
 
-template <typename Derived>
-void BareHamiltonian::kVecAtIndex(Eigen::Index ik, const Eigen::MatrixBase<Derived>& k) const {
-//    if (_K.rows() == 1) k = static_cast<double>(ik) / _nk(0) * _K.col(0);
-//    else if (_K.rows() == 2) {
-//        const Eigen::Index ix = ik / _nk(1);
-//        const Eigen::Index iy = ik % _nk(1);
-//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1);
-//    }
-//    else if (_K.rows() == 3) {
-//        const Eigen::Index nk12 = _nk(1) * _nk(2);
-//        const Eigen::Index ix = ik / nk12;
-//        const Eigen::Index iy = (ik % nk12) / _nk(2);
-//        const Eigen::Index iz = (ik % nk12) % _nk(2);
-//        k = static_cast<double>(ix) / _nk(0) * _K.col(0) + static_cast<double>(iy) / _nk(1) * _K.col(1) + static_cast<double>(iz) / _nk(2) * _K.col(2);
-//    }
-    Eigen::MatrixBase<Derived>& k_ = const_cast<Eigen::MatrixBase<Derived>&>(k);
-    Eigen::VectorXd kfrac(m_K.cols());
-    Eigen::Index nkv = m_nk.prod();
-    for (Eigen::Index n = 0; n < m_K.cols(); ++n) {
-        nkv /= m_nk(n);
-        kfrac(n) = static_cast<double>(ik / nkv) / m_nk(n) - 0.5;
-        ik %= nkv;
-    }
-    k_ = (m_K * kfrac.asDiagonal()).rowwise().sum();
-}
 
 // Set unit cell vectors and record basic info
 template <typename Derived>
@@ -179,14 +178,14 @@ void BareHamiltonian::primVecs(const Eigen::MatrixBase<Derived>& a) {
     }
 }
 
-template <typename Derived>
-void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
+template <typename Derived, typename OtherDerived>
+void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk, const Eigen::DenseBase<OtherDerived>& kidpath) {
     if (m_a.cols() != nk.size()) throw std::invalid_argument( "Space dimension of input k-point numbers did not match that of primative vectors!" );
     int is_inter;
     MPI_Comm_test_inter(m_comm, &is_inter);
     if (is_inter) throw std::invalid_argument( "MPI communicator is an intercommunicator prohibiting in-place Allreduce!" );
     
-    Eigen::Index nbands, ik;
+    Eigen::Index nbands;
     Eigen::VectorXd k = Eigen::VectorXd::Zero(m_a.rows());
     Eigen::MatrixXcd H;
     
@@ -199,27 +198,45 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
     
     // Calculate bands
     const Eigen::Index nkt = m_nk.prod();
+    Eigen::Index kid;
     mostEvenPart(nkt, m_psize, m_prank, m_klocalsize, m_klocalstart);
-    m_bands.resize(nbands + k.size(), m_klocalsize);   // Allocate local-sized m_bands because it is not directly used in the program; first several rows is k-vector
-    for (ik = 0; ik < m_klocalsize; ++ik) {
-        kVecAtIndex(ik + m_klocalstart, k);
+    m_bands.resize(nbands + k.size(), nkt);   // Allocate full-size data; first several rows is k-vector
+    for (Eigen::Index kidlocal = 0; kidlocal < m_klocalsize; ++kidlocal) {
+        kid = kidlocal + m_klocalstart;
+        kVecAtFlatId(kid, k);
         constructHamiltonian(k, H);  // Call the implemented method in derived classes
         es0.compute(H, Eigen::EigenvaluesOnly);  // Only the lower triangular part is used
-        m_bands.block(0, ik, k.size(), 1) = k;   // Record k-vectors
-        m_bands.block(k.size(), ik, nbands, 1) = es0.eigenvalues();   // Record bands
+        m_bands.block(0, kid, k.size(), 1) = k;   // Record k-vectors
+        m_bands.block(k.size(), kid, nbands, 1) = es0.eigenvalues();   // Record bands
     }
+    // All-gather bands data
+    int *counts = new int[m_psize];
+    int *displs = new int[m_psize];
+    counts[m_prank] = m_bands.rows() * m_klocalsize;
+    displs[m_prank] = m_bands.rows() * m_klocalstart;
+    MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, counts, 1, MPI_INT, m_comm);
+    MPI_Allgather(MPI_IN_PLACE, 1, MPI_INT, displs, 1, MPI_INT, m_comm);
+    MPI_Allgatherv(MPI_IN_PLACE, counts[m_prank], MPI_DOUBLE, m_bands.data(), counts, displs, MPI_DOUBLE, m_comm);
+    delete[] counts;
+    delete[] displs;
     
     // Record info because finding max or min is a little bit costly
-    if (m_klocalsize > 0) {
-        m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
-        m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
-    }
-    else {
-        m_erange[0] = 1e9 * m_t.abs().maxCoeff();
-        m_erange[1] = -m_erange[0];
-    }
-    MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
-    MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
+    //if (m_klocalsize > 0) {
+    //    m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
+    //    m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
+    //}
+    //else {
+    //    m_erange[0] = 1e9 * m_t.abs().maxCoeff();
+    //    m_erange[1] = -m_erange[0];
+    //}
+    //MPI_Allreduce(MPI_IN_PLACE, &m_erange[0], 1, MPI_DOUBLE, MPI_MIN, m_comm);
+    //MPI_Allreduce(MPI_IN_PLACE, &m_erange[1], 1, MPI_DOUBLE, MPI_MAX, m_comm);
+    m_erange[0] = m_bands.bottomRows(nbands).minCoeff();
+    m_erange[1] = m_bands.bottomRows(nbands).maxCoeff();
+    
+    // Fill bands along paths
+    m_bandpath.resize(m_bands.rows(), kidpath.cols());
+    for (Eigen::Index ik = 0; ik < kidpath.cols(); ++ik) m_bandpath.col(ik) = m_bands.col(flatIndex(kidpath.col(ik)));
     
     // Calculate the block diagonal Hamiltonian for the special case of 2D dimer Hubbard model in magnetic field
     if (m_type == "dimer_mag_2d") {
@@ -234,20 +251,20 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk) {
         m_vdimerMag2d.resize(2, Hmastpart.dim0(), nb_2);   // No need to gather, so just allocate local-size data
         Eigen::Index m;
         int co;
-        for (ik = 0; ik < Hmastpart.dim0(); ++ik) {
-            kVecAtIndex(ik + Hmastpart.displ(), k);
+        for (Eigen::Index kidlocal = 0; kidlocal < Hmastpart.dim0(); ++kidlocal) {
+            kVecAtFlatId(kidlocal + Hmastpart.displ(), k);
             constructHamiltonian(k, H);  // Call the implemented method in derived classes
             // Block diagonalize w.r.t. the magnetic unit cell. The key is that the top-left and bottom-right blocks are Hermitian
             // (and they are the same) and that the top-right and bottom-left blocks are already identity matrices multiplied by a
             // constant. Therefore we can diagonalize the four blocks by a unitary matrix.
             es.compute(H.topLeftCorner(nb_2, nb_2));  // Only the lower triangular part is used
             // Assemble the block Hamiltonian in the dimer space
-            for(m = 0; m < nb_2; ++m) Hmastpart(ik, m) << es.eigenvalues()(m), std::conj(H(nb_2, 0)),
-                                                          H(nb_2, 0),          es.eigenvalues()(m);
+            for(m = 0; m < nb_2; ++m) Hmastpart(kidlocal, m) << es.eigenvalues()(m), std::conj(H(nb_2, 0)),
+                                                                H(nb_2, 0),          es.eigenvalues()(m);
             // Caculate Fermi velocity matrices. fv is block diagonal and the top left and bottom right blocks are the same.
             for (co = 0; co < 2; ++co) {
                 constructFermiVelocities(co, k, fv);
-                m_vdimerMag2d(co, ik).noalias() = es.eigenvectors().adjoint() * fv.topLeftCorner(nb_2, nb_2).selfadjointView<Eigen::Lower>() * es.eigenvectors();
+                m_vdimerMag2d(co, kidlocal).noalias() = es.eigenvectors().adjoint() * fv.topLeftCorner(nb_2, nb_2).selfadjointView<Eigen::Lower>() * es.eigenvectors();
             }
         }
         Hmastpart.allGather();   // All gather because all processes need the full data
@@ -357,7 +374,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
             //    else wu = static_cast<std::complex<double> >(energies(so[1])) + H0.chemPot();
                 wu = energies(so[1]) + H0.chemPot();
                 for (ik = 0; ik < nk; ++ik) {
-                    H0.kVecAtIndex(ik, k);
+                    H0.kVecAtFlatId(ik, k);
                     H0.constructHamiltonian(k, H);
                     Gwmastpart[i] += -(wu * Eigen::MatrixXcd::Identity(nc, nc) - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(nc, nc) - selfen_dyn_mastpart[i] - selfen_static[so[0]]).inverse();
                 }
@@ -369,7 +386,7 @@ void computeLattGFfCoeffs(const BareHamiltonian& H0, const SqMatArray<std::compl
 
 template <int n0, int n1, int nm, typename Derived>
 void computeSpectraW(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen,
-                          const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, n0, n1, nm>& Aw) {
+                     const Eigen::DenseBase<Derived>& energies, SqMatArray<std::complex<double>, n0, n1, nm>& Aw) {
     SqMatArray<std::complex<double>, n0, 1, nm> selfenstatic(selfen.dim0(), 1, selfen.dimm());
     selfenstatic().setZero();
     computeLattGFfCoeffs(H0, selfen, selfenstatic, energies, Aw);
@@ -380,7 +397,7 @@ void computeSpectraW(const BareHamiltonian& H0, const SqMatArray<std::complex<do
 
 template <int n0, int n1, int nm>
 void computeSpectraKW0(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::Index id0,
-                          SqMatArray<std::complex<double>, n0, n1, nm>& A0) {
+                       SqMatArray<std::complex<double>, n0, n1, nm>& A0) {
     A0.mpiComm(selfen.mpiComm());
     const Eigen::Index nk = H0.kGridSizes().prod();
     A0.resize(selfen.dim0(), nk, selfen.dimm());
@@ -401,7 +418,7 @@ void computeSpectraKW0(const BareHamiltonian& H0, const SqMatArray<std::complex<
         Eigen::MatrixXcd H;
         for (Eigen::Index i = 0; i < A0part.size(); ++i) {
             sk = A0part.global2dIndex(i);
-            H0.kVecAtIndex(sk[1], k);
+            H0.kVecAtFlatId(sk[1], k);
             H0.constructHamiltonian(k, H);
             A0part[i] = -(H0.chemPot() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm())
                           - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm()) - selfen(sk[0], id0)).inverse();
@@ -411,24 +428,26 @@ void computeSpectraKW0(const BareHamiltonian& H0, const SqMatArray<std::complex<
     A0part.allGather();
 }
 
-// n1 dimension of A first runs over energy and then k points
+// n1 dimension of A first runs over energy and then k points; kidpath: each column stores index vector of k point
 template <int n0, int n1, int nm, typename Derived, typename OtherDerived>
 void computeSpectraKW(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const Eigen::DenseBase<Derived>& energies,
-                     const Eigen::DenseBase<OtherDerived>& kids, SqMatArray<std::complex<double>, n0, n1, nm>& Akw) {
+                      const Eigen::DenseBase<OtherDerived>& kidpath, SqMatArray<std::complex<double>, n0, n1, nm>& Akw) {
     Akw.mpiComm(selfen.mpiComm());
-    Akw.resize(selfen.dim0(), energies.size() * kids.size(), selfen.dimm());
+    Akw.resize(selfen.dim0(), energies.size() * kidpath.cols(), selfen.dimm());
     auto Akwpart = Akw.mastFlatPart();
     std::array<Eigen::Index, 2> swk;
     Eigen::Index iw, ik;
     
     if (H0.type() == "dimer_mag_2d") {
+        Eigen::Index kid;
         for (Eigen::Index i = 0; i < Akwpart.size(); ++i) {
             swk = Akwpart.global2dIndex(i);
             iw = swk[1] % energies.size();
             ik = swk[1] / energies.size();
+            kid = H0.flatIndex(kidpath.col(ik));
             Akwpart[i].setZero();
             for (Eigen::Index m = 0; m < H0.hamDimerMag2d().dim1(); ++m)
-                Akwpart[i] += -((energies(iw) + H0.chemPot()) * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(kids(ik), m) - selfen(swk[0], iw)).inverse();
+                Akwpart[i] += -((energies(iw) + H0.chemPot()) * Eigen::Matrix2cd::Identity() - H0.hamDimerMag2d()(kid, m) - selfen(swk[0], iw)).inverse();
             Akwpart[i] = (Akwpart[i] - Akwpart[i].adjoint().eval()) / (static_cast<double>(H0.hamDimerMag2d().dim1()) * 2i * M_PI);
         }
     }
@@ -439,7 +458,7 @@ void computeSpectraKW(const BareHamiltonian& H0, const SqMatArray<std::complex<d
             swk = Akwpart.global2dIndex(i);
             iw = swk[1] % energies.size();
             ik = swk[1] / energies.size();
-            H0.kVecAtIndex(kids(ik), k);
+            H0.kVecAtIdVec(kidpath.col(ik), k);
             H0.constructHamiltonian(k, H);
             Akwpart[i] = -((energies(iw) + H0.chemPot()) * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm())
                           - H.selfadjointView<Eigen::Lower>() * Eigen::MatrixXcd::Identity(selfen.dimm(), selfen.dimm()) - selfen(swk[0], iw)).inverse();
