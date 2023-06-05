@@ -36,7 +36,7 @@ private:
     SqMatArray2XXcd m_vdimerMag2d;
     std::string m_type;
     Eigen::ArrayX2d m_dos;   // Stores density of states
-    double m_mu;  // Chemical potential. Note band structure and DOS are independent of it.
+    double m_mu;  // Chemical potential. Note band structure and DOS are independent of it, but we set zero energy of bands along path to chemical potential
     SqMatArray22Xcd m_moments;  // First and second moments
     
 protected:
@@ -118,7 +118,10 @@ public:
     void dos(const std::array<double, 2>& erange, const Eigen::ArrayBase<Derived>& ds) {m_erange = erange; m_dos = ds;}  // Set DOS
     const Eigen::ArrayX2d& dos() const {return m_dos;}   // Return DOS
     
-    const Eigen::ArrayXXd& bands() const {return m_bandpath;}
+    const Eigen::ArrayXXd& bands(const double mu_shift = 0.0) {
+        m_bandpath(Eigen::seq(m_K.rows(), Eigen::last), Eigen::all) -= mu_shift;
+        return m_bandpath;
+    }
     
     const SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, 2>& hamDimerMag2d() const {return m_HdimerMag2d;}
     const SqMatArray2XXcd& fermiVdimerMag2d() const {return m_vdimerMag2d;}
@@ -236,7 +239,10 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk, const Ei
     
     // Fill bands along paths
     m_bandpath.resize(m_bands.rows(), kidpath.cols());
-    for (Eigen::Index ik = 0; ik < kidpath.cols(); ++ik) m_bandpath.col(ik) = m_bands.col(flatIndex(kidpath.col(ik)));
+    for (Eigen::Index ik = 0; ik < kidpath.cols(); ++ik) {
+        m_bandpath.col(ik) = m_bands.col(flatIndex(kidpath.col(ik)));
+        m_bandpath(Eigen::seq(m_K.rows(), Eigen::last), Eigen::all) -= m_mu;
+    }
     
     // Calculate the block diagonal Hamiltonian for the special case of 2D dimer Hubbard model in magnetic field
     if (m_type == "dimer_mag_2d") {

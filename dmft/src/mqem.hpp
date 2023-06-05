@@ -733,8 +733,8 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
     const auto verbose = std::any_cast<bool>(parameters.at("verbose"));
     //const Eigen::Index max_inc_residue = 100;
     double err, err_old;
-    SqMatArray<std::complex<double>, 1, 3, _nm> mu(1, 3, moms.dimm()), mu_old(1, 3, moms.dimm()), residue(1, 3, moms.dimm()), residue_old(1, 3, moms.dimm());
-    Eigen::Matrix<std::complex<double>, _nm, nm3> Y(moms.dimm(), moms.dimm() * 3), S(moms.dimm(), moms.dimm() * 3);
+    SqMatArray<std::complex<double>, 1, 3, _nm> mu(1, 3, moms.dimm()), S(1, 3, moms.dimm()), residue(1, 3, moms.dimm()), residue_old(1, 3, moms.dimm());
+    Eigen::Matrix<std::complex<double>, _nm, nm3> Y(moms.dimm(), moms.dimm() * 3);
     Eigen::Matrix<std::complex<double>, nm3, nm3> B(moms.dimm() * 3, moms.dimm() * 3);
     Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<std::complex<double>, _nm, nm3> > decomp(moms.dimm(), moms.dimm() * 3);
     //const double sigma0 = 1.0;
@@ -771,21 +771,23 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         mu[0].noalias() = momspart(sl, 0) * ces.eigenvectors() * (ces.eigenvalues() / M_PI).cwiseSqrt().asDiagonal() * ces.eigenvectors().inverse();
         ces.compute(mu[0]);
         mu[0].noalias() = ces.eigenvectors() * ces.eigenvalues().array().log().matrix().asDiagonal() * ces.eigenvectors().inverse() - 0.25 * mu[1] * mu[1] * mu[2].inverse();
-        mu_old() = mu().cwiseProduct(Eigen::Matrix<std::complex<double>, _nm, nm3>::Random(moms.dimm(), moms.dimm() * 3) * 0.1
-                                     + Eigen::Matrix<double, _nm, nm3>::Ones(moms.dimm(), moms.dimm() * 3));
         //mu_old[2] = mu[2];
         //mu_old[1] = mu[1];
         //ces.compute(mu_old[0]);
         //mu_old[0].noalias() = tmp * ces.eigenvectors() * ces.eigenvalues().array().exp().matrix().asDiagonal() * ces.eigenvectors().inverse();
         //ces.compute(mu_old[0]);
         //mu_old[0].noalias() = ces.eigenvectors() * ces.eigenvalues().array().log().matrix().asDiagonal() * ces.eigenvectors().inverse();
-        S = mu() - mu_old();
+        S() = mu().cwiseProduct(Eigen::Matrix<std::complex<double>, _nm, nm3>::Random(moms.dimm(), moms.dimm() * 3) * 0.1
+                                + Eigen::Matrix<double, _nm, nm3>::Ones(moms.dimm(), moms.dimm() * 3));
+        momentConstraints(moms, s, S, residue_old);
+        err_old = residue_old().template lpNorm<Eigen::Infinity>();
+        S() = mu() - S();
         
         while (true) {
-            momentConstraints(moms, s, mu_old, residue_old);
+            //momentConstraints(moms, s, mu_old, residue_old);
             momentConstraints(moms, s, mu, residue);
             
-            err_old = residue_old().template lpNorm<Eigen::Infinity>();
+            //err_old = residue_old().template lpNorm<Eigen::Infinity>();
             err = residue().template lpNorm<Eigen::Infinity>();
             
             if (verbose && m_D.procRank() == 0) std::cout << std::setw(4) << iter << " " << std::setw(10) << err << std::endl;  // For testing
@@ -817,13 +819,19 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
             // Secant method generalized for nonlinear matrix equations; update mu as a whole by approximating Jacobian with least square solution
             Y = residue() - residue_old();
             decomp.compute(Y);
-            B = decomp.solve(S);
-            S.noalias() = -residue() * B;
-            mu_old() = mu();
-            mu() += damp * S;
+            B = decomp.solve(S());
+            S().noalias() = -residue() * B;
+            //mu_old() = mu();
+            mu() += damp * S();
+            residue_old() = residue();
+            err_old = err;
             
             //n_inc_residue = 0;
             ++iter;
+        }
+        if (stoptype == 1) {  // Use solution with smallest residue
+            mu() -= damp * S();
+            momentConstraints(moms, s, mu, residue);
         }
         if (verbose && m_D.procRank() == 0) {  // For testing
             std::cout << "------ Stopped due to ";
@@ -840,7 +848,6 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         
         logm0trace = std::log(momspart(sl, 0).trace().real());
         for (Eigen::Index n = 0; n < m_D.dim1(); ++n) {
-            if (stoptype == 1) logDpart(sl, n) = mu_old[0] + mu_old[1] * m_omega(n) - mu_old[2] * m_omega(n) * m_omega(n);  // Use solution with smallest residue
             logDpart(sl, n) = (logDpart(sl, n) + logDpart(sl, n).adjoint().eval()) / 2.0;  // Make calculated default model Hermitian anyway
             es.compute(logDpart(sl, n));
             Dpart(sl, n).noalias() = es.eigenvectors() * es.eigenvalues().array().exp().matrix().asDiagonal() * es.eigenvectors().adjoint();
@@ -848,10 +855,7 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeDefaultModel(const SqMatArray<std::c
         }
         
         // Check positive definiteness of mu[2], if not, degrade to the simple Gaussian
-        if (stoptype == 1)
-            es.compute((mu_old[2] + mu_old[2].adjoint()) / 2.0);
-        else
-            es.compute((mu[2] + mu[2].adjoint()) / 2.0);
+        es.compute((mu[2] + mu[2].adjoint()) / 2.0);
         if ((es.eigenvalues().array() <= 0.0).any()) {
             double fac;
             logm0trace = momspart(sl, 0).trace().real();  // Notice this is not log

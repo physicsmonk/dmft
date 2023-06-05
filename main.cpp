@@ -730,7 +730,7 @@ int main(int argc, char * argv[]) {
     }
     
     bool computesigma;
-    double density, density_old = nsite, mueff_old = 0.0;  // Initialize to half filling for fixing density
+    double density, density_old = nsite, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
     
     const int cw = 13;
     std::string dash(cw, '-');
@@ -898,12 +898,18 @@ int main(int argc, char * argv[]) {
         
         if (density_goal >= 0.0 && converg.first) {
             // Secant iteration for finding root of n(mu_eff) - n_goal = 0
-            H0->chemPot(mu_eff - (mu_eff - mueff_old) / (density - density_old) * (density - density_goal));
-            mueff_old = mu_eff;
+            dmu *= -(density - density_goal) / (density - density_old);
+            //H0->chemPot(mu_eff - (mu_eff - mueff_old) / (density - density_old) * (density - density_goal));
+            //mueff_old = mu_eff;
+            H0->chemPot(H0->chemPot() + dmu);
             density_old = density;
-            mu_eff = H0->chemPot();
-            mqem.parameters.at("Gaussian_shift") = -mu_eff;
-            if (prank == 0) std::cout << "Adjusted effective chemical potential by " << mu_eff - mueff_old << " to " << mu_eff << std::endl;
+            //mu_eff = H0->chemPot();
+            mqem.parameters.at("Gaussian_shift") = -H0->chemPot();
+            if (prank == 0) {
+                std::cout << "Adjusted effective chemical potential by " << dmu << " to " << H0->chemPot() << std::endl;
+                printData("bands.txt", H0->bands(dmu).transpose());
+                std::cout << "Output bands.txt" << std::endl;
+            }
         }
         
         dmft.updateBathGF();
