@@ -905,11 +905,7 @@ int main(int argc, char * argv[]) {
             density_old = density;
             //mu_eff = H0->chemPot();
             mqem.parameters.at("Gaussian_shift") = -H0->chemPot();
-            if (prank == 0) {
-                std::cout << "Adjusted effective chemical potential by " << dmu << " to " << H0->chemPot() << std::endl;
-                printData("bands.txt", H0->bands(dmu).transpose());
-                std::cout << "Output bands.txt" << std::endl;
-            }
+            if (prank == 0) std::cout << "Adjusted effective chemical potential by " << dmu << " to " << H0->chemPot() << std::endl;
         }
         
         dmft.updateBathGF();
