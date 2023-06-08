@@ -20,8 +20,12 @@ void BareHamiltonian::constructHamiltonian(const Eigen::VectorXd& k, Eigen::Matr
     throw std::domain_error("constructHamiltonian() has not been defined!");
 }
 
-void BareHamiltonian::constructFermiVelocities(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const {
-    throw std::domain_error("constructFermiVelocities() has not been defined!");
+void BareHamiltonian::constructFermiVelocity(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const {
+    throw std::domain_error("constructFermiVelocity() has not been defined!");
+}
+
+void BareHamiltonian::constructBandCurvature(const int co1, const int co2, const Eigen::VectorXd& k, Eigen::MatrixXcd& eps12) const {
+    throw std::domain_error("constructBandCurvature() has not been defined!");
 }
 
 void BareHamiltonian::computeDOS(const Eigen::Index nbins) {

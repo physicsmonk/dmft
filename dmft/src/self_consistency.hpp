@@ -179,6 +179,51 @@ double hallConduc(const BareHamiltonian& H0, const SqMatArray<std::complex<doubl
     return sigmaxy;
 }
 
+// Hall conductivity over p / q in the zero field limit
+template <int n0, int n1, int nm, typename Derived, typename OtherDerived>
+double hallConducCoeff(const BareHamiltonian& H0, const SqMatArray<std::complex<double>, n0, n1, nm>& selfen, const double beta,
+                       const Eigen::ArrayBase<Derived>& engrid, const Eigen::MatrixBase<OtherDerived>& intvec, const IntAlg intalg) {
+    assert(selfen.dim1() == engrid.size());
+    
+    Eigen::ArrayXd integrand = Eigen::ArrayXd::Zero(selfen.dim1());
+    //const double dw = (high - low) / (selfen.dim1() - 1);
+    //const Eigen::ArrayXd ws = Eigen::ArrayXd::LinSpaced(selfen.dim1(), low, high);
+    const Eigen::ArrayXd ebws = (beta * engrid.real()).exp();  // Save results of rather expensive exponential calculations
+    double sigmaHxy = 0.0;
+    
+    if (H0.type() == "dimer_mag_2d") {
+        if(H0.hamDimerMag2d().dim1() > 1) throw std::runtime_error("hallConducCoeff: Magnetic field is not set to zero");
+        Eigen::Matrix2cd A;
+        Eigen::VectorXd k;
+        Eigen::MatrixXcd epsyy;
+        const auto Hmastpart = H0.hamDimerMag2d().mastDim0Part();
+        
+        for (int s = 0; s < 2; ++s) {
+            for (Eigen::Index iw = 0; iw < selfen.dim1(); ++iw) {
+                for (Eigen::Index kidlocal = 0; kidlocal < H0.fermiVdimerMag2d().dim1(); ++kidlocal) {  // dim1() is local size of the number of k-points
+                    A.noalias() = ((engrid(iw) + H0.chemPot()) * Eigen::Matrix2cd::Identity() - Hmastpart(kidlocal, 0) - selfen(s, iw)).inverse();
+                    A = (A - A.adjoint().eval()) / (2i * M_PI);
+                    H0.kVecAtFlatId(kidlocal + Hmastpart.displ(), k);
+                    H0.constructBandCurvature(1, 1, k, epsyy);
+                    integrand(iw) += H0.fermiVdimerMag2d()(0, kidlocal, 0, 0).real() * H0.fermiVdimerMag2d()(0, kidlocal, 0, 0).real() * epsyy(0, 0).real()
+                                     * (A * A * A).trace().real();
+                }
+            }
+        }
+        // if (H0.hamDimerMag2d().procRank() == 0) std::cout << "integrand\n" << integrand << "\nend integrand" << std::endl;  // For testing
+        integrand *= -beta * ebws / (1.0 + ebws).square();
+        // In units of e^2 / (2 * pi * hbar)
+        if (intalg == Simpson) sigmaHxy = simpsonIntegrate(integrand, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
+        else if (intalg == CubicSpline) sigmaHxy = intvec.dot(integrand.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
+        // Use trapezoidal integration
+        else sigmaHxy = ((integrand(Eigen::seq(1, Eigen::last)) + integrand(Eigen::seq(0, Eigen::last - 1))) / 2.0
+            * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum() / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
+        MPI_Allreduce(MPI_IN_PLACE, &sigmaHxy, 1, MPI_DOUBLE, MPI_SUM, selfen.mpiComm());
+    }
+    else throw std::range_error("Have not implemented calculation of longitudinal conductivity for H0.type() not being dimer_mag_2d");
+    
+    return sigmaHxy;
+}
 
 
 #endif /* self_consistency_hpp */

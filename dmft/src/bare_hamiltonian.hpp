@@ -104,7 +104,8 @@ public:
     const Eigen::MatrixXd& primVecs() const {return m_a;}   // Return primative vectors
     
     virtual void constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const;
-    virtual void constructFermiVelocities(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const;
+    virtual void constructFermiVelocity(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const;
+    virtual void constructBandCurvature(const int co1, const int co2, const Eigen::VectorXd& k, Eigen::MatrixXcd& eps12) const;
     
     template <typename Derived, typename OtherDerived>
     void computeBands(const Eigen::DenseBase<Derived>& nk, const Eigen::DenseBase<OtherDerived>& kidpath);
@@ -264,7 +265,7 @@ void BareHamiltonian::computeBands(const Eigen::DenseBase<Derived>& nk, const Ei
                                                                 H(nb_2, 0),          es.eigenvalues()(m);
             // Caculate Fermi velocity matrices. fv is block diagonal and the top left and bottom right blocks are the same.
             for (co = 0; co < 2; ++co) {
-                constructFermiVelocities(co, k, fv);
+                constructFermiVelocity(co, k, fv);
                 m_vdimerMag2d(co, kidlocal).noalias() = es.eigenvectors().adjoint() * fv.topLeftCorner(nb_2, nb_2).selfadjointView<Eigen::Lower>() * es.eigenvectors();
             }
         }

@@ -50,7 +50,7 @@ public:
     }
     
     // Only need to construct the lower triangular part
-    void constructFermiVelocities(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const override {
+    void constructFermiVelocity(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const override {
         if (coord < 0 || coord > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D dimer Hubbard model in magnetic fields!");
         if (q < 1) throw std::range_error("q cannot be less than 1!");
         
@@ -73,6 +73,16 @@ public:
                 v(l, l) = -2.0 * m_t(0) * sin(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
                 v(l + q, l + q) = v(l, l);
             }
+        }
+    }
+    
+    // Second derivative of noninteracting k-dependent energy at zero magnetic field
+    void constructBandCurvature(const int co1, const int co2, const Eigen::VectorXd& k, Eigen::MatrixXcd& eps12) const override {
+        if (co1 < 0 || co1 > 1 || co2 < 0 || co2 > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D dimer Hubbard model in magnetic fields!");
+        eps12 = Eigen::MatrixXcd::Zero(2, 2);
+        if (co1 == co2) {
+            eps12(0, 0) = -2.0 * m_t(0) * std::cos(k[co1]);
+            eps12(1, 1) = eps12(0, 0);
         }
     }
 };
@@ -580,10 +590,16 @@ int main(int argc, char * argv[]) {
         
         //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
         sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
-        if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+        if (computesigmaxy) {
+            if (q == 1) sigmaxy = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            else sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+        }
         if (prank == 0) {
             std::cout << std::scientific << std::setprecision(5) << "sigmaxx = " << sigmaxx << std::endl;
-            if (computesigmaxy) std::cout << std::scientific << std::setprecision(5) << "sigmaxy = " << sigmaxy << std::endl;
+            if (computesigmaxy) {
+                if (q == 1) std::cout << std::scientific << std::setprecision(5) << "sigmaxy / (p / q) (p / q -> 0) = " << sigmaxy << std::endl;
+                else std::cout << std::scientific << std::setprecision(5) << "sigmaxy = " << sigmaxy << std::endl;
+            }
         }
         
         MPI_Finalize();
@@ -742,7 +758,10 @@ int main(int argc, char * argv[]) {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
             << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <Sz0*Sz1>" << std::setw(cw + 1) << " <sign>"
             << std::setw(cw + 1) << " <n> int err" << std::setw(cw + 1) << " sxx (e^2/h)";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " sxy (e^2/h)";
+            if (computesigmaxy) {
+                if (q == 1) fiter << std::setw(cw + 1) << " sxy/(p/q)";
+                else fiter << std::setw(cw + 1) << " sxy (e^2/h)";
+            }
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
             << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash         << " "               << dash
@@ -754,7 +773,10 @@ int main(int argc, char * argv[]) {
             fiter << std::setw(cw / 2 + 1) << " iter" << std::setw(cw + 1) << " converg" << std::setw(cw + 1) << " <order>" << std::setw(cw + 1)
             << " Im<S0>/w0" << std::setw(2 * cw + 2) << " var<n> / <n>" << std::setw(cw + 1) << " <Sz0*Sz1>" << std::setw(cw + 1) << " <sign>"
             << std::setw(cw + 1) << " sxx (e^2/h)";
-            if (computesigmaxy) fiter << std::setw(cw + 1) << " sxy (e^2/h)";
+            if (computesigmaxy) {
+                if (q == 1) fiter << std::setw(cw + 1) << " sxy/(p/q)";
+                else fiter << std::setw(cw + 1) << " sxy (e^2/h)";
+            }
             fiter << std::endl;
             fiter << " "  << std::string(cw / 2, '-') << " "               << dash       << " "               << dash       << " "
             << dash         << " "      << std::string(2 * cw + 1, '-') << " "               << dash         << " "               << dash
@@ -856,7 +878,10 @@ int main(int argc, char * argv[]) {
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
             sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
-            if (computesigmaxy) sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            if (computesigmaxy) {
+                if (q == 1) sigmaxy = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+                else sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            }
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
             if (prank == 0) std::cout << "    Computed conductivities in " << tdur.count() << " minutes" << std::endl;
