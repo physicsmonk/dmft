@@ -64,7 +64,7 @@ public:
     template <typename Derived, typename OtherDerived>
     static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const Eigen::Index n_fitpts = 5);
     template <typename Derived, typename OtherDerived>
-    static Eigen::Vector<typename Derived::Scalar, 4> fitFDFunc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& fitted);
+    Eigen::Vector<typename Derived::Scalar, 4> fitFDFunc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& fitted);
     template <typename Derived, typename OtherDerived>
     static void fitCubicSpline(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& deriv_curv);
     
@@ -158,6 +158,9 @@ private:
         parameters["alpha_cache_all"] = true;
         //parameters["alpha_curvature_fit_size"] = Eigen::Index(5);
         parameters["verbose"] = true;
+        parameters["FDfit_damp"] = 0.1;
+        parameters["FDfit_tolerance"] = 1e-4;
+        parameters["FDfit_max_iteration"] = Eigen::Index(500);
     }
     template <int n_mom>
     void momentConstraints(const SqMatArray<std::complex<double>, _n0, n_mom, _nm>& moms, const Eigen::Index s, const SqMatArray<std::complex<double>, 1, n_mom, _nm> &mu,
@@ -1090,8 +1093,9 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
     Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> Jac(curve.rows(), 4);
     Eigen::Vector<Scalar, Derived::RowsAtCompileTime> dy(curve.rows());
     Eigen::Vector<Scalar, 4> a, da;
-    Eigen::Index max_iter = 500;
-    double tol = 1e-4, damp = 0.1;
+    const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("FDfit_max_iteraction"));
+    const auto tol = std::any_cast<double>(parameters.at("FDfit_tolerance"));
+    const auto damp = std::any_cast<double>(parameters.at("FDfit_damp"));
     Eigen::Index iter = 0;
     Scalar tmp;
     Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> > decomp(curve.rows(), 4);

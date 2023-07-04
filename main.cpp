@@ -290,6 +290,9 @@ int main(int argc, char * argv[]) {
     //Eigen::Index alpha_fitsize = 9;
     Eigen::Index alpha_capacity = 1000;
     bool alpha_cacheall = true;
+    double fdfit_damp = 0.1;
+    double fdfit_tol = 1e-4;
+    Eigen::Index fdfit_maxiter = 500;
     
     int proc_control = 0;
     bool computesigmaxy = true;
@@ -385,6 +388,9 @@ int main(int argc, char * argv[]) {
     //readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD);
     readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD);
     readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD);
+    readxml_bcast(fdfit_damp, docroot, "numerical/MQEM/FDFitDamp", MPI_COMM_WORLD);
+    readxml_bcast(fdfit_tol, docroot, "numerical/MQEM/FDFitTolerance", MPI_COMM_WORLD);
+    readxml_bcast(fdfit_maxiter, docroot, "numerical/MQEM/FDFitMaxIteraction", MPI_COMM_WORLD);
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
     readxml_bcast(n_computecond, docroot, "processControl/numComputeConductivity", MPI_COMM_WORLD);
@@ -514,6 +520,9 @@ int main(int argc, char * argv[]) {
     //mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
     mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
+    mqem.parameters.at("FDfit_damp") = fdfit_damp;
+    mqem.parameters.at("FDfit_tol") = fdfit_tol;
+    mqem.parameters.at("FDfit_max_iteration") = fdfit_maxiter;
     
     const Eigen::ArrayXd midrealfreqs = mqem.midRealFreqs(midrealfreq_anchors_steps);
     if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;
@@ -614,7 +623,7 @@ int main(int argc, char * argv[]) {
             Eigen::Index opt_alpha_ind;
             loadData("mqem_diagnosis.txt", misfit);
             //MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
-            std::cout << "Fitted parameters of FD function: " << MQEMContinuator2XX::fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()).transpose() << std::endl;
+            std::cout << "Fitted parameters of FD function: " << mqem.fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()).transpose() << std::endl;
             printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
             misfit.col(3).maxCoeff(&opt_alpha_ind);
