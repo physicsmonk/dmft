@@ -521,7 +521,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
     mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
     mqem.parameters.at("FDfit_damp") = fdfit_damp;
-    mqem.parameters.at("FDfit_tol") = fdfit_tol;
+    mqem.parameters.at("FDfit_tolerance") = fdfit_tol;
     mqem.parameters.at("FDfit_max_iteration") = fdfit_maxiter;
     
     const Eigen::ArrayXd midrealfreqs = mqem.midRealFreqs(midrealfreq_anchors_steps);
