@@ -1093,7 +1093,7 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
     Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> Jac(curve.rows(), 4);
     Eigen::Vector<Scalar, Derived::RowsAtCompileTime> dy(curve.rows());
     Eigen::Vector<Scalar, 4> a, da;
-    const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("FDfit_max_iteraction"));
+    const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("FDfit_max_iteration"));
     const auto tol = std::any_cast<double>(parameters.at("FDfit_tolerance"));
     const auto damp = std::any_cast<double>(parameters.at("FDfit_damp"));
     Eigen::Index iter = 0;
