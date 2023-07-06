@@ -287,7 +287,8 @@ int main(int argc, char * argv[]) {
     double alpha_rmin = 0.7;
     double alpha_rmax = 2.0;
     double alpha_rscale = 0.8;
-    //Eigen::Index alpha_fitsize = 9;
+    std::string curvfit_method("FD");
+    Eigen::Index arcfit_size = 9;
     Eigen::Index alpha_capacity = 1000;
     bool alpha_cacheall = true;
     double fdfit_damp = 0.1;
@@ -385,9 +386,10 @@ int main(int argc, char * argv[]) {
     readxml_bcast(alpha_rmin, docroot, "numerical/MQEM/alphaStepMinRatio", MPI_COMM_WORLD);
     readxml_bcast(alpha_rmax, docroot, "numerical/MQEM/alphaStepMaxRatio", MPI_COMM_WORLD);
     readxml_bcast(alpha_rscale, docroot, "numerical/MQEM/alphaStepScale", MPI_COMM_WORLD);
-    //readxml_bcast(alpha_fitsize, docroot, "numerical/MQEM/alphaCurvatureFitSize", MPI_COMM_WORLD);
     readxml_bcast(alpha_capacity, docroot, "numerical/MQEM/alphaCapacity", MPI_COMM_WORLD);
     readxml_bcast(alpha_cacheall, docroot, "numerical/MQEM/alphaCacheAll", MPI_COMM_WORLD);
+    readxml_bcast(curvfit_method, docroot, "numerical/MQEM/curvatureFitMethod", MPI_COMM_WORLD);
+    readxml_bcast(arcfit_size, docroot, "numerical/MQEM/arcFitSize", MPI_COMM_WORLD);
     readxml_bcast(fdfit_damp, docroot, "numerical/MQEM/FDFitDamp", MPI_COMM_WORLD);
     readxml_bcast(fdfit_tol, docroot, "numerical/MQEM/FDFitTolerance", MPI_COMM_WORLD);
     readxml_bcast(fdfit_maxiter, docroot, "numerical/MQEM/FDFitMaxIteraction", MPI_COMM_WORLD);
@@ -517,9 +519,10 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("alpha_step_min_ratio") = alpha_rmin;
     mqem.parameters.at("alpha_step_max_ratio") = alpha_rmax;
     mqem.parameters.at("alpha_step_scale") = alpha_rscale;
-    //mqem.parameters.at("alpha_curvature_fit_size") = alpha_fitsize;
     mqem.parameters.at("alpha_capacity") = alpha_capacity;
     mqem.parameters.at("alpha_cache_all") = alpha_cacheall;
+    mqem.parameters.at("curvature_fit_method") = curvfit_method;
+    mqem.parameters.at("arc_fit_size") = arcfit_size;
     mqem.parameters.at("FDfit_damp") = fdfit_damp;
     mqem.parameters.at("FDfit_tolerance") = fdfit_tol;
     mqem.parameters.at("FDfit_max_iteration") = fdfit_maxiter;
@@ -622,7 +625,7 @@ int main(int argc, char * argv[]) {
             Eigen::ArrayX4d misfit;
             Eigen::Index opt_alpha_ind;
             loadData("mqem_diagnosis.txt", misfit);
-            //MQEMContinuator2XX::fitCurvature(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
+            //MQEMContinuator2XX::fitArc(misfit.leftCols<2>(), misfit.col(2), alpha_fitsize);
             std::cout << "Fitted parameters of FD function: " << mqem.fitFDFunc(misfit.leftCols<2>(), misfit.rightCols<2>()).transpose() << std::endl;
             printData("mqem_diagnosis.txt", misfit, std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;

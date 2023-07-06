@@ -62,7 +62,7 @@ public:
     const Eigen::ArrayX4d& diagnosis(const Eigen::Index slocal) const {return m_misfit_curve[slocal];}
     // Argument curvature will be filled with solution after execution; its const-ness will be cast away inside the function; see Eigen library manual
     template <typename Derived, typename OtherDerived>
-    static void fitCurvature(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const Eigen::Index n_fitpts = 5);
+    static void fitArc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& curvature, const Eigen::Index n_fitpts = 5);
     template <typename Derived, typename OtherDerived>
     Eigen::Vector<typename Derived::Scalar, 4> fitFDFunc(const Eigen::DenseBase<Derived>& curve, const Eigen::DenseBase<OtherDerived>& fitted);
     template <typename Derived, typename OtherDerived>
@@ -156,8 +156,9 @@ private:
         parameters["alpha_step_scale"] = 0.95;
         parameters["alpha_capacity"] = Eigen::Index(1000);
         parameters["alpha_cache_all"] = true;
-        //parameters["alpha_curvature_fit_size"] = Eigen::Index(5);
         parameters["verbose"] = true;
+        parameters["curvature_fit_method"] = std::string("FD");  // FD or arc
+        parameters["arc_fit_size"] = Eigen::Index(5);
         parameters["FDfit_damp"] = 0.1;
         parameters["FDfit_tolerance"] = 1e-4;
         parameters["FDfit_max_iteration"] = Eigen::Index(500);
@@ -202,13 +203,14 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     const auto sa = std::any_cast<double>(parameters.at("alpha_step_scale"));
     const auto acapacity = std::any_cast<Eigen::Index>(parameters.at("alpha_capacity"));
     const auto acacheall = std::any_cast<bool>(parameters.at("alpha_cache_all"));
-    //const auto afitsize = std::any_cast<Eigen::Index>(parameters.at("alpha_curvature_fit_size"));
+    const auto curvfitmethod = std::any_cast<std::string>(parameters.at("curvature_fit_method"));
+    const auto afitsize = std::any_cast<Eigen::Index>(parameters.at("arc_fit_size"));
     const double eps = 1e-10;
     if (amaxfac < ainfofitfac) throw std::range_error("computeSpectra: alpha_max_fac should not be smaller than alpha_info_fit_fac");
     if (amaxtrial < 1) throw std::range_error("computeSpectra: num_alpha cannot be less than 1");
     
     double m0trace, varmin, logainfofit, loga, logchi2, logchi2_old, dloga, dloga_fac, dAr, dH, slope;
-    Eigen::Index na, nrecord, trial, s;
+    Eigen::Index na, nrecord, trial, s, max_slope_id;
     std::pair<bool, Eigen::Index> cvg;
     
     computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
@@ -321,31 +323,22 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             std::cout << " ------" << std::endl;
         }
         m_misfit_curve[sl].conservativeResize(nrecord, Eigen::NoChange);  // Get size right
-        /*
-        if (nrecord >= afitsize) {  // Calculate misfit curve curvature and find optimal alpha and spectrum
-            //m_misfit_curve[s](0, 2) = std::nan("initial");
-            //m_misfit_curve[s](1, 2) = std::nan("initial");
-            //ainterval = m_misfit_curve[s](Eigen::seq(0, na - 2), 0) - m_misfit_curve[s](Eigen::seq(1, na - 1), 0);
-            //deriv = (m_misfit_curve[s](Eigen::seq(0, na - 2), 1) - m_misfit_curve[s](Eigen::seq(1, na - 1), 1)) / ainterval;  // Forward first-order derivative
-            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) = (deriv.head(na - 2) - deriv.tail(na - 2)) / ainterval.tail(na - 2);  // Forward second-order derivative
-            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2) /= (1.0 + deriv.tail(na - 2).square()).cube().sqrt();  // Signed curvature
-            //m_misfit_curve[s](Eigen::seq(2, na - 1), 2).maxCoeff(&(m_opt_alpha_id(s)));
-            //m_opt_alpha_id(s) += 2;
+        
+        if (curvfitmethod == "arc") {
             ((m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 1) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 1)) /
              (m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 0) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 0))).maxCoeff(&max_slope_id);
             max_slope_id += afitsize / 2;
             if (max_slope_id >= nrecord) throw std::range_error("MQEM: Calculated misfit curve did not pass information-fitting regime");
-            fitCurvature(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].col(2), afitsize);
+            fitArc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].col(2), afitsize);
             m_misfit_curve[sl](Eigen::seq(max_slope_id, Eigen::last), 2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(sl)));
             m_opt_alpha_id(sl) += max_slope_id;
-            Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
         }
-        else throw std::runtime_error("MQEM computeSpectra: cannot determine optimal alpha and spectrum because #points in misfit curve is less than local fit size");
-         */
-        //fitCubicSpline(m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(0, Eigen::fix<2>)),
-        //               m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(2, Eigen::fix<2>)));  // Note reversed order
-        fitFDFunc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].template rightCols<2>());
-        m_misfit_curve[sl].col(3).maxCoeff(&(m_opt_alpha_id(sl)));
+        else {
+            //fitCubicSpline(m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(0, Eigen::fix<2>)),
+            //               m_misfit_curve[sl](Eigen::seq(Eigen::last, 0, Eigen::fix<-1>), Eigen::seqN(2, Eigen::fix<2>)));  // Note reversed order
+            fitFDFunc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].template rightCols<2>());
+            m_misfit_curve[sl].col(3).maxCoeff(&(m_opt_alpha_id(sl)));
+        }
         Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
     }
     Apart.allGather();
@@ -1028,7 +1021,7 @@ double MQEMContinuator<_n0, _n1, _nm>::misfit(const SqMatArray<std::complex<doub
 
 template <int _n0, int _n1, int _nm>
 template <typename Derived, typename OtherDerived>
-void MQEMContinuator<_n0, _n1, _nm>::fitCurvature(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived> &curvature,
+void MQEMContinuator<_n0, _n1, _nm>::fitArc(const Eigen::DenseBase<Derived> &curve, const Eigen::DenseBase<OtherDerived> &curvature,
                                                   const Eigen::Index n_fitpts) {
     if (curve.rows() < n_fitpts) throw std::range_error("MQEMContinuator::fitCurvature: #points of input curve cannot be less than #local points to fit");
     if (n_fitpts < 3) throw std::range_error("MQEMContinuator::fitCurvature: #local points to fit cannot be less than 3");
