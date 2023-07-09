@@ -213,11 +213,13 @@ double hallConducCoeff(const BareHamiltonian& H0, const SqMatArray<std::complex<
         // if (H0.hamDimerMag2d().procRank() == 0) std::cout << "integrand\n" << integrand << "\nend integrand" << std::endl;  // For testing
         integrand *= -beta * ebws / (1.0 + ebws).square();
         // In units of e^2 / (2 * pi * hbar)
-        if (intalg == Simpson) sigmaHxy = simpsonIntegrate(integrand, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
-        else if (intalg == CubicSpline) sigmaHxy = intvec.dot(integrand.matrix()) / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
+        if (intalg == Simpson) sigmaHxy = simpsonIntegrate(integrand, std::real(engrid(1)) - std::real(engrid(0))) / H0.hamDimerMag2d().size()
+            * 8.0 * M_PI * M_PI * M_PI * M_PI / 3.0;
+        else if (intalg == CubicSpline) sigmaHxy = intvec.dot(integrand.matrix()) / H0.hamDimerMag2d().size() * 8.0 * M_PI * M_PI * M_PI * M_PI / 3.0;
         // Use trapezoidal integration
         else sigmaHxy = ((integrand(Eigen::seq(1, Eigen::last)) + integrand(Eigen::seq(0, Eigen::last - 1))) / 2.0
-            * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum() / H0.hamDimerMag2d().size() * 2.0 * M_PI * M_PI / 3.0;
+            * (engrid(Eigen::seq(1, Eigen::last)).real() - engrid(Eigen::seq(0, Eigen::last - 1)).real())).sum() / H0.hamDimerMag2d().size()
+            * 8.0 * M_PI * M_PI * M_PI * M_PI / 3.0;
         MPI_Allreduce(MPI_IN_PLACE, &sigmaHxy, 1, MPI_DOUBLE, MPI_SUM, selfen.mpiComm());
     }
     else throw std::range_error("Have not implemented calculation of longitudinal conductivity for H0.type() not being dimer_mag_2d");
