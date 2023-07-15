@@ -325,11 +325,16 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
         m_misfit_curve[sl].conservativeResize(nrecord, Eigen::NoChange);  // Get size right
         
         if (curvfitmethod == "arc") {
+            fitArc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].col(2), afitsize);
+            
             ((m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 1) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 1)) /
              (m_misfit_curve[sl](Eigen::seq(0, Eigen::last - 1), 0) - m_misfit_curve[sl](Eigen::seq(1, Eigen::last), 0))).maxCoeff(&max_slope_id);
             max_slope_id += afitsize / 2;
-            if (max_slope_id >= nrecord) throw std::range_error("MQEM: Calculated misfit curve did not pass information-fitting regime");
-            fitArc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].col(2), afitsize);
+            if (max_slope_id >= nrecord) {
+                //throw std::range_error("MQEM: Calculated misfit curve did not pass information-fitting regime");
+                std::cout << "MQEM warning: Calculated misfit curve did not pass information-fitting regime" << std::endl;
+                max_slope_id = 0;
+            }
             m_misfit_curve[sl](Eigen::seq(max_slope_id, Eigen::last), 2).template maxCoeff<Eigen::PropagateNumbers>(&(m_opt_alpha_id(sl)));
             m_opt_alpha_id(sl) += max_slope_id;
         }
