@@ -345,6 +345,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
             fitFDFunc(m_misfit_curve[sl].template leftCols<2>(), m_misfit_curve[sl].template rightCols<2>());
             m_misfit_curve[sl].col(3).maxCoeff(&(m_opt_alpha_id(sl)));
         }
+        if (m_opt_alpha_id(sl) == 0) {
+            std::cout << "MQEM warning: Determined optimal alpha is at default-model regime; set it to smallest alpha calculated" << std::endl;
+            m_opt_alpha_id(sl) = nrecord - 1;
+        }
         Apart.atDim0(sl) = As[m_opt_alpha_id(sl)]();
     }
     Apart.allGather();
@@ -1095,15 +1099,28 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
     const auto max_iter = std::any_cast<Eigen::Index>(parameters.at("FDfit_max_iteration"));
     const auto tol = std::any_cast<double>(parameters.at("FDfit_tolerance"));
     const auto damp = std::any_cast<double>(parameters.at("FDfit_damp"));
-    Eigen::Index iter = 0;
-    Scalar tmp;
+    Eigen::Index iter = 0, max_slope_id, half_slope_id;
+    Scalar tmp, max_slope;
     Eigen::CompleteOrthogonalDecomposition<Eigen::Matrix<Scalar, Derived::RowsAtCompileTime, 4> > decomp(curve.rows(), 4);
     
+    Eigen::DenseBase<OtherDerived>& fitted_ = const_cast<Eigen::DenseBase<OtherDerived>&>(fitted);  // Make curvature writable by casting away its const-ness
+    fitted_.derived().resize(curve.rows(), 2);  // Resize the derived object
+    
+    fitted_(Eigen::seq(0, Eigen::last - 1), 0) = (curve(Eigen::seq(0, Eigen::last - 1), 1) - curve(Eigen::seq(1, Eigen::last), 1)) /
+    (curve(Eigen::seq(0, Eigen::last - 1), 0) - curve(Eigen::seq(1, Eigen::last), 0));
+    max_slope = fitted_(Eigen::seq(0, Eigen::last - 1), 0).maxCoeff(&max_slope_id);
+    (fitted_(Eigen::seq(0, Eigen::last - 1), 0) - max_slope * 0.5).abs2().minCoeff(&half_slope_id);
+    
     // Initialize fitting parameter
-    a(0) = curve(Eigen::last, 1) - curve(0, 1);
+    //a(0) = curve(Eigen::last, 1) - curve(0, 1);
+    //a(1) = curve(0, 1);
+    //a(2) = 12.0 / (curve(0, 0) - curve(Eigen::last, 0));
+    //a(3) = -6.0 * (curve(0, 0) + curve(Eigen::last, 0)) / (curve(0, 0) - curve(Eigen::last, 0));
+    a(0) = 2.0 * (curve(max_slope_id, 1) - curve(0, 1));
     a(1) = curve(0, 1);
-    a(2) = 12.0 / (curve(0, 0) - curve(Eigen::last, 0));
-    a(3) = -6.0 * (curve(0, 0) + curve(Eigen::last, 0)) / (curve(0, 0) - curve(Eigen::last, 0));
+    a(2) = M_LN2 / std::abs(curve(max_slope_id, 0) - curve(half_slope_id, 0));
+    a(3) = -a(2) * curve(max_slope_id, 0);
+    
     while (true) {
         for (Eigen::Index i = 0; i < Jac.rows(); ++i) {
             // Assemble Jacobian matrix df/da
@@ -1127,9 +1144,6 @@ Eigen::Vector<typename Derived::Scalar, 4> MQEMContinuator<_n0, _n1, _nm>::fitFD
         a += damp * da;
         ++iter;
     }
-    
-    Eigen::DenseBase<OtherDerived>& fitted_ = const_cast<Eigen::DenseBase<OtherDerived>&>(fitted);  // Make curvature writable by casting away its const-ness
-    fitted_.derived().resize(curve.rows(), 2);  // Resize the derived object
     
     // Calculate second derivative of fitted Fermi-Dirac function
     for (Eigen::Index i = 0; i < fitted_.rows(); ++i) {
