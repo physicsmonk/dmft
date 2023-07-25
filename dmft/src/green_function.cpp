@@ -18,7 +18,7 @@ GenericGreenFunction::GenericGreenFunction(const double beta, const Eigen::Index
 m_beta(beta),
 m_matsfs(Eigen::ArrayXd::LinSpaced(nfcut + 1, M_PI / beta, (2 * nfcut + 1) * M_PI / beta)),
 m_imagts(Eigen::ArrayXd::LinSpaced(ntau, 0.0, beta)),
-m_Gw(2, nfcut + 1, nc, comm), m_Gt(2, ntau, nc, comm), m_moms(2, 2, nc) {
+m_Gw(2, nfcut + 1, nc, comm), m_Gt(2, ntau, nc, comm), m_moms(2, 3, nc) {
     if (ntau < 2) throw std::invalid_argument( "Tau grid size of GenericGreenFunction cannot be less than 2!" );
 }
 

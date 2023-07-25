@@ -25,60 +25,62 @@ using namespace std::complex_literals;
 
 
 // Derive from the BareHamiltonian class the user-defined Hamiltonian
-class Dimer2DinMag : public BareHamiltonian {
+class MultilayerInMag : public BareHamiltonian {
 public:
     int p, q;  // Constitutes the magnetic field
     
     void constructHamiltonian(const Eigen::VectorXd& k, Eigen::MatrixXcd& H) const override {  // Only need to construct the lower triangular part
         if (q < 1) throw std::range_error("q cannot be less than 1!");
+        std::complex<double> en;
+        H = Eigen::MatrixXcd::Zero(m_nsites * q, m_nsites * q);
         
-        H = Eigen::MatrixXcd::Zero(2 * q, 2 * q);
-        int l;
-        for (l = 0; l < q; ++l) {
-            H(l, l) = 2.0 * m_t(0) * cos(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
-            H(l + q, l + q) = H(l, l);
-            H(l + q, l) = m_t(1);
-        }
-        for (l = 0; l < q - 1; ++l) {
-            H(l + 1, l) = m_t(0);
-            H(l + q + 1, l + q) = H(l + 1, l);
+        // Construct each layer
+        for (int m = 0; m < q; ++m) {
+            en = 2.0 * m_t(0) * cos(k[1] + (2.0 * M_PI * p) / q * m);
+            for (int l = 0; l < m_nsites; ++l) {
+                H(m + l * q, m + l * q) = en;
+                if (m < q - 1) H(m + l * q + 1, m + l * q) = m_t(0);
+            }
         }
         const std::complex<double> hop = m_t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
-        H(q - 1, 0) += hop;  // "+=" works for all q > 0
-        H(0, q - 1) += std::conj(hop);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
-        H(2 * q - 1, q) = H(q - 1, 0);
+        for (int l = 0; l < m_nsites; ++l) {
+            H(q - 1 + l * q, l * q) += hop;  // "+=" works for all q > 0
+            H(l * q, q - 1 + l * q) += std::conj(hop);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
+        }
+        // Construct interlayer coupling
+        for (int l = 0; l < m_nsites - 1; ++l) H(Eigen::seqN((l + 1) * q, q), Eigen::seqN(l * q, q)).diagonal().setConstant(m_t(1));
     }
     
     // Only need to construct the lower triangular part
     void constructFermiVelocity(const int coord, const Eigen::VectorXd& k, Eigen::MatrixXcd& v) const override {
-        if (coord < 0 || coord > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D dimer Hubbard model in magnetic fields!");
+        if (coord < 0 || coord > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D multilayer Hubbard model in magnetic fields!");
         if (q < 1) throw std::range_error("q cannot be less than 1!");
         
-        v = Eigen::MatrixXcd::Zero(2 * q, 2 * q);
-        int l;
-        // Note the Fermi velocity matrix is already block diagonal; the spaces of the upper and lower lattices are decoupled.
+        std::complex<double> v0;
+        v = Eigen::MatrixXcd::Zero(m_nsites * q, m_nsites * q);
+        // Note the Fermi velocity matrix is already block diagonal; the spaces of each layer are decoupled.
         if (coord == 0) {  // Fermi velocity in x direction, along which the magnetic unit cell expands
-            for (l = 0; l < q - 1; ++l) {
-                v(l + 1, l) = -1i * m_t(0);
-                v(l + q + 1, l + q) = v(l + 1, l);
+            for (int l = 0; l < m_nsites; ++l) {
+                for (int m = 0; m < q - 1; ++m) v(m + 1 + l * q, m + l * q) = -1i * m_t(0);
             }
             const std::complex<double> hop = m_t(0) * std::exp(1i * std::fmod(k[0] * q, 2 * M_PI));
-            const std::complex<double> v0 = 1i * static_cast<double>(q) * hop - 1i * static_cast<double>(q - 1) * hop;
-            v(q - 1, 0) += v0;  // "+=" works for all q > 0
-            v(0, q - 1) += std::conj(v0);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
-            v(2 * q - 1, q) = v(q - 1, 0);
+            v0 = 1i * static_cast<double>(q) * hop - 1i * static_cast<double>(q - 1) * hop;
+            for (int l = 0; l < m_nsites; ++l) {
+                v(q - 1 + l * q, l * q) += v0;  // "+=" works for all q > 0
+                v(l * q, q - 1 + l * q) += std::conj(v0);  // This only plays a role in q = 1 case because we only use the lower triangular part of H
+            }
         }
         else if (coord == 1) {  // Fermi velocity in y direction
-            for (l = 0; l < q; ++l) {
-                v(l, l) = -2.0 * m_t(0) * sin(k[1] + (2.0 * M_PI * p) / q * l);   // t array is a protected member of BareHamiltonian
-                v(l + q, l + q) = v(l, l);
+            for (int m = 0; m < q; ++m) {
+                v0 = -2.0 * m_t(0) * sin(k[1] + (2.0 * M_PI * p) / q * m);
+                for (int l = 0; l < m_nsites; ++l) v(m + l * q, m + l * q) = v0;
             }
         }
     }
     
     // Second derivative of noninteracting k-dependent energy at zero magnetic field
     void constructBandCurvature(const int co1, const int co2, const Eigen::VectorXd& k, Eigen::MatrixXcd& eps12) const override {
-        if (co1 < 0 || co1 > 1 || co2 < 0 || co2 > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D dimer Hubbard model in magnetic fields!");
+        if (co1 < 0 || co1 > 1 || co2 < 0 || co2 > 1) throw std::range_error("Coordinate can only be 0 or 1 for 2D multilayer Hubbard model in magnetic fields!");
         eps12 = Eigen::MatrixXcd::Zero(2, 2);
         if (co1 == co2) {
             eps12(0, 0) = -2.0 * m_t(0) * std::cos(k[co1]);
@@ -202,7 +204,7 @@ int main(int argc, char * argv[]) {
     // std::random_device rd;
     // std::cout << rd() << std::endl;
     
-    Eigen::Index nsite = 2;
+    Eigen::Index nsites = 2;
     double t = -1.0;
     double tz = -1.0;
     int q = 2;
@@ -311,7 +313,7 @@ int main(int argc, char * argv[]) {
     }
     docroot = doc.child("input");
 
-    readxml_bcast(nsite, docroot, "physical/numSites", MPI_COMM_WORLD);
+    readxml_bcast(nsites, docroot, "physical/numSites", MPI_COMM_WORLD);
     readxml_bcast(t, docroot, "physical/hoppingXy", MPI_COMM_WORLD);
     readxml_bcast(tz, docroot, "physical/hoppingXy.hoppingZ", MPI_COMM_WORLD);
     readxml_bcast(q, docroot, "physical/q", MPI_COMM_WORLD);
@@ -403,10 +405,12 @@ int main(int argc, char * argv[]) {
     if (prank == 0) std::cout << sep << std::endl;
     
     // Setup bare Hamiltonian
-    auto H0 = std::make_shared<Dimer2DinMag>();
+    auto H0 = std::make_shared<MultilayerInMag>();
     H0->setMPIcomm(MPI_COMM_WORLD);
     
+    H0->numSites(nsites);
     H0->hopMatElem(Eigen::Array2cd(t, tz));
+    //std::cout << H0->hopMatElem(0) << ", " << H0->hopMatElem(1) << std::endl;
     H0->q = q;
     H0->p = p;
     
@@ -414,22 +418,26 @@ int main(int argc, char * argv[]) {
     
     // Note this constructor: if nc is of type int, on some computers it could be implicitely converted to MPI_Comm type, not Eigen::Index type,
     // and call another constructor, very dangerous
-    SqMatArray22Xcd moments(2, 2, nsite);
-    moments(0, 0) << 0.0, tz,
-                     tz, 0.0;  // Set first moment
-    moments(0, 1) << 4.0 * t * t + tz * tz, 0.0,
-                     0.0,                   4.0 * t * t + tz * tz;  // Set second moment
-    moments(1, 0) = moments(0, 0);
-    moments(1, 1) = moments(0, 1);
-    H0->moments(moments);
-//    H0->firstMoment[0] = Eigen::MatrixXcd::Zero(1, 1);
-//    H0->secondMoment[0] = Eigen::MatrixXcd::Ones(1, 1);
-//    H0->secondMoment[0] << t * t + tz * tz, 0.0,
-//                           0.0, t * t + tz * tz;
+    //SqMatArray22Xcd moments(2, 2, nsites);
+    H0->moments().resize(2, 2, nsites);
+    H0->moments()().setZero();
+    for (int s = 0; s < 2; ++s) {
+        for (int l = 0; l < nsites; ++l) {
+            if (l < nsites - 1) {
+                H0->moments()(s, 0, l + 1, l) = tz;
+                H0->moments()(s, 0, l, l + 1) = std::conj(tz);
+            }
+            H0->moments()(s, 1, l, l) = 4.0 * t * std::conj(t) + tz * std::conj(tz);
+            if (l < nsites - 2) {
+                H0->moments()(s, 1, l + 2, l) = tz * tz;
+                H0->moments()(s, 1, l, l + 2) = std::conj(H0->moments()(s, 1, l + 2, l));
+            }
+        }
+    }
     
     H0->primVecs((Eigen::Matrix2d() << q, 0, 0, 1).finished());
     
-    H0->type("dimer_mag_2d");   // general, bethe, bethe_dimer, dimer_mag_2d
+    H0->type("multilayer_in_mag");   // general, bethe, bethe_dimer, multilayer_in_mag
     
     const Eigen::Index nkmin = nk.minCoeff();
     Eigen::Array<Eigen::Index, 2, Eigen::Dynamic> kidpath(2, nk(0) / 2 + nk(1) / 2 + nkmin / 2 + 3);
@@ -535,13 +543,13 @@ int main(int argc, char * argv[]) {
     Eigen::Index id0freq;
     //Eigen::ArrayXcd en_idel;
     // For testing
-    SqMatArray2XXcd selfentail(2, nfcut + 1, nsite);
+    SqMatArray2XXcd selfentail(2, nfcut + 1, nsites);
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
-        SqMatArray2XXcd selfendyn(2, nfcut + 1, nsite, MPI_COMM_WORLD);
-        SqMatArray2XXd selfenvar(2, nfcut + 1, nsite, MPI_COMM_WORLD);
-        SqMatArray21Xcd selfenstatic(2, 1, nsite, MPI_COMM_WORLD);
-        SqMatArray23Xcd selfenmom(2, 3, nsite, MPI_COMM_WORLD);
+        SqMatArray2XXcd selfendyn(2, nfcut + 1, nsites, MPI_COMM_WORLD);
+        SqMatArray2XXd selfenvar(2, nfcut + 1, nsites, MPI_COMM_WORLD);
+        SqMatArray21Xcd selfenstatic(2, 1, nsites, MPI_COMM_WORLD);
+        SqMatArray23Xcd selfenmom(2, 3, nsites, MPI_COMM_WORLD);
         if (prank == 0) {
             loadData("selfenergy_dyn.txt", selfendyn);
             loadData("selfenergy_var.txt", selfenvar);
@@ -641,7 +649,7 @@ int main(int argc, char * argv[]) {
     
     
     if (measurewhat == "S") ntau4eiwt = 0;  // Not allocate eiwt array anyway if measuring S
-    auto G0 = std::make_shared<BareGreenFunction>(beta, nsite, nfcut, ntau, ntau4eiwt, MPI_COMM_WORLD);
+    auto G0 = std::make_shared<BareGreenFunction>(beta, nsites, nfcut, ntau, ntau4eiwt, MPI_COMM_WORLD);
 //    std::complex<double> omega;
 //    for (int o = 0; o <= nfcut; ++o) {
 //        omega = (2.0 * o + 1.0) * M_PI / beta;
@@ -653,7 +661,7 @@ int main(int argc, char * argv[]) {
 //        printG("G0.txt", G0);
 //    }
 
-    auto G = std::make_shared<GreenFunction>(beta, nsite, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
+    auto G = std::make_shared<GreenFunction>(beta, nsites, nfcut, ntau, nbins4S, MPI_COMM_WORLD);
     
     //MPI_Barrier(MPI_COMM_WORLD);
     //usleep(1000 * prank);
@@ -716,7 +724,7 @@ int main(int argc, char * argv[]) {
         for (Eigen::Index i = 0; i < G0wmastpart.size(); ++i) {
             so = G0wmastpart.global2dIndex(i);
             // Hybridization is set to zero to indicate the insulating ansatz (insulating bath should not screen the impurity)
-            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nsite, nsite) - H0->moments()(so[0], 0)).inverse();
+            G0wmastpart[i].noalias() = -((1i * G0->matsubFreqs()(so[1]) + mu_eff) * Eigen::MatrixXcd::Identity(nsites, nsites) - H0->moments()(so[0], 0)).inverse();
         }
         G0wmastpart.allGather();
         G0->invFourierTrans();
@@ -758,7 +766,7 @@ int main(int argc, char * argv[]) {
     }
     
     bool computesigma;
-    double density, density_old = nsite, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
+    double density, density_old = nsites, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
     
     const int cw = 13;
     std::string dash(cw, '-');

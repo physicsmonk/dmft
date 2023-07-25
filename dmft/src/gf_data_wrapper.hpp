@@ -868,6 +868,8 @@ typedef SqMatArray<std::complex<double>, 2, 2, Eigen::Dynamic> SqMatArray22Xcd;
 typedef SqMatArray<std::complex<double>, 2, 3, Eigen::Dynamic> SqMatArray23Xcd;
 typedef SqMatArray<double, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXd;
 typedef SqMatArray<std::complex<double>, 2, Eigen::Dynamic, Eigen::Dynamic> SqMatArray2XXcd;
+typedef SqMatArray<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::Dynamic> SqMatArrayXXXd;
+typedef SqMatArray<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::Dynamic> SqMatArrayXXXcd;
 
 typedef Eigen::Array<Eigen::Index, Eigen::Dynamic, 1> ArrayXindex;
 
