@@ -766,7 +766,7 @@ int main(int argc, char * argv[]) {
     }
     
     bool computesigma;
-    double density, density_old = nsites, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
+    double density, density_old = 1.0, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
     
     const int cw = 13;
     std::string dash(cw, '-');
@@ -856,7 +856,7 @@ int main(int argc, char * argv[]) {
         
         dmft.updateLatticeGF();
         
-        density = G->densities().sum();
+        density = G->densities().sum() / nsites;  // Electron density per site
         converg = dmft.checkConvergence();  // Only use G and Glat at the same step
         computesigma = converg.first;
         if (density_goal >= 0.0) computesigma = computesigma && std::abs(density - density_goal) < density_error;
@@ -912,13 +912,13 @@ int main(int argc, char * argv[]) {
             if (measurewhat == "S") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->densStdDev()(0, 0) << " " << std::setw(cw) << density
+                << " " << std::setw(cw) << G->densStdDev().sum() / nsites << " " << std::setw(cw) << density
                 << " " << std::setw(cw) << G->spinCorrelation << " " << std::setw(cw) << impsolver.fermiSign() << " " << std::setw(cw) << interr;
             }
             else if (measurewhat == "G") {
                 fiter << " " << std::setw(cw / 2) << dmft.numIterations() << " " << std::setw(cw) << converg.second << " " << std::setw(cw)
                 << impsolver.aveVertexOrder() << " " << std::setw(cw) << std::imag(dmft.dynSelfEnergy()(0, 0, 0, 0) + dmft.staticSelfEnergy()(0, 0, 0, 0)) / (M_PI / beta)
-                << " " << std::setw(cw) << G->densStdDev()(0, 0) << " " << std::setw(cw) << density
+                << " " << std::setw(cw) << G->densStdDev().sum() / nsites << " " << std::setw(cw) << density
                 << " " << std::setw(cw) << G->spinCorrelation << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
