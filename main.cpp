@@ -296,6 +296,7 @@ int main(int argc, char * argv[]) {
     double fdfit_damp = 0.1;
     double fdfit_tol = 1e-4;
     Eigen::Index fdfit_maxiter = 500;
+    double pint_eps = 1e-6;
     
     int proc_control = 0;
     bool computesigmaxy = true;
@@ -395,6 +396,7 @@ int main(int argc, char * argv[]) {
     readxml_bcast(fdfit_damp, docroot, "numerical/MQEM/FDFitDamp", MPI_COMM_WORLD);
     readxml_bcast(fdfit_tol, docroot, "numerical/MQEM/FDFitTolerance", MPI_COMM_WORLD);
     readxml_bcast(fdfit_maxiter, docroot, "numerical/MQEM/FDFitMaxIteraction", MPI_COMM_WORLD);
+    readxml_bcast(pint_eps, docroot, "numerical/MQEM/principalIntEps", MPI_COMM_WORLD);
     readxml_bcast(proc_control, docroot, "processControl/generalProcess", MPI_COMM_WORLD);
     readxml_bcast(computesigmaxy, docroot, "processControl/computeHallConductivity", MPI_COMM_WORLD);
     readxml_bcast(n_computecond, docroot, "processControl/numComputeConductivity", MPI_COMM_WORLD);
@@ -534,6 +536,7 @@ int main(int argc, char * argv[]) {
     mqem.parameters.at("FDfit_damp") = fdfit_damp;
     mqem.parameters.at("FDfit_tolerance") = fdfit_tol;
     mqem.parameters.at("FDfit_max_iteration") = fdfit_maxiter;
+    mqem.parameters.at("principal_int_eps") = pint_eps;
     
     const Eigen::ArrayXd midrealfreqs = mqem.midRealFreqs(midrealfreq_anchors_steps);
     if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;

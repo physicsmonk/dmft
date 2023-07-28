@@ -135,7 +135,7 @@ private:
         parameters["secant_tol"] = 0.001;
         parameters["secant_damp"] = 0.5;
         parameters["matrix_invertible_threshold"] = -1.0;
-        parameters["principle_int_eps"] = 0.0001;
+        parameters["principal_int_eps"] = 0.0001;
         parameters["Pulay_mixing_param"] = 0.005;
         parameters["Pulay_history_size"] = Eigen::Index(5);
         parameters["Pulay_period"] = Eigen::Index(3);   // Larger period typically leads to more stable but slowly converging iteractions
@@ -438,7 +438,7 @@ void MQEMContinuator<_n0, _n1, _nm>::assembleKernelMatrix(const Eigen::Array<dou
     if (Nw < 2) throw std::range_error("computeKernelMatrix: #points in middle part of real frequencies cannot be less than 2");
     if (Nur < 1) throw std::range_error("computeKernelMatrix: Nur cannot be less than 1");
     
-    const auto eps = std::any_cast<double>(parameters.at("principle_int_eps"));
+    const auto eps = std::any_cast<double>(parameters.at("principal_int_eps"));
     const double domegal = real_freq_mid(1) - real_freq_mid(0);
     const double domegar = real_freq_mid(Nw - 1) - real_freq_mid(Nw - 2);
     const double omega0l = real_freq_mid(0) + Nul * domegal;
