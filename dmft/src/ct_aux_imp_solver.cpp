@@ -48,7 +48,7 @@ std::pair<double, bool> NMatrix::tryInsertVertex(const vertex& v, const double b
     int s;
      
     // Construct the diagonal element to be inserted to the inverse matrices
-    for (s = 0; s < 2; ++s) inv_diag[s] = expV(s, v.aux_spin) - m_ptr2G0->valsOnTauGrid()(s, 0)(v.site, v.site) * (expV(s, v.aux_spin) - 1);  // Always a real number
+    for (s = 0; s < 2; ++s) inv_diag[s] = expV(s, v.aux_spin) - m_ptr2G0->valsOnTauGrid()(s, 0, v.site, v.site) * (expV(s, v.aux_spin) - 1);  // Always a real number
     
     if (m_vertices.size() > 0) {
         std::array<Eigen::VectorXcd, 2> colt, inv_col;  // Columns to be inserted to the inverse matrices for up and down spins
