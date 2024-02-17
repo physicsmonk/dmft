@@ -5,8 +5,8 @@
 //  Created by Yin Shi on 4/22/22.
 //
 
-#ifndef input_hpp
-#define input_hpp
+#ifndef io_hpp
+#define io_hpp
 
 #include <cstdint>
 #include <climits>
@@ -171,4 +171,4 @@ bool readxml_bcast(T& data, const pugi::xml_node& docroot, const std::string& pa
     }
 }
 
-#endif /* input_hpp */
+#endif /* io_hpp */
