@@ -14,6 +14,8 @@
 		442FCD0D28132E1400C4993D /* ct_aux_imp_solver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCD0B28132E1400C4993D /* ct_aux_imp_solver.cpp */; };
 		442FCD1028132E3400C4993D /* green_function.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 442FCD0E28132E3400C4993D /* green_function.cpp */; };
 		4440CC482B7D039600B1EFE1 /* libmpi.40.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4440CC462B7D036300B1EFE1 /* libmpi.40.dylib */; };
+		4440CC4B2B7E6D7C00B1EFE1 /* libhdf5.310.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4440CC492B7E6D7C00B1EFE1 /* libhdf5.310.dylib */; };
+		4440CC4C2B7E6D7C00B1EFE1 /* libhdf5_hl.310.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 4440CC4A2B7E6D7C00B1EFE1 /* libhdf5_hl.310.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -51,6 +53,8 @@
 		442FCD18281337F200C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		442FCD19281340B300C4993D /* CMakeLists.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = CMakeLists.txt; sourceTree = "<group>"; };
 		4440CC462B7D036300B1EFE1 /* libmpi.40.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libmpi.40.dylib; path = "../../../../opt/homebrew/Cellar/open-mpi/4.1.5/lib/libmpi.40.dylib"; sourceTree = "<group>"; };
+		4440CC492B7E6D7C00B1EFE1 /* libhdf5.310.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libhdf5.310.dylib; path = "../../../../opt/homebrew/Cellar/hdf5-mpi/1.14.1/lib/libhdf5.310.dylib"; sourceTree = "<group>"; };
+		4440CC4A2B7E6D7C00B1EFE1 /* libhdf5_hl.310.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libhdf5_hl.310.dylib; path = "../../../../opt/homebrew/Cellar/hdf5-mpi/1.14.1/lib/libhdf5_hl.310.dylib"; sourceTree = "<group>"; };
 		445038C029662C2C002185B4 /* mqem.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = mqem.hpp; sourceTree = "<group>"; };
 		44934F132830AC8900620D90 /* block_progress_bar.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = block_progress_bar.hpp; sourceTree = "<group>"; };
 		44934F142830AC8900620D90 /* display_width.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = display_width.hpp; sourceTree = "<group>"; };
@@ -78,6 +82,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4440CC4B2B7E6D7C00B1EFE1 /* libhdf5.310.dylib in Frameworks */,
+				4440CC4C2B7E6D7C00B1EFE1 /* libhdf5_hl.310.dylib in Frameworks */,
 				4440CC482B7D039600B1EFE1 /* libmpi.40.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -118,6 +124,8 @@
 		442FCCF3281319FF00C4993D /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				4440CC4A2B7E6D7C00B1EFE1 /* libhdf5_hl.310.dylib */,
+				4440CC492B7E6D7C00B1EFE1 /* libhdf5.310.dylib */,
 				4440CC462B7D036300B1EFE1 /* libmpi.40.dylib */,
 				442FCCF4281319FF00C4993D /* libmpi.40.dylib */,
 			);
@@ -417,6 +425,7 @@
 					/usr/local/lib,
 					/opt/homebrew/lib,
 					"/opt/homebrew/Cellar/open-mpi/4.1.5/lib",
+					"/opt/homebrew/Cellar/hdf5-mpi/1.14.1/lib",
 				);
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (
@@ -441,6 +450,7 @@
 					/usr/local/lib,
 					/opt/homebrew/lib,
 					"/opt/homebrew/Cellar/open-mpi/4.1.5/lib",
+					"/opt/homebrew/Cellar/hdf5-mpi/1.14.1/lib",
 				);
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = (

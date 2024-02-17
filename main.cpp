@@ -8,6 +8,7 @@
 #include <thread>       // std::this_thread::sleep_for
 #include <chrono>
 #include <limits>
+#include "hdf5.h"
 #include "input.hpp"
 #include "ct_aux_imp_solver.hpp"
 #include "self_consistency.hpp"
@@ -197,6 +198,31 @@ int main(int argc, char * argv[]) {
     
     //MPI_Finalize();
     //return 0;
+    
+    
+    // Prepare for hdf5 output
+    hid_t complex_id = 0;
+    hid_t file_id = 0;
+    hid_t grp_g0_id = 0, grp_gf_id = 0, grp_se_id = 0, grp_sp_id = 0, grp_id = 0;
+    hid_t dspace_t_id = 0, dspace_iw_id = 0, dspace_w_id = 0, dspace_id = 0;
+    hid_t dset_g0_t_id = 0, dset_g0_iw_id = 0, dset_gf_t_id = 0, dset_gf_iw_id = 0, dset_se_dyn_id = 0,
+          dset_se_static_id = 0, dset_se_var_id = 0, dset_se_mom_id = 0, dset_se_ret_id = 0,
+          dset_se_tail_id = 0, dset_se_dm_id = 0, dset_sp_w_id = 0, dset_sp_k0_id = 0, dset_sp_kw_id = 0,
+          dset_id = 0;
+    hid_t attr_cond_id = 0;
+    herr_t status;
+    constexpr int RANK_MAT = 2;
+    constexpr int RANK_GF = 4;
+    constexpr int RANK_STATIC = 3;
+    constexpr int RANK_SP = 5;
+    hsize_t dims_mat[RANK_MAT], dims_gf[RANK_GF], dims_static[RANK_STATIC], dims_sp[RANK_SP];
+    
+    // Create complex type for hdf5 compatible with h5py
+    if (prank == 0) {
+        complex_id = H5Tcreate(H5T_COMPOUND, sizeof(std::complex<double>));
+        status = H5Tinsert(complex_id, "r", 0, H5T_NATIVE_DOUBLE);
+        status = H5Tinsert(complex_id, "i", sizeof(double), H5T_NATIVE_DOUBLE);
+    }
     
     
     std::string sep("----------------------------------------------------------------------");
@@ -461,12 +487,6 @@ int main(int argc, char * argv[]) {
     // H0->setDOS(erange, semicircle);
 //    H0->setDOS(erange, semicircle);
     
-    if (prank == 0) {
-        printData("bands.txt", H0->bands().transpose());
-        std::cout << "Output bands.txt" << std::endl;
-        printData("dos.txt", H0->dos());
-        std::cout << "Output dos.txt" << std::endl;
-    }
     
     // Test
     // MPI_Finalize();
@@ -541,7 +561,7 @@ int main(int argc, char * argv[]) {
     const Eigen::ArrayXd midrealfreqs = mqem.midRealFreqs(midrealfreq_anchors_steps);
     if (prank == 0) std::cout << "Middle real frequency grid size for MQEM is " << midrealfreqs.size() << std::endl;
     
-    double sigmaxx = 0.0, sigmaxy = 0.0;
+    double conductivities[2] = {0.0, 0.0};
     SqMatArray2XXcd Aw, A0, Akw;
     Eigen::Index id0freq;
     //Eigen::ArrayXcd en_idel;
@@ -550,14 +570,30 @@ int main(int argc, char * argv[]) {
     
     if (proc_control == 1) {  // proc_control == 1 for doing analytic continuation only
         SqMatArray2XXcd selfendyn(2, nfcut + 1, nsites, MPI_COMM_WORLD);
-        SqMatArray2XXd selfenvar(2, nfcut + 1, nsites, MPI_COMM_WORLD);
         SqMatArray21Xcd selfenstatic(2, 1, nsites, MPI_COMM_WORLD);
         SqMatArray23Xcd selfenmom(2, 3, nsites, MPI_COMM_WORLD);
+        SqMatArray2XXd selfenvar(2, nfcut + 1, nsites, MPI_COMM_WORLD);
+        
         if (prank == 0) {
-            loadData("selfenergy_dyn.txt", selfendyn);
-            loadData("selfenergy_var.txt", selfenvar);
-            loadData("selfenergy_static.txt", selfenstatic);
-            loadData("selfenergy_moms.txt", selfenmom);
+            file_id = H5Fopen("solution.h5", H5F_ACC_RDWR, H5P_DEFAULT);
+            
+            dset_se_dyn_id = H5Dopen2(file_id, "/SelfEnergy/Dynamical", H5P_DEFAULT);
+            dset_se_static_id = H5Dopen2(file_id, "/SelfEnergy/Static", H5P_DEFAULT);
+            dset_se_mom_id = H5Dopen2(file_id, "/SelfEnergy/Moments", H5P_DEFAULT);
+            dset_se_var_id = H5Dopen2(file_id, "/SelfEnergy/Variance", H5P_DEFAULT);
+            
+            //loadData("selfenergy_dyn.txt", selfendyn);
+            //loadData("selfenergy_var.txt", selfenvar);
+            //loadData("selfenergy_static.txt", selfenstatic);
+            //loadData("selfenergy_moms.txt", selfenmom);
+            status = H5Dread(dset_se_dyn_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfendyn().data());
+            status = H5Dread(dset_se_static_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfenstatic().data());
+            status = H5Dread(dset_se_mom_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfenmom().data());
+            status = H5Dread(dset_se_var_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfenvar().data());
+            
+            status = H5Dclose(dset_se_dyn_id);
+            status = H5Dclose(dset_se_static_id);
+            status = H5Dclose(dset_se_var_id);
         }
         selfendyn.broadcast(0);
         selfenvar.broadcast(0);
@@ -570,8 +606,10 @@ int main(int argc, char * argv[]) {
         Eigen::ArrayXd mats_freq = Eigen::ArrayXd::LinSpaced(selfendyn.dim1(), M_PI / beta, (2 * selfendyn.dim1() - 1) * M_PI / beta);
         DMFTIterator::fitSelfEnMoms23(mats_freq, selfendyn, selfenvar, tailstart, selfenmom);  // Refit second and third moments of self-energy
         if (prank == 0) {
-            printData("selfenergy_moms.txt", selfenmom);
-            std::cout << "Output selfenergy_moms.txt" << std::endl;
+            //printData("selfenergy_moms.txt", selfenmom);
+            status = H5Dwrite(dset_se_mom_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfenmom().data());
+            status = H5Dclose(dset_se_mom_id);
+            std::cout << "Output selfenergy_moms" << std::endl;
             // For testing
             for (Eigen::Index s = 0; s < 2; ++s) {
                 for (Eigen::Index n = 0; n <= nfcut; ++n) {
@@ -580,14 +618,20 @@ int main(int argc, char * argv[]) {
                     + selfenmom(s, 2) / (-1i * mats_freq(n) * mats_freq(n) * mats_freq(n));
                 }
             }
-            printData("selfenergy_tail.txt", selfentail);
-            std::cout << "Output selfenergy_tail.txt" << std::endl;
+            //printData("selfenergy_tail.txt", selfentail);
+            dset_se_tail_id = H5Dopen2(file_id, "/SelfEnergy/Tail", H5P_DEFAULT);
+            status = H5Dwrite(dset_se_tail_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfentail().data());
+            status = H5Dclose(dset_se_tail_id);
+            std::cout << "Output selfenergy_tail" << std::endl;
         }
         mqem.assembleKernelMatrix(mats_freq, n_lrealfreq, midrealfreqs, n_rrealfreq);
         mqem.realFreqGrid().abs().minCoeff(&id0freq);
         if (prank == 0) {
-            printData("real_freqs.txt", mqem.realFreqGrid());
-            std::cout << "Output real_freqs.txt; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
+            //printData("real_freqs.txt", mqem.realFreqGrid());
+            dset_id = H5Dopen2(file_id, "/SelfEnergy/RealFreq", H5P_DEFAULT);
+            status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.realFreqGrid().data());
+            status = H5Dclose(dset_id);
+            std::cout << "Output real_freqs; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
         }
         mqem.computeSpectra(mats_freq, selfendyn, selfenvar, selfenmom);
         //pade.computeSpectra(selfenstatic, *H0, nenergies, minenergy, maxenergy, delenergy, physonly);
@@ -596,32 +640,54 @@ int main(int argc, char * argv[]) {
         computeSpectraKW0(*H0, mqem.retardedFunc(), id0freq, A0);
         computeSpectraKW(*H0, mqem.retardedFunc(), mqem.realFreqGrid(), kidpath, Akw);
         if (prank == 0) {
+            dset_se_dm_id = H5Dopen2(file_id, "/SelfEnergy/DefaultModel", H5P_DEFAULT);
+            dset_se_ret_id = H5Dopen2(file_id, "/SelfEnergy/Retarded", H5P_DEFAULT);
+            dset_sp_w_id = H5Dopen2(file_id, "/Spectrum/kIntegrated", H5P_DEFAULT);
+            dset_sp_k0_id = H5Dopen2(file_id, "/Spectrum/FermiSurface", H5P_DEFAULT);
+            dset_sp_kw_id = H5Dopen2(file_id, "/Spectrum/kFreq", H5P_DEFAULT);
+            
             //printData("default_model.txt", mqem.defaultModel());
-            printData("selfenergy_retarded.txt", mqem.retardedFunc());
-            std::cout << "Output selfenergy_retarded.txt" << std::endl;
-            printData("spectraw.txt", Aw);
-            std::cout << "Output spectramatrix.txt" << std::endl;
-            printData("spectrakw0.txt", A0);
-            std::cout << "Output spectra0freq.txt" << std::endl;
-            printData("spectrakw.txt", Akw);
-            std::cout << "Output spectrakw.txt" << std::endl;
+            status = H5Dwrite(dset_se_dm_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.defaultModel()().data());
+            std::cout << "Output default_model" << std::endl;
+            //printData("selfenergy_retarded.txt", mqem.retardedFunc());
+            status = H5Dwrite(dset_se_ret_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.retardedFunc()().data());
+            std::cout << "Output selfenergy_retarded" << std::endl;
+            //printData("spectraw.txt", Aw);
+            status = H5Dwrite(dset_sp_w_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, Aw().data());
+            std::cout << "Output spectramatrix" << std::endl;
+            //printData("spectrakw0.txt", A0);
+            status = H5Dwrite(dset_sp_k0_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, A0().data());
+            std::cout << "Output spectra0freq" << std::endl;
+            //printData("spectrakw.txt", Akw);
+            status = H5Dwrite(dset_sp_kw_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, Akw().data());
+            std::cout << "Output spectrakw" << std::endl;
             printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
             std::cout << "Output mqem_diagnosis.txt" << std::endl;
             //std::cout << "#spectra: " << pade.nPhysSpectra().sum() << std::endl;
             std::cout << "Optimal log10(alpha) for spin up: " << mqem.optimalLog10alpha(0) << " at " << mqem.optimalAlphaIndex(0) << std::endl;
+            
+            status = H5Dclose(dset_se_dm_id);
+            status = H5Dclose(dset_se_ret_id);
+            status = H5Dclose(dset_sp_w_id);
+            status = H5Dclose(dset_sp_k0_id);
+            status = H5Dclose(dset_sp_kw_id);
         }
         
         //en_idel = mqem.realFreqGrid() + Eigen::ArrayXcd::Constant(mqem.realFreqGrid().size(), 1i * delenergy);
-        sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+        conductivities[0] = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
         if (computesigmaxy) {
-            if (q == 1) sigmaxy = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
-            else sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            if (q == 1) conductivities[1] = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            else conductivities[1] = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
         }
         if (prank == 0) {
-            std::cout << std::scientific << std::setprecision(5) << "sigmaxx = " << sigmaxx << std::endl;
+            attr_cond_id = H5Aopen(file_id, "/Conductivities", H5P_DEFAULT);
+            status = H5Awrite(attr_cond_id, H5T_NATIVE_DOUBLE, conductivities);
+            status = H5Aclose(attr_cond_id);
+            status = H5Fclose(file_id);
+            std::cout << std::scientific << std::setprecision(5) << "sigmaxx = " << conductivities[0] << std::endl;
             if (computesigmaxy) {
-                if (q == 1) std::cout << std::scientific << std::setprecision(5) << "sigmaxy / (p / q) (p / q -> 0) = " << sigmaxy << std::endl;
-                else std::cout << std::scientific << std::setprecision(5) << "sigmaxy = " << sigmaxy << std::endl;
+                if (q == 1) std::cout << std::scientific << std::setprecision(5) << "sigmaxy / (p / q) (p / q -> 0) = " << conductivities[1] << std::endl;
+                else std::cout << std::scientific << std::setprecision(5) << "sigmaxy = " << conductivities[1] << std::endl;
             }
         }
         
@@ -763,10 +829,103 @@ int main(int argc, char * argv[]) {
     
     mqem.assembleKernelMatrix(G->matsubFreqs(), n_lrealfreq, midrealfreqs, n_rrealfreq);
     mqem.realFreqGrid().abs().minCoeff(&id0freq);
+    
+    // Write data to hdf5 file
     if (prank == 0) {
-        printData("real_freqs.txt", mqem.realFreqGrid());
-        std::cout << "Output real_freqs.txt; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
+        file_id = H5Fcreate("solution.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+        dims_mat[0] = 2;
+        dspace_id = H5Screate_simple(1, dims_mat, NULL);
+        attr_cond_id = H5Acreate2(file_id, "/Conductivities", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        
+        grp_id = H5Gcreate2(file_id, "/BareElectrStruct", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dims_mat[0] = H0->bands().rows(); dims_mat[1] = H0->bands().cols();
+        dspace_id = H5Screate_simple(RANK_MAT, dims_mat, NULL);
+        dset_id = H5Dcreate2(grp_id, "Bands", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, H0->bands().data());
+        status = H5Dclose(dset_id);
+        //printData("bands.txt", H0->bands().transpose());
+        std::cout << "Output bands" << std::endl;
+        dims_mat[0] = H0->dos().rows(); dims_mat[1] = H0->dos().cols();
+        dspace_id = H5Screate_simple(RANK_MAT, dims_mat, NULL);
+        dset_id = H5Dcreate2(grp_id, "DOS", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, H0->dos().data());
+        status = H5Dclose(dset_id);
+        //printData("dos.txt", H0->dos());
+        std::cout << "Output dos" << std::endl;
+        status = H5Gclose(grp_id);
+        
+        dims_gf[0] = 2; dims_gf[1] = ntau; dims_gf[2] = nsites; dims_gf[3] = nsites;
+        dspace_t_id = H5Screate_simple(RANK_GF, dims_gf, NULL);
+        dims_gf[1] = nfcut + 1;
+        dspace_iw_id = H5Screate_simple(RANK_GF, dims_gf, NULL);
+    
+        grp_g0_id = H5Gcreate2(file_id, "/BathGreenFunc", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_g0_t_id = H5Dcreate2(grp_g0_id, "ImagTimeDomain", complex_id, dspace_t_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_g0_iw_id = H5Dcreate2(grp_g0_id, "MatsFreqDomain", complex_id, dspace_iw_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        
+        grp_gf_id = H5Gcreate2(file_id, "/GreenFunc", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_gf_t_id = H5Dcreate2(grp_gf_id, "ImagTimeDomain", complex_id, dspace_t_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_gf_iw_id = H5Dcreate2(grp_gf_id, "MatsFreqDomain", complex_id, dspace_iw_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+     
+        grp_se_id = H5Gcreate2(file_id, "/SelfEnergy", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_se_dyn_id = H5Dcreate2(grp_se_id, "Dynamical", complex_id, dspace_iw_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dims_static[0] = 2; dims_static[1] = nsites; dims_static[2] = nsites;
+        dspace_id = H5Screate_simple(RANK_STATIC, dims_static, NULL);
+        dset_se_static_id = H5Dcreate2(grp_se_id, "Static", complex_id, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        dims_gf[1] = 3;
+        dspace_id = H5Screate_simple(RANK_GF, dims_gf, NULL);
+        dset_se_mom_id = H5Dcreate2(grp_se_id, "Moments", complex_id, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        dset_se_var_id = H5Dcreate2(grp_se_id, "Variance", H5T_NATIVE_DOUBLE, dspace_iw_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_se_tail_id = H5Dcreate2(grp_se_id, "Tail", complex_id, dspace_iw_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dims_gf[1] = mqem.realFreqGrid().size();
+        dspace_id = H5Screate_simple(1, &dims_gf[1], NULL);
+        dset_id = H5Dcreate2(grp_se_id, "RealFreq", H5T_NATIVE_DOUBLE, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        status = H5Dwrite(dset_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.realFreqGrid().data());
+        status = H5Dclose(dset_id);
+        std::cout << "Output real_freqs; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
+        dspace_w_id = H5Screate_simple(RANK_GF, dims_gf, NULL);
+        dset_se_ret_id = H5Dcreate2(grp_se_id, "Retarded", complex_id, dspace_w_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_se_dm_id = H5Dcreate2(grp_se_id, "DefaultModel", complex_id, dspace_w_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        
+        grp_sp_id = H5Gcreate2(file_id, "/Spectrum", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dset_sp_w_id = H5Dcreate2(grp_sp_id, "kIntegrated", complex_id, dspace_w_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        dims_gf[1] = H0->kGridSizes().prod();
+        dspace_id = H5Screate_simple(RANK_GF, dims_gf, NULL);
+        dset_sp_k0_id = H5Dcreate2(grp_sp_id, "FermiSurface", complex_id, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        dims_sp[0] = 2; dims_sp[1] = kidpath.cols(); dims_sp[2] = mqem.realFreqGrid().size(); dims_sp[3] = nsites; dims_sp[4] = nsites;
+        dspace_id = H5Screate_simple(RANK_SP, dims_sp, NULL);
+        dset_sp_kw_id = H5Dcreate2(grp_sp_id, "kFreq", complex_id, dspace_id, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+        status = H5Sclose(dspace_id);
+        
+        status = H5Sclose(dspace_t_id);
+        status = H5Sclose(dspace_iw_id);
+        status = H5Sclose(dspace_w_id);
     }
+    // Test
+    //if (prank == 0) {
+    //    G->valsOnTauGrid()().setOnes();
+    //    status = H5Dwrite(dset_gf_t_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, G->valsOnTauGrid()().data());
+    //
+    //   status = H5Dclose(dset_gf_t_id);
+    //    status = H5Dclose(dset_gf_w_id);
+    //    status = H5Gclose(grp_gf_id);
+    //    status = H5Fclose(file_id);
+    //}
+    //MPI_Finalize();
+    //return 0;
+    
+    
+    //if (prank == 0) {
+    //    printData("real_freqs.txt", mqem.realFreqGrid());
+    //    std::cout << "Output real_freqs.txt; Approximately zero frequency is " << mqem.realFreqGrid()(id0freq) << " at " << id0freq << std::endl;
+    //}
     
     bool computesigma;
     double density, density_old = 1.0, dmu = mu_eff;  //  mueff_old = 0.0;  // Initialize to half filling for fixing density
@@ -814,10 +973,12 @@ int main(int argc, char * argv[]) {
         
         if (prank == 0) {
             std::cout << "DMFT iteration " << dmft.numIterations() << ":" << std::endl;
-            printData("G0.txt", G0->valsOnTauGrid());
-            std::cout << "    Output G0.txt" << std::endl;
-            printData("G0matsubara.txt", G0->fourierCoeffs());
-            std::cout << "    Output G0matsubara.txt" << std::endl;
+            //printData("G0.txt", G0->valsOnTauGrid());
+            status = H5Dwrite(dset_g0_t_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, G0->valsOnTauGrid()().data());
+            std::cout << "    Output G0" << std::endl;
+            //printData("G0matsubara.txt", G0->fourierCoeffs());
+            status = H5Dwrite(dset_g0_iw_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, G0->fourierCoeffs()().data());
+            std::cout << "    Output G0matsubara" << std::endl;
         }
         
         if (prank == 0) std::cout << "    Impurity solver starts solving..." << std::endl;
@@ -828,23 +989,29 @@ int main(int argc, char * argv[]) {
         if (prank == 0) {  // Output obtained result ASAP
             printData("histogram.txt", impsolver.vertexOrderHistogram());
             std::cout << "    Output histogram.txt" << std::endl;
-            printData("G.txt", G->valsOnTauGrid());
-            std::cout << "    Output G.txt" << std::endl;
-            printData("Gmatsubara.txt", G->fourierCoeffs());
-            std::cout << "    Output Gmatsubara.txt" << std::endl;
+            //printData("G.txt", G->valsOnTauGrid());
+            status = H5Dwrite(dset_gf_t_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, G->valsOnTauGrid()().data());
+            std::cout << "    Output G" << std::endl;
+            //printData("Gmatsubara.txt", G->fourierCoeffs());
+            status = H5Dwrite(dset_gf_iw_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, G->fourierCoeffs()().data());
+            std::cout << "    Output Gmatsubara" << std::endl;
             std::cout << "    Impurity solver completed solving in " << tdur.count() << " minutes" << std::endl;
         }
         
         dmft.approxSelfEnergy();
         if (prank == 0) {  // Output obtained result ASAP
-            printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            std::cout << "    Output selfenergy_dyn.txt" << std::endl;
-            printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
-            std::cout << "    Output selfenergy_var.txt" << std::endl;
-            printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
-            std::cout << "    Output selfenergy_static.txt" << std::endl;
-            printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
-            std::cout << "    Output selfenergy_moms.txt" << std::endl;
+            //printData("selfenergy_dyn.txt", dmft.dynSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            status = H5Dwrite(dset_se_dyn_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, dmft.dynSelfEnergy()().data());
+            std::cout << "    Output selfenergy_dyn" << std::endl;
+            //printData("selfenergy_static.txt", dmft.staticSelfEnergy(), std::numeric_limits<double>::max_digits10);
+            status = H5Dwrite(dset_se_static_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, dmft.staticSelfEnergy()().data());
+            std::cout << "    Output selfenergy_static" << std::endl;
+            //printData("selfenergy_moms.txt", dmft.selfEnergyMoms(), std::numeric_limits<double>::max_digits10);
+            status = H5Dwrite(dset_se_mom_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, dmft.selfEnergyMoms()().data());
+            std::cout << "    Output selfenergy_moms" << std::endl;
+            //printData("selfenergy_var.txt", dmft.selfEnergyVar(), std::numeric_limits<double>::max_digits10);
+            status = H5Dwrite(dset_se_var_id, H5T_NATIVE_DOUBLE, H5S_ALL, H5S_ALL, H5P_DEFAULT, dmft.selfEnergyVar()().data());
+            std::cout << "    Output selfenergy_var" << std::endl;
             // For testing
             for (Eigen::Index s = 0; s < 2; ++s) {
                 for (Eigen::Index n = 0; n <= nfcut; ++n) {
@@ -853,8 +1020,9 @@ int main(int argc, char * argv[]) {
                     + dmft.selfEnergyMoms()(s, 2) / (-1i * G0->matsubFreqs()(n) * G0->matsubFreqs()(n) * G0->matsubFreqs()(n));
                 }
             }
-            printData("selfenergy_tail.txt", selfentail);
-            std::cout << "    Output selfenergy_tail.txt" << std::endl;
+            //printData("selfenergy_tail.txt", selfentail);
+            status = H5Dwrite(dset_se_tail_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, selfentail().data());
+            std::cout << "    Output selfenergy_tail" << std::endl;
         }
         
         dmft.updateLatticeGF();
@@ -883,14 +1051,20 @@ int main(int argc, char * argv[]) {
             tdur = tend - tstart;
             if (prank == 0) {  // Output obtained result ASAP
                 //printData("default_model.txt", mqem.defaultModel());
-                printData("selfenergy_retarded.txt", mqem.retardedFunc());
-                std::cout << "    Output selfenergy_retarded.txt" << std::endl;
-                printData("spectraw.txt", Aw);
-                std::cout << "    Output spectraw.txt" << std::endl;
-                printData("spectrakw0.txt", A0);
-                std::cout << "    Output spectrakw0.txt" << std::endl;
-                printData("spectrakw.txt", Akw);
-                std::cout << "    Output spectrakw.txt" << std::endl;
+                status = H5Dwrite(dset_se_dm_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.defaultModel()().data());
+                std::cout << "    Output default_model" << std::endl;
+                //printData("selfenergy_retarded.txt", mqem.retardedFunc());
+                status = H5Dwrite(dset_se_ret_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, mqem.retardedFunc()().data());
+                std::cout << "    Output selfenergy_retarded" << std::endl;
+                //printData("spectraw.txt", Aw);
+                status = H5Dwrite(dset_sp_w_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, Aw().data());
+                std::cout << "    Output spectraw" << std::endl;
+                //printData("spectrakw0.txt", A0);
+                status = H5Dwrite(dset_sp_k0_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, A0().data());
+                std::cout << "    Output spectrakw0" << std::endl;
+                //printData("spectrakw.txt", Akw);
+                status = H5Dwrite(dset_sp_kw_id, complex_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, Akw().data());
+                std::cout << "    Output spectrakw" << std::endl;
                 printData("mqem_diagnosis.txt", mqem.diagnosis(0), std::numeric_limits<double>::max_digits10);
                 std::cout << "    Output mqem_diagnosis.txt" << std::endl;
                 std::cout << "    MQEM completed analytic continuation in " << tdur.count() << " minutes" << std::endl;
@@ -900,10 +1074,10 @@ int main(int argc, char * argv[]) {
             
             if (prank == 0) std::cout << "    Start computing conductivities..." << std::endl;
             tstart = std::chrono::high_resolution_clock::now();
-            sigmaxx = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+            conductivities[0] = longitConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
             if (computesigmaxy) {
-                if (q == 1) sigmaxy = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
-                else sigmaxy = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+                if (q == 1) conductivities[1] = hallConducCoeff(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
+                else conductivities[1] = hallConduc(*H0, mqem.retardedFunc(), beta, mqem.realFreqGrid(), mqem.realFreqIntVector(), intalg_);
             }
             tend = std::chrono::high_resolution_clock::now();
             tdur = tend - tstart;
@@ -925,8 +1099,9 @@ int main(int argc, char * argv[]) {
                 << " " << std::setw(cw) << G->spinCorrelation << " " << std::setw(cw) << impsolver.fermiSign();
             }
             if (computesigma) {
-                fiter << " " << std::setw(cw) << sigmaxx;
-                if (computesigmaxy) fiter << " " << std::setw(cw) << sigmaxy;
+                status = H5Awrite(attr_cond_id, H5T_NATIVE_DOUBLE, conductivities);
+                fiter << " " << std::setw(cw) << conductivities[0];
+                if (computesigmaxy) fiter << " " << std::setw(cw) << conductivities[1];
             }
             else {
                 fiter << " " << std::setw(cw) << "--";
@@ -961,6 +1136,31 @@ int main(int argc, char * argv[]) {
     
     if (prank == 0) {
         fiter.close();
+        
+        status = H5Aclose(attr_cond_id);
+        
+        status = H5Dclose(dset_g0_t_id);
+        status = H5Dclose(dset_g0_iw_id);
+        status = H5Dclose(dset_gf_t_id);
+        status = H5Dclose(dset_gf_iw_id);
+        status = H5Dclose(dset_se_dyn_id);
+        status = H5Dclose(dset_se_static_id);
+        status = H5Dclose(dset_se_mom_id);
+        status = H5Dclose(dset_se_var_id);
+        status = H5Dclose(dset_se_tail_id);
+        status = H5Dclose(dset_se_ret_id);
+        status = H5Dclose(dset_se_dm_id);
+        status = H5Dclose(dset_sp_w_id);
+        status = H5Dclose(dset_sp_k0_id);
+        status = H5Dclose(dset_sp_kw_id);
+        
+        status = H5Gclose(grp_g0_id);
+        status = H5Gclose(grp_gf_id);
+        status = H5Gclose(grp_se_id);
+        status = H5Gclose(grp_sp_id);
+        
+        status = H5Fclose(file_id);
+        
         std::cout << sep << std::endl;
     }
     

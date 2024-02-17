@@ -214,10 +214,10 @@ bool MQEMContinuator<_n0, _n1, _nm>::computeSpectra(const Eigen::Array<double, _
     std::pair<bool, Eigen::Index> cvg;
     
     computeDefaultModel(mom);  // m_D, m_log_normD allocated and calculated in here
-    if (Gw.procRank() == 0) {
-        printData("default_model.txt", m_D);
-        std::cout << "Output default_model.txt" << std::endl;
-    }
+    //if (Gw.procRank() == 0) {
+    //    printData("default_model.txt", m_D);
+    //    std::cout << "Output default_model.txt" << std::endl;
+    //}
     
     m_A.mpiComm(Gw.mpiComm());
     m_A.resize(Gw.dim0(), m_omega.size(), Gw.dimm());
